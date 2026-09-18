@@ -17,6 +17,7 @@ import {
   saveTopicDecomposition,
 } from "@/lib/storage";
 import { lensKey, type SelectedLens } from "@/lib/lenses";
+import { apiPath } from "@/lib/apiPath";
 import type { ChipSearchMode } from "@/lib/prompts";
 import {
   DEFAULT_PURPOSE_ID,
@@ -699,7 +700,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setSubFacetDerivedStatus((s) => ({ ...s, [compound]: "loading" }));
       try {
-        const res = await fetch("/api/decompose-facet", {
+        const res = await fetch(apiPath("/api/decompose-facet"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1062,7 +1063,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (!query) return;
       setChipSearchStatus("loading");
       try {
-        const res = await fetch("/api/chip-search", {
+        const res = await fetch(apiPath("/api/chip-search"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({ query, mode }),
@@ -1242,7 +1243,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setError(null);
       resetFacetState();
       try {
-        const res = await fetch("/api/decompose-topic", {
+        const res = await fetch(apiPath("/api/decompose-topic"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1504,7 +1505,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setFacetStatusByKey((s) => ({ ...s, [key]: "loading" }));
       try {
-        const res = await fetch("/api/decompose-facet", {
+        const res = await fetch(apiPath("/api/decompose-facet"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1595,7 +1596,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setMultiAxisStatusByKey((s) => ({ ...s, [key]: "loading" }));
       try {
-        const res = await fetch("/api/decompose-multi-axis", {
+        const res = await fetch(apiPath("/api/decompose-multi-axis"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1688,7 +1689,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setChipStatus((s) => ({ ...s, [key]: "loading" }));
       try {
-        const res = await fetch("/api/recommend-chips", {
+        const res = await fetch(apiPath("/api/recommend-chips"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1746,7 +1747,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setChipDecompStatusByKey((s) => ({ ...s, [compound]: "loading" }));
       try {
-        const res = await fetch("/api/decompose-chip", {
+        const res = await fetch(apiPath("/api/decompose-chip"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
@@ -1801,7 +1802,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
       setCombineStatus("loading");
       try {
-        const res = await fetch("/api/combine", {
+        const res = await fetch(apiPath("/api/combine"), {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({

@@ -60,7 +60,7 @@ export default function InputBar() {
   };
 
   return (
-    <div className="bg-black px-6 pt-2">
+    <div className="bg-black px-3 pt-2 md:px-6">
       <div className="mb-2 hidden gap-1 md:flex">
         {modes.map((m) => {
           const active = inputMode === m.key;

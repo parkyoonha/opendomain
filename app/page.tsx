@@ -44,7 +44,7 @@ function PageInner() {
         <button
           onClick={() => setChipPanelOpen(true)}
           aria-label="칩 패널 열기"
-          className="absolute left-3 top-3 z-30 hidden h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:flex"
+          className="safe-top-offset absolute left-3 z-30 hidden h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:flex"
           title="칩 검색 패널 열기"
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
@@ -74,7 +74,7 @@ function PageInner() {
             ? "설정 · 무료(Gemini) 사용 중"
             : "설정 · 유료(Claude) 사용 중"
         }
-        className={`absolute right-3 top-3 z-30 flex h-9 items-center gap-1 rounded-md px-3 text-[13px] hover:text-text-primary md:h-8 md:text-[10px] ${
+        className={`safe-top-offset absolute right-3 z-30 flex h-9 items-center gap-1 rounded-md px-3 text-[13px] hover:text-text-primary md:h-8 md:text-[10px] ${
           isFreeTier
             ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
             : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.16]"
@@ -96,19 +96,19 @@ function PageInner() {
             <div
               className={
                 chipAsBottomSheet
-                  ? "absolute inset-x-0 bottom-14 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
+                  ? "absolute inset-x-0 bottom-14 top-1/2 z-40 flex pb-safe-14 bg-neutral-900 shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:pb-0 md:shadow-none"
                   : `${
                       inSplit && activeSplitView !== "chip"
                         ? "hidden md:flex"
                         : "flex"
-                    } h-full min-w-0 flex-1 pb-14 md:flex-none md:pb-0`
+                    } h-full min-w-0 flex-1 pb-safe-14 md:flex-none md:pb-0`
               }
             >
               <ChipSidePanel />
             </div>
           )}
           <main
-            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-14 pt-16 md:pb-0 ${
+            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-16 md:pb-0 md:pt-16 ${
               inSplit
                 ? activeSplitView === "topic"
                   ? "flex"
@@ -126,13 +126,13 @@ function PageInner() {
             <div
               className={`${
                 activeSplitView === "memo" ? "flex" : "hidden"
-              } h-full min-w-0 flex-1 pb-14 pt-16 md:flex md:flex-none md:pb-0`}
+              } h-full min-w-0 flex-1 pb-safe-14 pt-safe-16 md:flex md:flex-none md:pb-0 md:pt-16`}
             >
               <MemoSidebar />
             </div>
           )}
           {showResultPanel && <ResultPanel />}
-          <nav className="absolute inset-x-0 bottom-0 z-30 flex bg-neutral-900 md:hidden">
+          <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex bg-neutral-900 md:hidden">
             {(
               [
                 { key: "topic", label: "사고확장" },

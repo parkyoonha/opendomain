@@ -189,6 +189,8 @@ export default function DecompositionTree() {
     principleLens,
     principleResultType,
     runDecomposeSubFacet,
+    topicPurposeId,
+    commitPending,
   } = useIdea();
 
   if (inputMode === "memo") {
@@ -238,6 +240,26 @@ export default function DecompositionTree() {
         <div className="flex-1 overflow-auto px-6 py-6">
           <PendingTopicCard />
         </div>
+        <MobileDecomposeFab
+          multiMode={false}
+          controlsExpanded={false}
+          selectedPrinciple={null}
+          facetDirection={{}}
+          facetLens={{}}
+          facetResultType={{}}
+          principleDirection={{}}
+          principleLens={{}}
+          principleResultType={{}}
+          multiAxisDirection={DEFAULT_DIRECTION_ID}
+          multiAxisLens={null}
+          multiAxisResultType={null}
+          pendingTopic={pendingTopic}
+          topicPurposeId={topicPurposeId}
+          commitPending={commitPending}
+          runDecomposeFacet={runDecomposeFacet}
+          runDecomposeSubFacet={runDecomposeSubFacet}
+          runDecomposeMultiAxis={runDecomposeMultiAxis}
+        />
       </div>
     );
   }
@@ -370,6 +392,9 @@ export default function DecompositionTree() {
         multiAxisDirection={multiAxisDirection}
         multiAxisLens={multiAxisLens}
         multiAxisResultType={multiAxisResultType}
+        pendingTopic={pendingTopic}
+        topicPurposeId={topicPurposeId}
+        commitPending={commitPending}
         runDecomposeFacet={runDecomposeFacet}
         runDecomposeSubFacet={runDecomposeSubFacet}
         runDecomposeMultiAxis={runDecomposeMultiAxis}
@@ -391,6 +416,9 @@ type MobileDecomposeFabProps = {
   multiAxisDirection: string;
   multiAxisLens: SelectedLens | null;
   multiAxisResultType: BigCategory | null;
+  pendingTopic: string | null;
+  topicPurposeId: string;
+  commitPending: (purposeId: string) => Promise<void>;
   runDecomposeFacet: (
     axis: string,
     directionId?: string,
@@ -425,11 +453,15 @@ function MobileDecomposeFab({
   multiAxisDirection,
   multiAxisLens,
   multiAxisResultType,
+  pendingTopic,
+  topicPurposeId,
+  commitPending,
   runDecomposeFacet,
   runDecomposeSubFacet,
   runDecomposeMultiAxis,
 }: MobileDecomposeFabProps) {
   const [controllerVisible, setControllerVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     const visibleSet = new Set<Element>();
     const observer = new IntersectionObserver(
@@ -459,14 +491,18 @@ function MobileDecomposeFab({
     };
   }, []);
 
+  const canPending = !!pendingTopic;
   const canMulti = multiMode && controlsExpanded;
   const canPrinciple = !!selectedPrinciple;
-  if (!canMulti && !canPrinciple) return null;
+  if (!canPending && !canMulti && !canPrinciple) return null;
   if (!controllerVisible) return null;
 
-  // Only show once user has actually picked at least one chip.
+  // For facet-level: only show once user has picked at least one chip.
+  // Pending-topic case always shows (purpose has default "problem").
   let hasChip = false;
-  if (canMulti) {
+  if (canPending) {
+    hasChip = true;
+  } else if (canMulti) {
     hasChip =
       multiAxisDirection !== DEFAULT_DIRECTION_ID ||
       multiAxisLens !== null ||
@@ -490,11 +526,13 @@ function MobileDecomposeFab({
   }
   if (!hasChip) return null;
 
-  const [loading, setLoading] = useState(false);
-
   const handleClick = async () => {
     setLoading(true);
     try {
+      if (canPending) {
+        await commitPending(topicPurposeId);
+        return;
+      }
       if (canMulti) {
         await runDecomposeMultiAxis(
           multiAxisDirection,
@@ -532,7 +570,8 @@ function MobileDecomposeFab({
     <button
       onClick={handleClick}
       disabled={loading}
-      className="absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
+      className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden"
     >
       <span>분해 시작</span>
       {loading ? (

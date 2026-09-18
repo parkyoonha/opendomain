@@ -71,7 +71,7 @@ export default function LensBar() {
     : null;
 
   return (
-    <div className="bg-black px-6 pt-2">
+    <div className="bg-black px-3 pt-2 md:px-6">
       <div className="flex items-center gap-2">
         <button
           onClick={() => {

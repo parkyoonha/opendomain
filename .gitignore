@@ -7,3 +7,15 @@ build/
 .env*.local
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Capacitor
+.app-api.stash/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/release/
+android/capacitor.settings.gradle
+ios/App/build/
+ios/App/Pods/
+ios/App/App/public/
