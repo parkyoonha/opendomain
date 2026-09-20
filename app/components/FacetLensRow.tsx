@@ -35,17 +35,20 @@ export default function FacetLensRow({
     ...kBuiltinLenses.map((l) => ({ ...l, isCustom: false as const })),
   ];
 
-  if (collapsed) {
+  if (collapsed && currentLens) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
           렌즈
         </span>
+        <span className={`${CHIP_BASE} ${CHIP_ACTIVE}`}>
+          {lensLabel(currentLens)}
+        </span>
         <button
           onClick={() => onCollapseChange?.(false)}
-          className={`${CHIP_BASE} ${CHIP_ACTIVE}`}
+          className="rounded-full bg-white/[0.06] px-3 py-1 text-[12px] text-text-secondary hover:bg-white/[0.14] hover:text-text-primary md:text-[10px]"
         >
-          {lensLabel(currentLens)}
+          렌즈 변경
         </button>
       </div>
     );
@@ -75,12 +78,6 @@ export default function FacetLensRow({
         )}
       </div>
       <div className="flex flex-wrap gap-1">
-        <button
-          onClick={() => pick(null)}
-          className={`${CHIP_BASE} ${!currentLens ? CHIP_ACTIVE : CHIP_INACTIVE}`}
-        >
-          없음
-        </button>
         {opened ? (
           <>
             <button

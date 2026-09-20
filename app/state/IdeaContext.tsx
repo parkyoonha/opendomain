@@ -49,6 +49,8 @@ export type CombinedIdeaRecord = CombinedIdea & {
   createdAt: number;
   chipText: string;
   chipLabel: string;
+  topicAxis: string | null;
+  topicName: string | null;
 };
 
 export type InputMode = "topic" | "memo";
@@ -59,6 +61,17 @@ export type ChipSearchHistoryItem = {
   mode: ChipSearchMode;
   at: number;
   count: number;
+};
+
+export type DecompositionHistoryItem = {
+  id: string;
+  chipKind: ChipKind;
+  chipText: string;
+  directionId: string;
+  lens: SelectedLens | null;
+  resultType: BigCategory | null;
+  axisToPrinciple: Record<string, string>;
+  at: number;
 };
 
 export type Memo = {
@@ -320,6 +333,10 @@ type Ctx = {
   rerunChipSearch: (item: ChipSearchHistoryItem) => Promise<void>;
   clearChipSearchHistory: () => void;
 
+  decompositionHistory: DecompositionHistoryItem[];
+  clearDecompositionHistory: () => void;
+  removeDecompositionHistoryItem: (id: string) => void;
+
   chipPanelOpen: boolean;
   setChipPanelOpen: (v: boolean) => void;
 
@@ -343,6 +360,8 @@ type Ctx = {
 
   selectedLens: SelectedLens | null;
   setSelectedLens: (lens: SelectedLens | null) => void;
+  lensHistory: SelectedLens[];
+  removeLensFromHistory: (lens: SelectedLens) => void;
   customLenses: { discipline: string; scholars: string[] }[];
   addCustomLens: (discipline: string) => void;
   removeCustomLens: (discipline: string) => void;
@@ -400,7 +419,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [multiAxisDirection, setMultiAxisDirection] = useState<string>(
     DEFAULT_DIRECTION_ID,
   );
-  const [multiAxisLens, setMultiAxisLens] = useState<SelectedLens | null>(null);
+  const [multiAxisLens, setMultiAxisLensState] = useState<SelectedLens | null>(
+    null,
+  );
   const [multiAxisResultType, setMultiAxisResultType] =
     useState<BigCategory | null>(null);
 
@@ -630,6 +651,14 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const setFacetLens = useCallback(
     (axis: string, lens: SelectedLens | null) => {
       setFacetLensState((prev) => ({ ...prev, [axis]: lens }));
+      if (lens) {
+        setSelectedLensState(lens);
+        setLensHistory((prev) => {
+          const k = lensKey(lens);
+          if (prev.some((l) => lensKey(l) === k)) return prev;
+          return [...prev, lens];
+        });
+      }
     },
     [],
   );
@@ -669,9 +698,29 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const setPrincipleLens = useCallback(
     (pk: string, lens: SelectedLens | null) => {
       setPrincipleLensState((prev) => ({ ...prev, [pk]: lens }));
+      if (lens) {
+        setSelectedLensState(lens);
+        setLensHistory((prev) => {
+          const k = lensKey(lens);
+          if (prev.some((l) => lensKey(l) === k)) return prev;
+          return [...prev, lens];
+        });
+      }
     },
     [],
   );
+
+  const setMultiAxisLens = useCallback((lens: SelectedLens | null) => {
+    setMultiAxisLensState(lens);
+    if (lens) {
+      setSelectedLensState(lens);
+      setLensHistory((prev) => {
+        const k = lensKey(lens);
+        if (prev.some((l) => lensKey(l) === k)) return prev;
+        return [...prev, lens];
+      });
+    }
+  }, []);
 
   const setPrincipleResultType = useCallback(
     (pk: string, resultType: BigCategory | null) => {
@@ -887,16 +936,43 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [chipSearchHistory, setChipSearchHistory] = useState<
     ChipSearchHistoryItem[]
   >([]);
+  const [decompositionHistory, setDecompositionHistory] = useState<
+    DecompositionHistoryItem[]
+  >([]);
   const [chipPanelOpen, setChipPanelOpen] = useState(false);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [focusedCombinedIdeaId, setFocusedCombinedIdeaId] = useState<
     string | null
   >(null);
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+
   const [attachedChips, setAttachedChips] = useState<
     Record<string, AttachedChip[]>
   >({});
-  const [selectedLens, setSelectedLens] = useState<SelectedLens | null>(null);
+  const [selectedLensState, setSelectedLensState] =
+    useState<SelectedLens | null>(null);
+  const [lensHistory, setLensHistory] = useState<SelectedLens[]>([]);
+  const setSelectedLens = useCallback((lens: SelectedLens | null) => {
+    setSelectedLensState(lens);
+    if (lens) {
+      setLensHistory((prev) => {
+        const k = lensKey(lens);
+        if (prev.some((l) => lensKey(l) === k)) return prev;
+        return [...prev, lens];
+      });
+    }
+  }, []);
+  const selectedLens = selectedLensState;
+  const removeLensFromHistory = useCallback(
+    (lens: SelectedLens) => {
+      const k = lensKey(lens);
+      setLensHistory((prev) => prev.filter((l) => lensKey(l) !== k));
+      if (selectedLensState && lensKey(selectedLensState) === k) {
+        setSelectedLensState(null);
+      }
+    },
+    [selectedLensState],
+  );
   const [customResultTypes, setCustomResultTypes] = useState<string[]>([]);
   const addCustomResultType = useCallback((label: string) => {
     const trimmed = label.trim();
@@ -1125,6 +1201,14 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const clearDecompositionHistory = useCallback(
+    () => setDecompositionHistory([]),
+    [],
+  );
+  const removeDecompositionHistoryItem = useCallback((id: string) => {
+    setDecompositionHistory((prev) => prev.filter((h) => h.id !== id));
+  }, []);
+
   const attachChip = useCallback((pk: string, chip: AttachedChip) => {
     setAttachedChips((prev) => {
       const cur = prev[pk] ?? [];
@@ -1292,8 +1376,17 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const runDecompose = useCallback(async () => {
     const trimmed = topicText.trim();
     if (!trimmed) return;
+    // Reset all prior topic state so the new topic's pending controller
+    // takes over (otherwise DecompositionTree stays on the old axes view).
     setPendingTopic(trimmed);
     setTopicText("");
+    setDecomposition(null);
+    setCurrentPageId(null);
+    setDraftType("topic");
+    setSelectedAxes(new Set());
+    setSelectedPrinciple(null);
+    setSplitMemoPageId(null);
+    setCenterMode("topic");
   }, [topicText]);
 
   const commitPending = useCallback(
@@ -1487,7 +1580,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (!parentPrinciple) return;
       const directionId =
         directionIdArg ?? facetDirection[axis] ?? DEFAULT_DIRECTION_ID;
-      const lens = lensArg !== undefined ? lensArg : facetLens[axis] ?? null;
+      const lens =
+        lensArg !== undefined
+          ? lensArg
+          : facetLens[axis] ?? selectedLens ?? null;
       const resultType =
         resultTypeArg !== undefined ? resultTypeArg : facetResultType[axis] ?? null;
       const key = facetKey(axis, directionId, lens, resultType, providerTag);
@@ -1546,6 +1642,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       customDirections,
       providerTag,
       appendAxisGen,
+      selectedLens,
     ],
   );
 
@@ -1576,7 +1673,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (activeAxes.length < 2) return;
 
       const directionId = directionIdArg ?? multiAxisDirection;
-      const lens = lensArg !== undefined ? lensArg : multiAxisLens;
+      const lens =
+        lensArg !== undefined ? lensArg : multiAxisLens ?? selectedLens;
       const resultType =
         resultTypeArg !== undefined ? resultTypeArg : multiAxisResultType;
       const key = multiAxisKey(
@@ -1632,6 +1730,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       multiAxisResultsByKey,
       customDirections,
       multiAxisKey,
+      selectedLens,
     ],
   );
 
@@ -1771,6 +1870,31 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           [compound]: data.axisToPrinciple!,
         }));
         setChipDecompStatusByKey((s) => ({ ...s, [compound]: "idle" }));
+        setDecompositionHistory((prev) => {
+          const filtered = prev.filter(
+            (h) =>
+              !(
+                h.chipKind === kind &&
+                h.chipText === text &&
+                h.directionId === directionId &&
+                lensKey(h.lens) === lensKey(lens) &&
+                (h.resultType ?? null) === (resultType ?? null)
+              ),
+          );
+          return [
+            {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              chipKind: kind,
+              chipText: text,
+              directionId,
+              lens,
+              resultType,
+              axisToPrinciple: data.axisToPrinciple!,
+              at: Date.now(),
+            },
+            ...filtered,
+          ].slice(0, 30);
+        });
       } catch (err) {
         setChipDecompStatusByKey((s) => ({ ...s, [compound]: "error" }));
         setError(err instanceof Error ? err.message : String(err));
@@ -1817,29 +1941,44 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           }),
         });
         const data = (await res.json()) as {
+          ideas?: CombinedIdea[];
           idea?: CombinedIdea;
           error?: string;
         };
-        if (!res.ok || !data.idea) {
+        const rawIdeas: CombinedIdea[] =
+          data.ideas && data.ideas.length > 0
+            ? data.ideas
+            : data.idea
+              ? [data.idea]
+              : [];
+        if (!res.ok || rawIdeas.length === 0) {
           throw new Error(data.error ?? `Request failed: ${res.status}`);
         }
         const label = input.chipFacet
           ? `${input.chipText} · ${input.chipFacet.axis}`
           : input.chipText;
-        const rec: CombinedIdeaRecord = {
-          ...data.idea,
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: Date.now(),
+        const topicAxis = input.topicFacet?.axis ?? selectedPrinciple?.axis ?? null;
+        const topicName =
+          input.topicFacet?.axis
+            ? "축 전체"
+            : selectedPrinciple?.name ?? null;
+        const now = Date.now();
+        const recs: CombinedIdeaRecord[] = rawIdeas.map((idea, i) => ({
+          ...idea,
+          id: `${now}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: now + i,
           chipText: input.chipText,
           chipLabel: label,
-        };
-        setCombinedIdeas((prev) => [rec, ...prev]);
+          topicAxis,
+          topicName,
+        }));
+        setCombinedIdeas((prev) => [...recs, ...prev]);
         setCombineStatus("idle");
         pushActivity({
           kind: "combine",
-          title: rec.title || label,
+          title: recs[0].title || label,
           subtitle: label,
-          payload: { kind: "combine", combinedIdeaId: rec.id },
+          payload: { kind: "combine", combinedIdeaId: recs[0].id },
         });
       } catch (err) {
         setCombineStatus("error");
@@ -2000,6 +2139,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       chipSearchHistory,
       rerunChipSearch,
       clearChipSearchHistory,
+      decompositionHistory,
+      clearDecompositionHistory,
+      removeDecompositionHistoryItem,
       chipPanelOpen,
       setChipPanelOpen,
       activityLog,
@@ -2019,6 +2161,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       removeAttachedChip,
       selectedLens,
       setSelectedLens,
+      lensHistory,
+      removeLensFromHistory,
       customLenses,
       addCustomLens,
       removeCustomLens,
@@ -2135,6 +2279,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       chipSearchHistory,
       rerunChipSearch,
       clearChipSearchHistory,
+      decompositionHistory,
+      clearDecompositionHistory,
+      removeDecompositionHistoryItem,
       chipPanelOpen,
       activityLog,
       openActivity,
@@ -2152,6 +2299,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       attachChip,
       removeAttachedChip,
       selectedLens,
+      setSelectedLens,
+      lensHistory,
+      removeLensFromHistory,
       customLenses,
       addCustomLens,
       removeCustomLens,

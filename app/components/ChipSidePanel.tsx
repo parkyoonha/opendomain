@@ -16,9 +16,10 @@ import {
   type ChipKind,
 } from "@/lib/constants";
 import { chipSearchModeLabel, type ChipSearchMode } from "@/lib/prompts";
+import { lensLabel } from "@/lib/lenses";
 import FacetLensRow from "./FacetLensRow";
 
-type Tab = "library" | "similar" | "search";
+type Tab = "library" | "similar" | "search" | "history";
 type Staged =
   | { source: "library"; kind: ChipKind; chipText: string; kindOrCategory: string }
   | {
@@ -74,6 +75,9 @@ export default function ChipSidePanel() {
     setChipPanelOpen,
     userChips,
     removeUserChip,
+    decompositionHistory,
+    clearDecompositionHistory,
+    removeDecompositionHistoryItem,
   } = useIdea();
 
   const hasPrinciple = Boolean(selectedPrinciple);
@@ -170,6 +174,9 @@ export default function ChipSidePanel() {
         )}
         <TabBtn active={tab === "search"} onClick={() => setTab("search")}>
           검색
+        </TabBtn>
+        <TabBtn active={tab === "history"} onClick={() => setTab("history")}>
+          히스토리
         </TabBtn>
       </div>
 
@@ -649,6 +656,125 @@ export default function ChipSidePanel() {
             </div>
           </div>
         )}
+
+        {tab === "history" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+                분해한 칩 ({decompositionHistory.length})
+              </div>
+              {decompositionHistory.length > 0 && (
+                <button
+                  onClick={clearDecompositionHistory}
+                  className="text-[10px] text-text-muted hover:text-text-primary"
+                >
+                  지우기
+                </button>
+              )}
+            </div>
+            {decompositionHistory.length === 0 ? (
+              <p className="text-[14px] text-text-muted md:text-[11px]">
+                아직 분해한 칩이 없습니다. 칩을 분해하면 여기에 기록됩니다.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {decompositionHistory.map((h) => {
+                  const axes = Object.entries(h.axisToPrinciple);
+                  const combineWholeChip = () => {
+                    if (!pk) return;
+                    const attached: AttachedChip = {
+                      id: newChipId(),
+                      chipText: h.chipText,
+                      chipKind: h.chipKind,
+                      source: "library",
+                      kindOrCategory: chipKindLabel[h.chipKind],
+                    };
+                    attachChip(pk, attached);
+                    void runCombine({
+                      chipKind: h.chipKind,
+                      chipCategory: null,
+                      chipText: h.chipText,
+                      chipReason: null,
+                    });
+                  };
+                  return (
+                    <li
+                      key={h.id}
+                      className="rounded-md bg-white/[0.04] px-2.5 py-2"
+                    >
+                      <div className="mb-1 flex items-start justify-between gap-1">
+                        <div className="min-w-0">
+                          <div className="text-[9px] uppercase tracking-wider text-text-muted">
+                            {chipKindLabel[h.chipKind]} · {lensLabel(h.lens)}
+                          </div>
+                          <button
+                            onClick={combineWholeChip}
+                            disabled={!hasPrinciple}
+                            title={
+                              hasPrinciple
+                                ? "이 칩 전체를 보드 원리와 조합"
+                                : "보드에서 원리를 먼저 선택하세요"
+                            }
+                            className="mt-0.5 truncate text-left text-[13px] font-semibold text-text-primary transition-colors hover:text-white disabled:cursor-default disabled:hover:text-text-primary md:text-[11px]"
+                          >
+                            {h.chipText}
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeDecompositionHistoryItem(h.id)}
+                          aria-label="히스토리 삭제"
+                          className="shrink-0 text-[10px] text-text-muted hover:text-text-primary"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <ul className="flex flex-col gap-0.5">
+                        {axes.map(([ax, pr]) => (
+                          <li key={ax}>
+                            <button
+                              onClick={() => {
+                                if (!pk) return;
+                                const attached: AttachedChip = {
+                                  id: newChipId(),
+                                  chipText: h.chipText,
+                                  chipKind: h.chipKind,
+                                  source: "library",
+                                  kindOrCategory: chipKindLabel[h.chipKind],
+                                };
+                                attachChip(pk, attached);
+                                void runCombine({
+                                  chipKind: h.chipKind,
+                                  chipCategory: null,
+                                  chipText: h.chipText,
+                                  chipReason: null,
+                                  chipFacet: { axis: ax, principle: pr },
+                                });
+                              }}
+                              disabled={!hasPrinciple}
+                              title={
+                                hasPrinciple
+                                  ? `${ax} × 보드 원리 조합`
+                                  : "보드에서 원리를 먼저 선택하세요"
+                              }
+                              className="w-full rounded px-1.5 py-1 text-left transition-colors hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
+                            >
+                              <div className="text-[10px] font-semibold text-text-primary">
+                                {ax}
+                              </div>
+                              <div className="text-[13px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                                {pr}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 px-3 py-3">
@@ -702,24 +828,24 @@ export default function ChipSidePanel() {
           )}
         </button>
         {hasPrinciple && (
-          <button
-            onClick={attachAndCombine}
-            disabled={!staged}
-            className="flex flex-1 items-center justify-between rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-black transition-opacity disabled:opacity-30 md:px-4 md:py-2 md:text-[12px]"
-          >
-            <span className="truncate">
-              {staged ? `조합: ${staged.chipText}` : "칩을 먼저 선택하세요"}
-            </span>
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0">
-              <path
-                d="M5 12h14M13 5l7 7-7 7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+        <button
+          onClick={attachAndCombine}
+          disabled={!staged}
+          className="flex flex-1 items-center justify-between rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-black transition-opacity disabled:opacity-30 md:px-4 md:py-2 md:text-[12px]"
+        >
+          <span className="truncate">
+            {staged ? `조합: ${staged.chipText}` : "칩을 먼저 선택하세요"}
+          </span>
+          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0">
+            <path
+              d="M5 12h14M13 5l7 7-7 7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         )}
       </div>
     </aside>

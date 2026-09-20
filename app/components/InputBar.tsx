@@ -61,7 +61,7 @@ export default function InputBar() {
 
   return (
     <div className="bg-black px-3 pt-2 md:px-6">
-      <div className="mb-2 hidden gap-1 md:flex">
+      <div className="mb-2 hidden justify-center gap-1 md:flex">
         {modes.map((m) => {
           const active = inputMode === m.key;
           return (
@@ -70,7 +70,7 @@ export default function InputBar() {
               onClick={() => handleTabClick(m.key)}
               className={`rounded-full px-3 py-1 text-[11px] transition-colors ${
                 active
-                  ? "text-text-primary"
+                  ? "bg-white/[0.12] text-text-primary"
                   : "text-text-muted hover:text-text-secondary"
               }`}
               title={
@@ -89,7 +89,7 @@ export default function InputBar() {
           e.preventDefault();
           submit();
         }}
-        className="flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1"
+        className="mx-auto flex items-center gap-2 rounded-full bg-white/[0.12] py-1 pl-3 pr-1 md:max-w-[760px]"
       >
         {showSearchIcon && (
           <svg

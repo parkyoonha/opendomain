@@ -1,18 +1,15 @@
 "use client";
 
 import InputBar from "./components/InputBar";
-import LensBar from "./components/LensBar";
+import TopicChipsBar from "./components/TopicChipsBar";
 import DecompositionTree from "./components/DecompositionTree";
 import ChipSidePanel from "./components/ChipSidePanel";
-import ResultPanel from "./components/ResultPanel";
 import SettingsModal from "./components/SettingsModal";
 import MemoSidebar from "./components/MemoSidebar";
 import { IdeaProvider, useIdea } from "./state/IdeaContext";
 
 function PageInner() {
   const {
-    combinedIdeas,
-    combineStatus,
     chipPanelOpen,
     setChipPanelOpen,
     setSettingsOpen,
@@ -31,8 +28,6 @@ function PageInner() {
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
-  const showResultPanel =
-    combinedIdeas.length > 0 || combineStatus === "loading";
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const canGoBack = inputMode === "memo" && !memoListMode;
   const chipAsBottomSheet =
@@ -40,32 +35,39 @@ function PageInner() {
 
   return (
     <div className="relative flex h-full w-full bg-black">
-      {!showChipPanel && (
-        <button
-          onClick={() => setChipPanelOpen(true)}
-          aria-label="칩 패널 열기"
-          className="safe-top-offset absolute left-3 z-30 hidden h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:flex"
-          title="칩 검색 패널 열기"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-            <rect
-              x="3"
-              y="4"
-              width="8"
-              height="16"
-              rx="1.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M14 8h6M14 12h6M14 16h4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      )}
+      <button
+        onClick={() => setChipPanelOpen(!showChipPanel)}
+        aria-label={showChipPanel ? "칩 패널 닫기" : "칩 패널 열기"}
+        title={showChipPanel ? "칩 검색 패널 닫기" : "칩 검색 패널 열기"}
+        style={
+          showChipPanel
+            ? { left: "calc(20rem + 0.75rem)" }
+            : undefined
+        }
+        className={`safe-top-offset absolute z-30 hidden h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:text-text-primary md:flex ${
+          showChipPanel
+            ? "bg-white/[0.16] text-text-primary"
+            : "left-3 bg-white/[0.08] hover:bg-white/[0.16]"
+        }`}
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+          <rect
+            x="3"
+            y="4"
+            width="8"
+            height="16"
+            rx="1.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M14 8h6M14 12h6M14 16h4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
       <button
         onClick={() => setSettingsOpen(true)}
         aria-label="설정"
@@ -96,7 +98,7 @@ function PageInner() {
             <div
               className={
                 chipAsBottomSheet
-                  ? "absolute inset-x-0 bottom-14 top-1/2 z-40 flex pb-safe-14 bg-neutral-900 shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:pb-0 md:shadow-none"
+                  ? "safe-bottom absolute inset-x-0 bottom-14 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
                   : `${
                       inSplit && activeSplitView !== "chip"
                         ? "hidden md:flex"
@@ -108,7 +110,7 @@ function PageInner() {
             </div>
           )}
           <main
-            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-16 md:pb-0 md:pt-16 ${
+            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-16 md:pb-0 md:pt-12 ${
               inSplit
                 ? activeSplitView === "topic"
                   ? "flex"
@@ -119,19 +121,18 @@ function PageInner() {
             }`}
           >
             <InputBar />
-            {inputMode !== "memo" && <LensBar />}
+            {inputMode !== "memo" && <TopicChipsBar />}
             <DecompositionTree />
           </main>
           {inSplit && (
             <div
               className={`${
                 activeSplitView === "memo" ? "flex" : "hidden"
-              } h-full min-w-0 flex-1 pb-safe-14 pt-safe-16 md:flex md:flex-none md:pb-0 md:pt-16`}
+              } h-full min-w-0 flex-1 pb-safe-14 pt-safe-16 md:flex md:flex-none md:pb-0 md:pt-12`}
             >
               <MemoSidebar />
             </div>
           )}
-          {showResultPanel && <ResultPanel />}
           <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex bg-neutral-900 md:hidden">
             {(
               [
@@ -150,6 +151,10 @@ function PageInner() {
                   key={t.key}
                   onClick={() => {
                     if (t.key === "chip") {
+                      if (showChipPanel && !inSplit) {
+                        setChipPanelOpen(false);
+                        return;
+                      }
                       setChipPanelOpen(true);
                       if (inSplit) setActiveSplitView("chip");
                       return;

@@ -9,7 +9,12 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import { useIdea, principleKey, chipKey } from "../state/IdeaContext";
+import {
+  useIdea,
+  principleKey,
+  chipKey,
+  type CombinedIdeaRecord,
+} from "../state/IdeaContext";
 import {
   DEFAULT_DIRECTION_ID,
   kBuiltinDirections,
@@ -191,6 +196,7 @@ export default function DecompositionTree() {
     runDecomposeSubFacet,
     topicPurposeId,
     commitPending,
+    selectedLens,
   } = useIdea();
 
   if (inputMode === "memo") {
@@ -255,6 +261,7 @@ export default function DecompositionTree() {
           multiAxisResultType={null}
           pendingTopic={pendingTopic}
           topicPurposeId={topicPurposeId}
+          selectedLens={selectedLens}
           commitPending={commitPending}
           runDecomposeFacet={runDecomposeFacet}
           runDecomposeSubFacet={runDecomposeSubFacet}
@@ -351,6 +358,7 @@ export default function DecompositionTree() {
             setFacetLens={setFacetLens}
             setFacetResultType={setFacetResultType}
             runRecommendChips={runRecommendChips}
+            selectedLens={selectedLens}
           />
           {multiMode && controlsExpanded && (
             <MergedAxisBranch
@@ -361,7 +369,7 @@ export default function DecompositionTree() {
               status={multiAxisStatus}
               currentDirection={multiAxisDirection}
               onChangeDirection={setMultiAxisDirection}
-              currentLens={multiAxisLens}
+              currentLens={multiAxisLens ?? selectedLens}
               onChangeLens={setMultiAxisLens}
               currentResultType={multiAxisResultType}
               onChangeResultType={setMultiAxisResultType}
@@ -394,6 +402,7 @@ export default function DecompositionTree() {
         multiAxisResultType={multiAxisResultType}
         pendingTopic={pendingTopic}
         topicPurposeId={topicPurposeId}
+        selectedLens={selectedLens}
         commitPending={commitPending}
         runDecomposeFacet={runDecomposeFacet}
         runDecomposeSubFacet={runDecomposeSubFacet}
@@ -418,6 +427,7 @@ type MobileDecomposeFabProps = {
   multiAxisResultType: BigCategory | null;
   pendingTopic: string | null;
   topicPurposeId: string;
+  selectedLens: SelectedLens | null;
   commitPending: (purposeId: string) => Promise<void>;
   runDecomposeFacet: (
     axis: string,
@@ -455,6 +465,7 @@ function MobileDecomposeFab({
   multiAxisResultType,
   pendingTopic,
   topicPurposeId,
+  selectedLens,
   commitPending,
   runDecomposeFacet,
   runDecomposeSubFacet,
@@ -497,35 +508,6 @@ function MobileDecomposeFab({
   if (!canPending && !canMulti && !canPrinciple) return null;
   if (!controllerVisible) return null;
 
-  // For facet-level: only show once user has picked at least one chip.
-  // Pending-topic case always shows (purpose has default "problem").
-  let hasChip = false;
-  if (canPending) {
-    hasChip = true;
-  } else if (canMulti) {
-    hasChip =
-      multiAxisDirection !== DEFAULT_DIRECTION_ID ||
-      multiAxisLens !== null ||
-      multiAxisResultType !== null;
-  } else if (selectedPrinciple) {
-    const { axis, name } = selectedPrinciple;
-    if (name === "축 전체") {
-      hasChip =
-        (facetDirection[axis] ?? DEFAULT_DIRECTION_ID) !==
-          DEFAULT_DIRECTION_ID ||
-        (facetLens[axis] ?? null) !== null ||
-        (facetResultType[axis] ?? null) !== null;
-    } else {
-      const pk = principleKey(axis, name);
-      hasChip =
-        (principleDirection[pk] ?? DEFAULT_DIRECTION_ID) !==
-          DEFAULT_DIRECTION_ID ||
-        (principleLens[pk] ?? null) !== null ||
-        (principleResultType[pk] ?? null) !== null;
-    }
-  }
-  if (!hasChip) return null;
-
   const handleClick = async () => {
     setLoading(true);
     try {
@@ -536,7 +518,7 @@ function MobileDecomposeFab({
       if (canMulti) {
         await runDecomposeMultiAxis(
           multiAxisDirection,
-          multiAxisLens,
+          multiAxisLens ?? selectedLens,
           multiAxisResultType,
         );
         return;
@@ -547,7 +529,7 @@ function MobileDecomposeFab({
         await runDecomposeFacet(
           axis,
           facetDirection[axis] ?? DEFAULT_DIRECTION_ID,
-          facetLens[axis] ?? null,
+          facetLens[axis] ?? selectedLens ?? null,
           facetResultType[axis] ?? null,
         );
       } else {
@@ -557,7 +539,7 @@ function MobileDecomposeFab({
           name,
           text,
           principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
-          principleLens[pk] ?? null,
+          principleLens[pk] ?? selectedLens ?? null,
           principleResultType[pk] ?? null,
         );
       }
@@ -652,6 +634,7 @@ type AxesColumnProps = {
   setFacetLens: (axis: string, lens: SelectedLens | null) => void;
   setFacetResultType: (axis: string, resultType: BigCategory | null) => void;
   runRecommendChips: (axis: string, name: string, text: string) => Promise<void>;
+  selectedLens: SelectedLens | null;
 };
 
 function AxesColumn(props: AxesColumnProps) {
@@ -682,6 +665,7 @@ function AxesColumn(props: AxesColumnProps) {
     setFacetLens,
     setFacetResultType,
     runRecommendChips,
+    selectedLens,
   } = props;
 
   // Find bottom-most selected axis to know where the expand arrow should sit.
@@ -738,7 +722,7 @@ function AxesColumn(props: AxesColumnProps) {
               customDirections={customDirections}
               addCustomDirection={addCustomDirection}
               removeCustomDirection={removeCustomDirection}
-              currentLens={facetLens[axis] ?? null}
+              currentLens={facetLens[axis] ?? selectedLens ?? null}
               onChangeLens={(lens) => setFacetLens(axis, lens)}
               currentResultType={facetResultType[axis] ?? null}
               onChangeResultType={(rt) => setFacetResultType(axis, rt)}
@@ -806,6 +790,7 @@ function MergedAxisBranch({
   onCollapse,
 }: MergedAxisBranchProps) {
   const [chipsCollapsed, setChipsCollapsed] = useState(false);
+  const [lensCollapsed, setLensCollapsed] = useState(true);
   const entries = Object.entries(results);
   const connectorRef = useRef<HTMLDivElement>(null);
   const controlRef = useRef<HTMLDivElement>(null);
@@ -910,8 +895,8 @@ function MergedAxisBranch({
         <FacetLensRow
           currentLens={currentLens}
           onChangeLens={onChangeLens}
-          collapsed={chipsCollapsed}
-          onCollapseChange={setChipsCollapsed}
+          collapsed={lensCollapsed}
+          onCollapseChange={setLensCollapsed}
         />
         <ResultTypeChipRow
           value={currentResultType}
@@ -919,18 +904,14 @@ function MergedAxisBranch({
           collapsed={chipsCollapsed}
           onCollapseChange={setChipsCollapsed}
         />
-        {(currentDirection !== DEFAULT_DIRECTION_ID ||
-          currentLens !== null ||
-          currentResultType !== null) && (
-          <button
-            onClick={onDecompose}
-            disabled={status === "loading"}
-            className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
-          >
-            <span>분해 시작</span>
-            {status === "loading" ? <DecomposeSpinnerIcon /> : <DecomposeArrowIcon />}
-          </button>
-        )}
+        <button
+          onClick={onDecompose}
+          disabled={status === "loading"}
+          className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
+        >
+          <span>분해 시작</span>
+          {status === "loading" ? <DecomposeSpinnerIcon /> : <DecomposeArrowIcon />}
+        </button>
         {status === "error" && (
           <span className="text-[10px] text-red-400">분해 실패</span>
         )}
@@ -1019,7 +1000,18 @@ function AxisRow({
 }: AxisRowProps) {
   const subEntries = subFacets ? Object.entries(subFacets) : [];
   const [chipsCollapsed, setChipsCollapsed] = useState(false);
-  const { addMemo, setChipPanelOpen, attachedChips } = useIdea();
+  const [lensCollapsed, setLensCollapsed] = useState(true);
+  const {
+    addMemo,
+    setChipPanelOpen,
+    attachedChips,
+    combinedIdeas,
+    combineStatus,
+    clearCombined,
+    focusedCombinedIdeaId,
+    setFocusedCombinedIdeaId,
+    selectedPrinciple,
+  } = useIdea();
   const controlsRef = useRef<HTMLDivElement>(null);
   const generationsRef = useRef<HTMLDivElement>(null);
   const showControls = showControlsProp && active && !hideRightSide;
@@ -1027,6 +1019,19 @@ function AxisRow({
   const latestAxisChip = axisChips[axisChips.length - 1];
   const genCount = generations?.length ?? 0;
   const prevGenCountRef = useRef(0);
+  const axisCombinedIdeas = useMemo(
+    () =>
+      combinedIdeas.filter(
+        (c) => c.topicAxis === axis && c.topicName === "축 전체",
+      ),
+    [combinedIdeas, axis],
+  );
+  const isAxisSelected =
+    selectedPrinciple?.axis === axis && selectedPrinciple?.name === "축 전체";
+  const showAxisCombineLoading =
+    isAxisSelected &&
+    combineStatus === "loading" &&
+    axisCombinedIdeas.length === 0;
 
   // When a new generation appears, scroll to bring the LATEST generation
   // (last child of the generations container) into view — same motion as first
@@ -1114,8 +1119,8 @@ function AxisRow({
           <FacetLensRow
             currentLens={currentLens}
             onChangeLens={onChangeLens}
-            collapsed={chipsCollapsed}
-            onCollapseChange={setChipsCollapsed}
+            collapsed={lensCollapsed}
+            onCollapseChange={setLensCollapsed}
           />
           <ResultTypeChipRow
             value={currentResultType}
@@ -1123,28 +1128,24 @@ function AxisRow({
             collapsed={chipsCollapsed}
             onCollapseChange={setChipsCollapsed}
           />
-          {(currentDirection !== DEFAULT_DIRECTION_ID ||
-            currentLens !== null ||
-            currentResultType !== null) && (
-            <button
-              onClick={() =>
-                onDecomposeFacet(
-                  currentDirection,
-                  currentLens,
-                  currentResultType,
-                )
-              }
-              disabled={fStatus === "loading"}
-              className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
-            >
-              <span>분해 시작</span>
-              {fStatus === "loading" ? (
-                <DecomposeSpinnerIcon />
-              ) : (
-                <DecomposeArrowIcon />
-              )}
-            </button>
-          )}
+          <button
+            onClick={() =>
+              onDecomposeFacet(
+                currentDirection,
+                currentLens,
+                currentResultType,
+              )
+            }
+            disabled={fStatus === "loading"}
+            className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
+          >
+            <span>분해 시작</span>
+            {fStatus === "loading" ? (
+              <DecomposeSpinnerIcon />
+            ) : (
+              <DecomposeArrowIcon />
+            )}
+          </button>
         </div>
       )}
 
@@ -1163,7 +1164,7 @@ function AxisRow({
             const pal = chipTagPalette(g.key);
             return (
               <div key={g.key} className="flex flex-col gap-1">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 md:pl-8">
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${pal.border} ${pal.bg} ${pal.text}`}
                   >
@@ -1185,6 +1186,16 @@ function AxisRow({
             );
           })}
         </div>
+      )}
+      {(axisCombinedIdeas.length > 0 || showAxisCombineLoading) && (
+        <CombinedIdeasBoardSection
+          combinedIdeas={axisCombinedIdeas}
+          combineStatus={showAxisCombineLoading ? "loading" : "idle"}
+          clearCombined={clearCombined}
+          focusedCombinedIdeaId={focusedCombinedIdeaId}
+          setFocusedCombinedIdeaId={setFocusedCombinedIdeaId}
+          parentAxis={axis}
+        />
       )}
       {!hideRightSide && (
         <div aria-hidden className="shrink-0" style={{ width: "800px" }} />
@@ -1653,6 +1664,12 @@ function FacetNode({
     expandedPrinciples,
     markPrincipleExpanded,
     markPrincipleCollapsed,
+    selectedLens,
+    combinedIdeas,
+    combineStatus,
+    clearCombined,
+    focusedCombinedIdeaId,
+    setFocusedCombinedIdeaId,
   } = useIdea();
 
   const pk = principleKey(rootAxis, pathName);
@@ -1660,7 +1677,17 @@ function FacetNode({
     selectedPrinciple?.axis === rootAxis && selectedPrinciple?.name === pathName;
   const derived = subFacetDerived[pk] ?? [];
   const chips = attachedChips[pk] ?? [];
+  const ownCombinedIdeas = useMemo(
+    () =>
+      combinedIdeas.filter(
+        (c) => c.topicAxis === rootAxis && c.topicName === pathName,
+      ),
+    [combinedIdeas, rootAxis, pathName],
+  );
+  const showOwnCombineLoading =
+    isSel && combineStatus === "loading" && ownCombinedIdeas.length === 0;
   const [chipsCollapsed, setChipsCollapsed] = useState(false);
+  const [lensCollapsed, setLensCollapsed] = useState(true);
   const [subFacetLoading, setSubFacetLoading] = useState(false);
   // Global grow-only expansion — survives remounts and never collapses so the
   // tree layout stays stable at every depth.
@@ -1777,10 +1804,10 @@ function FacetNode({
               onCollapseChange={setChipsCollapsed}
             />
             <FacetLensRow
-              currentLens={principleLens[pk] ?? null}
+              currentLens={principleLens[pk] ?? selectedLens ?? null}
               onChangeLens={(lens) => setPrincipleLens(pk, lens)}
-              collapsed={chipsCollapsed}
-              onCollapseChange={setChipsCollapsed}
+              collapsed={lensCollapsed}
+              onCollapseChange={setLensCollapsed}
             />
             <ResultTypeChipRow
               value={principleResultType[pk] ?? null}
@@ -1788,39 +1815,34 @@ function FacetNode({
               collapsed={chipsCollapsed}
               onCollapseChange={setChipsCollapsed}
             />
-            {((principleDirection[pk] ?? DEFAULT_DIRECTION_ID) !==
-              DEFAULT_DIRECTION_ID ||
-              (principleLens[pk] ?? null) !== null ||
-              (principleResultType[pk] ?? null) !== null) && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={async () => {
-                    setSubFacetLoading(true);
-                    try {
-                      await runDecomposeSubFacet(
-                        rootAxis,
-                        pathName,
-                        facetText,
-                        principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
-                        principleLens[pk] ?? null,
-                        principleResultType[pk] ?? null,
-                      );
-                    } finally {
-                      setSubFacetLoading(false);
-                    }
-                  }}
-                  disabled={subFacetLoading}
-                  className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black hover:bg-white/90 md:flex"
-                >
-                  <span>분해 시작</span>
-                  {subFacetLoading ? (
-                    <DecomposeSpinnerIcon />
-                  ) : (
-                    <DecomposeArrowIcon />
-                  )}
-                </button>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={async () => {
+                  setSubFacetLoading(true);
+                  try {
+                    await runDecomposeSubFacet(
+                      rootAxis,
+                      pathName,
+                      facetText,
+                      principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
+                      principleLens[pk] ?? selectedLens ?? null,
+                      principleResultType[pk] ?? null,
+                    );
+                  } finally {
+                    setSubFacetLoading(false);
+                  }
+                }}
+                disabled={subFacetLoading}
+                className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black hover:bg-white/90 md:flex"
+              >
+                <span>분해 시작</span>
+                {subFacetLoading ? (
+                  <DecomposeSpinnerIcon />
+                ) : (
+                  <DecomposeArrowIcon />
+                )}
+              </button>
+            </div>
         </div>
       )}
 
@@ -1876,6 +1898,130 @@ function FacetNode({
           onRemove={(id) => removeAttachedChip(pk, id)}
         />
       )}
+      {(ownCombinedIdeas.length > 0 || showOwnCombineLoading) && (
+        <CombinedIdeasBoardSection
+          combinedIdeas={ownCombinedIdeas}
+          combineStatus={showOwnCombineLoading ? "loading" : "idle"}
+          clearCombined={clearCombined}
+          focusedCombinedIdeaId={focusedCombinedIdeaId}
+          setFocusedCombinedIdeaId={setFocusedCombinedIdeaId}
+          parentAxis={rootAxis}
+        />
+      )}
+    </div>
+  );
+}
+
+type CombinedIdeasBoardSectionProps = {
+  combinedIdeas: CombinedIdeaRecord[];
+  combineStatus: "idle" | "loading" | "error";
+  clearCombined: () => void;
+  focusedCombinedIdeaId: string | null;
+  setFocusedCombinedIdeaId: (id: string | null) => void;
+  parentAxis: string;
+};
+
+function CombinedIdeasBoardSection({
+  combinedIdeas,
+  combineStatus,
+  clearCombined,
+  focusedCombinedIdeaId,
+  setFocusedCombinedIdeaId,
+  parentAxis,
+}: CombinedIdeasBoardSectionProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    if (!focusedCombinedIdeaId) return;
+    const el = itemRefs.current.get(focusedCombinedIdeaId);
+    if (el) {
+      const scroller = findScrollAncestor(el);
+      if (scroller) scrollElementIntoView(scroller, el);
+      else el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    const t = setTimeout(() => setFocusedCombinedIdeaId(null), 1600);
+    return () => clearTimeout(t);
+  }, [focusedCombinedIdeaId, setFocusedCombinedIdeaId]);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (combineStatus !== "loading" && combinedIdeas.length === 0) return;
+    const raf = requestAnimationFrame(() => {
+      const scroller = findScrollAncestor(el);
+      if (scroller) scrollElementIntoView(scroller, el);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [combinedIdeas.length, combineStatus]);
+
+  // Group combined ideas by chipLabel so each combine session gets its own
+  // colored pill tag (mirrors the axis-decomposition generation grouping).
+  const groups = useMemo(() => {
+    const acc = new Map<string, CombinedIdeaRecord[]>();
+    for (const idea of combinedIdeas) {
+      const key = idea.chipLabel || "조합";
+      const arr = acc.get(key) ?? [];
+      arr.push(idea);
+      acc.set(key, arr);
+    }
+    return Array.from(acc.entries());
+  }, [combinedIdeas]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex shrink-0 snap-start flex-col gap-3 md:ml-4"
+    >
+      {combineStatus === "loading" && combinedIdeas.length === 0 && (
+        <div className="md:pl-8">
+          <p className="text-[11px] text-text-muted">아이디어 생성 중...</p>
+        </div>
+      )}
+
+      {groups.map(([chipLabel, ideas]) => {
+        const pal = chipTagPalette(chipLabel);
+        return (
+          <div key={chipLabel} className="flex flex-col gap-1">
+            <div className="flex items-center gap-1 md:pl-8">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${pal.border} ${pal.bg} ${pal.text}`}
+              >
+                조합 · {chipLabel}
+              </span>
+              <button
+                onClick={clearCombined}
+                title="조합 결과 초기화"
+                aria-label="조합 결과 초기화"
+                className={`rounded-full border px-1.5 text-[10px] hover:brightness-125 ${pal.border} ${pal.bg} ${pal.text}`}
+              >
+                ×
+              </button>
+            </div>
+            <div className="relative flex items-start md:pl-8">
+              <ul className="flex flex-col gap-1">
+                {ideas.map((idea) => (
+                  <li
+                    key={idea.id}
+                    ref={(el) => {
+                      if (el) itemRefs.current.set(idea.id, el);
+                      else itemRefs.current.delete(idea.id);
+                    }}
+                    className="flex items-start"
+                  >
+                    <FacetNode
+                      rootAxis={parentAxis}
+                      pathName={idea.title}
+                      facetName={idea.title}
+                      facetText={idea.summary}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

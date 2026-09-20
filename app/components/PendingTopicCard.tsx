@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useIdea } from "../state/IdeaContext";
-import { kBuiltinPurposes } from "@/lib/purposes";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
@@ -13,7 +12,6 @@ export default function PendingTopicCard() {
     cancelPending,
     commitPending,
     topicPurposeId,
-    setTopicPurposeId,
     topicDirectionId,
     setTopicDirectionId,
     topicResultType,
@@ -26,7 +24,7 @@ export default function PendingTopicCard() {
     status,
   } = useIdea();
   const [collapsedDir, setCollapsedDir] = useState(false);
-  const [collapsedLens, setCollapsedLens] = useState(false);
+  const [collapsedLens, setCollapsedLens] = useState(true);
   const [collapsedResult, setCollapsedResult] = useState(false);
 
   if (!pendingTopic) return null;
@@ -61,32 +59,6 @@ export default function PendingTopicCard() {
       </div>
 
       <div className="flex flex-col gap-3 pt-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-            사고 목적
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {kBuiltinPurposes.map((p) => {
-              const active = p.id === topicPurposeId;
-              return (
-                <button
-                  key={p.id}
-                  disabled={busy}
-                  onClick={() => setTopicPurposeId(p.id)}
-                  className={`rounded-full px-5 py-2 text-[14px] transition-colors disabled:opacity-40 whitespace-nowrap md:px-3 md:py-1 md:text-[11px] ${
-                    active
-                      ? "bg-white/[0.18] text-text-primary hover:bg-white/[0.24]"
-                      : "bg-white/[0.08] text-text-primary hover:bg-white/[0.16]"
-                  }`}
-                  title={p.label}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         <DirectionChipRow
           currentDirection={topicDirectionId}
           customDirections={customDirections}

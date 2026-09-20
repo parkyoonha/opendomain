@@ -16,7 +16,7 @@ export const kBuiltinPurposes: ThinkingPurpose[] = [
   { id: "structure", label: "구조분해" },
 ];
 
-export const DEFAULT_PURPOSE_ID = "problem";
+export const DEFAULT_PURPOSE_ID = "structure";
 
 export const purposeLabel = (id: string, custom: ThinkingPurpose[]): string => {
   const b = kBuiltinPurposes.find((p) => p.id === id);

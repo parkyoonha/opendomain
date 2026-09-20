@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callLLM, parseCombinedIdeaJson, pickProvider } from "@/lib/llm";
+import { callLLM, parseCombinedIdeasJson, pickProvider } from "@/lib/llm";
 import { combineSystemPrompt } from "@/lib/prompts";
 import { chipKindLabel, modelFor, type ChipKind } from "@/lib/constants";
 import type { SelectedLens } from "@/lib/lenses";
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     for (const f of topicFacets) {
       lines.push(`- **${f.axis}**: ${f.principle}`);
     }
-    lines.push(`위 원리를 후보 안에 구체적으로 작동시켜라.`);
+    lines.push(`위 원리를 5가지 후보 각각 안에서 서로 다른 방식으로 작동시켜라.`);
   }
   if (body.chipText) {
     const kindLabel = body.chipKind
@@ -66,9 +66,9 @@ export async function POST(req: Request) {
       for (const f of chipFacets) {
         lines.push(`- **${f.axis}**: ${f.principle}`);
       }
-      lines.push(`위 축 원리를 후보 안에 작동 메커니즘으로 이식하라.`);
+      lines.push(`위 축 원리를 5가지 후보 각각에 서로 다른 각도로 이식하라.`);
     } else {
-      lines.push(`이 칩의 핵심 메커니즘을 후보 안에 이식하라.`);
+      lines.push(`이 칩의 핵심 메커니즘을 5가지 후보 각각에 서로 다른 각도로 이식하라.`);
     }
   }
 
@@ -76,6 +76,8 @@ export async function POST(req: Request) {
     const scholar = body.lens.scholar ? ` · ${body.lens.scholar}` : "";
     lines.push(`\n## 적용 렌즈\n- ${body.lens.discipline}${scholar}`);
   }
+
+  lines.push(`\n## 출력\n반드시 "ideas" 배열에 5개의 짧은 후보를 담아라.`);
 
   const system = combineSystemPrompt(body.lens);
   const user = lines.join("\n");
@@ -85,14 +87,14 @@ export async function POST(req: Request) {
       provider: choice.provider,
       apiKey: choice.apiKey,
       model: modelFor(choice.provider, "flash"),
-      temperature: 1.0,
+      temperature: 0.8,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
     });
-    const idea = parseCombinedIdeaJson(content);
-    return NextResponse.json({ idea });
+    const ideas = parseCombinedIdeasJson(content);
+    return NextResponse.json({ ideas });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

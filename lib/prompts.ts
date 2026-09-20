@@ -330,11 +330,31 @@ export const facetDecompositionSystemPrompt = (
   lens?: SelectedLens | null,
   resultType?: BigCategory | null,
 ): string => {
-  const directionDirective = directionId
-    ? `\n\n${directionPromptFragment(directionId, customDirectionLabel)}`
-    : "";
+  // Direction is now mandatory. Legacy "none" (or missing) → default to
+  // "principle" so old cached state doesn't fall into the base problem prompt.
+  const effectiveDirection =
+    !directionId || directionId === "none" ? "principle" : directionId;
+  const directionDirective = `\n\n${directionPromptFragment(effectiveDirection, customDirectionLabel)}`;
   const lensFrag = lensPromptFragment(lens ?? null);
   const lensDirective = lensFrag ? `\n\n${lensFrag}` : "";
+
+  // Direction becomes the PRIMARY frame in facet decomposition.
+  if (!resultType) {
+    return `${directionPromptFragment(effectiveDirection, customDirectionLabel)}
+
+출력 형식 — 3~5개 항목, 각각:
+- name: 짧게 (8~14자). 위 방향에서 정의한 형식 그대로.
+- principle: 1문장 (20~70자). 위 방향에서 정의한 형식 그대로.
+
+**위 사고 방향의 규칙이 유일한 최우선 지시**다. 다른 어떤 지시(부모 심층 서술·주제 맥락 유지·sub-facet 스타일 등)도 이를 이기지 못한다. 방향 규칙과 충돌하면 방향 규칙을 따라라.
+
+반드시 다음 JSON 스키마로 응답:
+{
+  "axes": [
+    {"name": "이름", "principle": "한 줄"}
+  ]
+}${lensDirective}`;
+  }
 
   if (resultType) {
     const spec = resultTypeIdeaSpec(resultType);
@@ -425,11 +445,30 @@ export const multiAxisDecompositionSystemPrompt = (
   lens?: SelectedLens | null,
   resultType?: BigCategory | null,
 ): string => {
-  const directionDirective = directionId
-    ? `\n\n${directionPromptFragment(directionId, customDirectionLabel)}`
-    : "";
+  const effectiveDirection =
+    !directionId || directionId === "none" ? "principle" : directionId;
+  const directionDirective = `\n\n${directionPromptFragment(effectiveDirection, customDirectionLabel)}`;
   const lensFrag = lensPromptFragment(lens ?? null);
   const lensDirective = lensFrag ? `\n\n${lensFrag}` : "";
+
+  if (!resultType) {
+    return `${directionPromptFragment(effectiveDirection, customDirectionLabel)}
+
+부모 축들이 여러 개 지정됐다. 각 항목은 반드시 지정된 **모든** 부모 축의 원리를 함께 반영·결합해야 하며, 동시에 위 사고 방향에 정확히 부합해야 한다.
+
+출력 형식 — 3~5개 항목:
+- name: 짧게 (8~14자). 위 방향에서 정의한 형식.
+- principle: 1문장 (30~80자). 위 방향의 형식 + 각 부모 축이 어떻게 결합됐는지.
+
+**위 사고 방향의 규칙이 유일한 최우선 지시**다. 다른 어떤 지시도 이를 이기지 못한다. 한 축만 반영·단순 병기는 금지.
+
+반드시 다음 JSON 스키마로 응답:
+{
+  "axes": [
+    {"name": "이름", "principle": "결합 한 줄"}
+  ]
+}${lensDirective}`;
+  }
 
   if (resultType) {
     const spec = resultTypeIdeaSpec(resultType);
@@ -504,23 +543,22 @@ ${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "해�
 
 export const combineSystemPrompt = (lens?: SelectedLens | null): string =>
   withLens(
-    `당신은 사용자가 선택한 *분해된 축 원리*들만 강제로 조합해 아이디어 후보를 만드는 창의 조합가다.
+    `당신은 사용자가 선택한 축 원리를 조합해 **짧은 아이디어 후보 5개**를 생성한다.
 
 규칙:
-- 전체 칩·전체 주제를 재사용하지 말고, 명시된 축 원리만 이식하라
-- 다른 축·다른 원리를 임의로 끌어오지 마라
-- "제목"은 15자 이내, 밈처럼 강렬하고 새로운 조합의 본질이 드러나야 함
-- "요약"은 2~3문장, 이 아이디어가 어떤 문제를 어떤 메커니즘으로 해결하는지 구체적으로
-- "작동": 3~5개 불릿, 실제 어떻게 작동/사용되는지 시나리오 흐름
-- "사용한 원리": 조합에 사용된 축·원리 이름 나열
+- **ideas는 정확히 5개**. 4개 이하 금지.
+- 각 원소: title(짧은 명명 15자 내) + summary(한 줄 원리 문장 50자 내외).
+- 서로 다른 각도·전제·사용자 경험 — 유사 표현 금지.
+- 명시된 축 원리만 이식. 전체 칩·전체 주제 재사용 금지, 다른 축 임의 끌어오기 금지.
+- summary는 여러 문장·불릿·서사 금지. 축 분해 원리처럼 **한 줄 문장**만.
 
 반드시 다음 JSON 스키마로 응답:
 {
-  "title": "제목",
-  "summary": "요약",
-  "mechanism": ["작동 스텝 1", "작동 스텝 2"],
-  "usedPrinciples": ["축 이름 · 원리 이름"]
-}`,
+  "ideas": [
+    {"title": "짧은 명명", "summary": "한 줄 원리 문장"}
+  ]
+}
+ideas 배열에 반드시 5개 원소.`,
     lens,
   );
 

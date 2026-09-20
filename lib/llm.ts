@@ -70,9 +70,22 @@ function friendlyAnthropicError(status: number, rawText: string): string {
     return "Anthropic 서버에 일시적인 문제가 있어요. 잠시 뒤 다시 시도해주세요.";
   }
   if (status === 400) {
-    return "Anthropic 요청이 거부됐어요(400). 입력이 너무 길거나 형식이 잘못됐을 수 있어요.";
+    // Extract useful hint from the raw error for debugging.
+    const detail = extractAnthropicErrorDetail(rawText);
+    return `Anthropic 요청이 거부됐어요(400). ${detail}`;
   }
   return `Anthropic 오류(${status}). 잠시 뒤 다시 시도해주세요.`;
+}
+
+function extractAnthropicErrorDetail(rawText: string): string {
+  try {
+    const parsed = JSON.parse(rawText) as {
+      error?: { type?: string; message?: string };
+    };
+    const message = parsed.error?.message;
+    if (message) return message.slice(0, 300);
+  } catch {}
+  return rawText.slice(0, 300) || "입력 형식을 확인해주세요.";
 }
 
 function friendlyGeminiError(status: number, rawText: string): string {
@@ -206,20 +219,23 @@ export type ChipRecommendations = Record<string, ChipRec[]>;
 export type CombinedIdea = {
   title: string;
   summary: string;
-  mechanism: string[];
-  usedPrinciples: string[];
 };
 
-export function parseCombinedIdeaJson(content: string): CombinedIdea {
-  const parsed = JSON.parse(content) as Partial<CombinedIdea>;
-  return {
-    title: parsed.title ?? "",
-    summary: parsed.summary ?? "",
-    mechanism: Array.isArray(parsed.mechanism) ? parsed.mechanism : [],
-    usedPrinciples: Array.isArray(parsed.usedPrinciples)
-      ? parsed.usedPrinciples
-      : [],
-  };
+export function parseCombinedIdeasJson(content: string): CombinedIdea[] {
+  const parsed = JSON.parse(content) as {
+    ideas?: Partial<CombinedIdea>[];
+  } & Partial<CombinedIdea>;
+  const rawList = Array.isArray(parsed.ideas)
+    ? parsed.ideas
+    : parsed.title || parsed.summary
+      ? [parsed]
+      : [];
+  return rawList
+    .map((raw) => ({
+      title: (raw.title ?? "").trim(),
+      summary: (raw.summary ?? "").trim(),
+    }))
+    .filter((x) => x.title || x.summary);
 }
 
 export function parseChipRecommendationsJson(

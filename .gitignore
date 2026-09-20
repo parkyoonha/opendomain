@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-app/
 out/
 build/
 .DS_Store
@@ -7,6 +8,9 @@ build/
 .env*.local
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Claude Code local data
+.claude/
 
 # Capacitor
 .app-api.stash/

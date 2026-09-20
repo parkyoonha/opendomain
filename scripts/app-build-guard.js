@@ -13,10 +13,36 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const LIVE = path.join(ROOT, "app", "api");
 const STASH = path.join(ROOT, ".app-api.stash");
+
+// If `next dev` is running, its file watcher will react to us moving
+// `app/api` out and back, kick off a rebuild, and race with `next build`.
+// The build then hangs indefinitely on Windows. Fail fast with a clear
+// message instead of leaving the user to debug an invisible hang.
+function assertNoDev() {
+  if (process.platform !== "win32") return;
+  let out = "";
+  try {
+    out = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name = \'node.exe\'\\" | Where-Object { $_.CommandLine -like \'*next*dev*\' -or $_.CommandLine -like \'*start-server*\' } | Select-Object -ExpandProperty ProcessId"',
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+  } catch {
+    return;
+  }
+  const pids = out.split(/\s+/).filter(Boolean);
+  if (pids.length === 0) return;
+  console.error(
+    `\n[app-build-guard] ✖ next dev is running (pid: ${pids.join(", ")}).\n` +
+      `  dev + build cannot run concurrently — dev's file watcher races with the static export.\n` +
+      `  Stop dev first (Ctrl+C in that terminal, or  kill  the pids above), then re-run.\n`,
+  );
+  process.exit(1);
+}
 
 function rimraf(p) {
   if (!fs.existsSync(p)) return;
@@ -35,6 +61,7 @@ function rimraf(p) {
 }
 
 function hide() {
+  assertNoDev();
   if (fs.existsSync(STASH)) {
     console.log("[app-build-guard] Stash already exists — skipping hide.");
     return;

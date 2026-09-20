@@ -15,7 +15,7 @@ body {
 
 *::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
+  height: 0;
 }
 *::-webkit-scrollbar-thumb {
   background: #333844;
@@ -36,7 +36,7 @@ body {
   top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
 }
 .pt-safe-16 {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem);
 }
 .pb-safe-14 {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);

@@ -9,8 +9,12 @@ const isApp = process.env.BUILD_TARGET === "app";
 
 const nextConfig = {
   reactStrictMode: true,
+  // App build writes into a separate distDir so a running `next dev` (which
+  // holds file locks on `.next/trace` on Windows) never conflicts with
+  // `npm run app:sync`.
   ...(isApp
     ? {
+        distDir: ".next-app",
         output: "export",
         images: { unoptimized: true },
         // Capacitor loads files via file:// or capacitor://; disable trailing
