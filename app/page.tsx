@@ -98,7 +98,7 @@ function PageInner() {
             <div
               className={
                 chipAsBottomSheet
-                  ? "safe-bottom absolute inset-x-0 bottom-14 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
+                  ? "bottom-safe-14 safe-bottom absolute inset-x-0 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:bottom-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
                   : `${
                       inSplit && activeSplitView !== "chip"
                         ? "hidden md:flex"

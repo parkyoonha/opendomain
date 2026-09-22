@@ -41,3 +41,6 @@ body {
 .pb-safe-14 {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
 }
+.bottom-safe-14 {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
+}
