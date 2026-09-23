@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Hide `app/api` during Capacitor (static export) builds. Next.js `output:
-// "export"` refuses to build dynamic Route Handlers, but the app doesn't
-// need them — every fetch goes to NEXT_PUBLIC_API_BASE (a hosted web
-// deployment). We stash the folder outside `app/` then restore it after.
+// Hide `app/api` and `app/auth` during Capacitor (static export) builds.
+// Next.js `output: "export"` refuses to build dynamic Route Handlers, but
+// the app doesn't need them — every fetch goes to NEXT_PUBLIC_API_BASE
+// (a hosted web deployment), and OAuth callbacks happen on the web too
+// (Capacitor deep-link handling is a separate future concern). We stash
+// those folders outside `app/` then restore them after the build.
 //
 // Uses copy + rm instead of rename to survive Windows file watchers
 // (IDE/editor open in the folder tree) that would otherwise EPERM.
@@ -16,8 +18,10 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
-const LIVE = path.join(ROOT, "app", "api");
-const STASH = path.join(ROOT, ".app-api.stash");
+const TARGETS = [
+  { live: path.join(ROOT, "app", "api"), stash: path.join(ROOT, ".app-api.stash") },
+  { live: path.join(ROOT, "app", "auth"), stash: path.join(ROOT, ".app-auth.stash") },
+];
 
 // If `next dev` is running, its file watcher will react to us moving
 // `app/api` out and back, kick off a rebuild, and race with `next build`.
@@ -60,32 +64,46 @@ function rimraf(p) {
   }
 }
 
+function relLabel(p) {
+  return path.relative(ROOT, p).replace(/\\/g, "/");
+}
+
+function hideOne({ live, stash }) {
+  if (fs.existsSync(stash)) {
+    console.log(`[app-build-guard] ${relLabel(stash)} already exists — skipping hide.`);
+    return;
+  }
+  if (!fs.existsSync(live)) {
+    console.log(`[app-build-guard] ${relLabel(live)} not found — nothing to hide.`);
+    return;
+  }
+  fs.cpSync(live, stash, { recursive: true });
+  rimraf(live);
+  console.log(
+    `[app-build-guard] Copied ${relLabel(live)} → ${relLabel(stash)} and removed original`,
+  );
+}
+
+function restoreOne({ live, stash }) {
+  if (!fs.existsSync(stash)) return;
+  if (fs.existsSync(live)) {
+    console.warn(
+      `[app-build-guard] ${relLabel(live)} reappeared alongside stash — merging by deleting live copy first.`,
+    );
+    rimraf(live);
+  }
+  fs.cpSync(stash, live, { recursive: true });
+  rimraf(stash);
+  console.log(`[app-build-guard] Restored ${relLabel(stash)} → ${relLabel(live)}`);
+}
+
 function hide() {
   assertNoDev();
-  if (fs.existsSync(STASH)) {
-    console.log("[app-build-guard] Stash already exists — skipping hide.");
-    return;
-  }
-  if (!fs.existsSync(LIVE)) {
-    console.log("[app-build-guard] app/api not found — nothing to hide.");
-    return;
-  }
-  fs.cpSync(LIVE, STASH, { recursive: true });
-  rimraf(LIVE);
-  console.log("[app-build-guard] Copied app/api → .app-api.stash and removed original");
+  TARGETS.forEach(hideOne);
 }
 
 function restore() {
-  if (!fs.existsSync(STASH)) return;
-  if (fs.existsSync(LIVE)) {
-    console.warn(
-      "[app-build-guard] app/api reappeared alongside stash — merging by deleting live copy first.",
-    );
-    rimraf(LIVE);
-  }
-  fs.cpSync(STASH, LIVE, { recursive: true });
-  rimraf(STASH);
-  console.log("[app-build-guard] Restored .app-api.stash → app/api");
+  TARGETS.forEach(restoreOne);
 }
 
 const action = process.argv[2];

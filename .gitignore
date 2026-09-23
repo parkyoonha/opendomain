@@ -14,6 +14,7 @@ tsconfig.tsbuildinfo
 
 # Capacitor
 .app-api.stash/
+.app-auth.stash/
 android/.gradle/
 android/app/build/
 android/build/
