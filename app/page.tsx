@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import InputBar from "./components/InputBar";
 import TopicChipsBar from "./components/TopicChipsBar";
 import DecompositionTree from "./components/DecompositionTree";
 import ChipSidePanel from "./components/ChipSidePanel";
 import SettingsModal from "./components/SettingsModal";
+import BusinessInfoModal from "./components/BusinessInfoModal";
 import MemoSidebar from "./components/MemoSidebar";
+import LoginModal from "./components/LoginModal";
+import AuthMenu from "./components/AuthMenu";
 import { IdeaProvider, useIdea } from "./state/IdeaContext";
 
 function PageInner() {
@@ -25,9 +29,12 @@ function PageInner() {
     showMemoList,
     startMemoDraft,
     startTopicDraft,
+    loginModalOpen,
+    setLoginModalOpen,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
+  const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const canGoBack = inputMode === "memo" && !memoListMode;
   const chipAsBottomSheet =
@@ -67,6 +74,24 @@ function PageInner() {
             strokeLinecap="round"
           />
         </svg>
+      </button>
+      <button
+        onClick={() => setBusinessInfoOpen(true)}
+        aria-label="사업자 정보"
+        title="사업자 정보"
+        className="safe-top-offset absolute right-[7.5rem] z-30 flex h-9 items-center gap-1 rounded-md bg-white/[0.08] px-3 text-[13px] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:h-8 md:right-[6.5rem] md:text-[10px]"
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+          <path
+            d="M12 8h.01M11 12h1v5h1"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span>사업자정보</span>
       </button>
       <button
         onClick={() => setSettingsOpen(true)}
@@ -182,7 +207,16 @@ function PageInner() {
             })}
           </nav>
         </>
+      <AuthMenu />
+      <LoginModal
+        open={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+      />
       <SettingsModal />
+      <BusinessInfoModal
+        open={businessInfoOpen}
+        onClose={() => setBusinessInfoOpen(false)}
+      />
       {error && (
         <div className="absolute bottom-4 left-1/2 z-40 flex max-w-[600px] -translate-x-1/2 items-start gap-3 rounded-md bg-red-900/80 px-4 py-2 text-[11px] text-red-100 shadow-lg">
           <span className="text-red-300">⚠</span>

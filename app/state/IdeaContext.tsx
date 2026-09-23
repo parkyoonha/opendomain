@@ -9,6 +9,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PROMPT_VERSION, type BigCategory, type ChipKind } from "@/lib/constants";
 import type { TopicDecomposition } from "@/lib/types";
 import type { ChipRecommendations, CombinedIdea } from "@/lib/llm";
@@ -354,6 +356,13 @@ type Ctx = {
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
 
+  authSession: Session | null;
+  authUser: User | null;
+  authReady: boolean;
+  loginModalOpen: boolean;
+  setLoginModalOpen: (v: boolean) => void;
+  signOut: () => Promise<void>;
+
   attachedChips: Record<string, AttachedChip[]>;
   attachChip: (principleKey: string, chip: AttachedChip) => void;
   removeAttachedChip: (principleKey: string, chipId: string) => void;
@@ -513,6 +522,36 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [userGeminiKey, setUserGeminiKeyState] = useState<string | null>(null);
   const [useUserKey, setUseUserKeyState] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [authSession, setAuthSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setAuthSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setAuthSession(session);
+      setAuthReady(true);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    setAuthSession(null);
+  }, []);
+
+  const authUser = authSession?.user ?? null;
 
   useEffect(() => {
     const key = window.localStorage.getItem("user_gemini_key");
@@ -2156,6 +2195,12 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setUseUserKey,
       settingsOpen,
       setSettingsOpen,
+      authSession,
+      authUser,
+      authReady,
+      loginModalOpen,
+      setLoginModalOpen,
+      signOut,
       attachedChips,
       attachChip,
       removeAttachedChip,
@@ -2295,6 +2340,11 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setUseUserKey,
       settingsOpen,
       setSettingsOpen,
+      authSession,
+      authUser,
+      authReady,
+      loginModalOpen,
+      signOut,
       attachedChips,
       attachChip,
       removeAttachedChip,
