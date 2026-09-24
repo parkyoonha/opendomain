@@ -539,9 +539,52 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setAuthSession(session);
       setAuthReady(true);
     });
+
+    // Capacitor deep-link handler. When the OAuth provider returns to
+    // opendomain://auth/callback?code=... the App plugin fires this event —
+    // we extract the code, run the PKCE exchange, close the in-app browser,
+    // and dismiss the login modal.
+    type CapWindow = {
+      Capacitor?: { isNativePlatform?: () => boolean };
+    };
+    const capWin = window as unknown as CapWindow;
+    const isNative = Boolean(capWin.Capacitor?.isNativePlatform?.());
+    let unlisten: (() => void) | undefined;
+    if (isNative) {
+      (async () => {
+        try {
+          const { App } = await import("@capacitor/app");
+          const { Browser } = await import("@capacitor/browser");
+          const handle = await App.addListener("appUrlOpen", async (evt) => {
+            const raw = evt?.url ?? "";
+            if (!raw.startsWith("opendomain://")) return;
+            try {
+              const url = new URL(raw);
+              const code = url.searchParams.get("code");
+              if (code) {
+                await supabase.auth.exchangeCodeForSession(code);
+              }
+            } catch {
+              // Non-URL payloads on the scheme are ignored.
+            }
+            try {
+              await Browser.close();
+            } catch {
+              // Browser may already be closed.
+            }
+            setLoginModalOpen(false);
+          });
+          unlisten = () => handle.remove();
+        } catch {
+          // Plugins unavailable — nothing to do (web build).
+        }
+      })();
+    }
+
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      if (unlisten) unlisten();
     };
   }, []);
 

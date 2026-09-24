@@ -8,6 +8,15 @@ type Props = {
   onClose: () => void;
 };
 
+const DEEP_LINK_REDIRECT = "opendomain://auth/callback";
+
+function isCapacitorNative(): boolean {
+  if (typeof window === "undefined") return false;
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
+}
+
 export default function LoginModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState<"google" | "kakao" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,22 +28,47 @@ export default function LoginModal({ open, onClose }: Props) {
     setLoading(provider);
     try {
       const supabase = createSupabaseBrowserClient();
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      const native = isCapacitorNative();
+      // Native app: bounce back into the app via custom URL scheme deep link
+      // (Android intent filter for opendomain:// is registered in the
+      // AndroidManifest). Web: standard same-origin callback route.
+      const redirectTo = native
+        ? DEEP_LINK_REDIRECT
+        : `${window.location.origin}/auth/callback`;
+
       // Supabase treats custom OIDC providers via the same signInWithOAuth
       // entrypoint. The `kakao` slug matches the Custom Auth Provider we
       // registered (Display Name = kakao).
-      const { error: err } =
+      const { data, error: err } =
         provider === "kakao"
           ? await supabase.auth.signInWithOAuth({
               provider: "kakao" as "google", // Supabase types don't list kakao natively
-              options: { redirectTo },
+              options: {
+                redirectTo,
+                // On native we drive the OAuth in an external browser and let
+                // the deep link bring us back — Supabase should not handle the
+                // final redirect itself.
+                skipBrowserRedirect: native,
+              },
             })
           : await supabase.auth.signInWithOAuth({
               provider: "google",
-              options: { redirectTo },
+              options: {
+                redirectTo,
+                skipBrowserRedirect: native,
+              },
             });
       if (err) throw err;
-      // Browser will redirect to the provider — no need to close modal here.
+
+      if (native && data?.url) {
+        // Lazy import so the Browser plugin only loads inside the native app
+        // (avoids bundling native shim into the web build).
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+        // Modal stays open — a deep link listener will close it and finalize
+        // the session once the user returns.
+      }
+      // Web path: signInWithOAuth already redirected the tab to the provider.
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setLoading(null);
