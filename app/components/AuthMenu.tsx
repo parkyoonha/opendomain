@@ -26,7 +26,7 @@ export default function AuthMenu() {
         onClick={() => setLoginModalOpen(true)}
         aria-label="로그인"
         title="로그인"
-        className="safe-top-offset absolute right-[13.5rem] z-30 flex h-9 items-center gap-1 rounded-md bg-white/[0.08] px-3 text-[13px] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:h-8 md:right-[11.5rem] md:text-[10px]"
+        className="safe-top-offset absolute right-[6.5rem] z-30 hidden h-8 items-center gap-1 rounded-md bg-white/[0.08] px-3 text-[10px] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:flex"
       >
         <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
           <path
@@ -54,7 +54,7 @@ export default function AuthMenu() {
   return (
     <div
       ref={menuRef}
-      className="safe-top-offset absolute right-[13.5rem] z-30 md:right-[11.5rem]"
+      className="safe-top-offset absolute right-[6.5rem] z-30 hidden md:block"
     >
       <button
         onClick={() => setOpen((o) => !o)}

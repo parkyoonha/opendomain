@@ -10,6 +10,8 @@ import BusinessInfoModal from "./components/BusinessInfoModal";
 import MemoSidebar from "./components/MemoSidebar";
 import LoginModal from "./components/LoginModal";
 import AuthMenu from "./components/AuthMenu";
+import BottomMenuSheet from "./components/BottomMenuSheet";
+import DesktopMenuButton from "./components/DesktopMenuButton";
 import { IdeaProvider, useIdea } from "./state/IdeaContext";
 
 function PageInner() {
@@ -35,6 +37,7 @@ function PageInner() {
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
   const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
+  const [bottomMenuOpen, setBottomMenuOpen] = useState(false);
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const canGoBack = inputMode === "memo" && !memoListMode;
   const chipAsBottomSheet =
@@ -75,49 +78,7 @@ function PageInner() {
           />
         </svg>
       </button>
-      <button
-        onClick={() => setBusinessInfoOpen(true)}
-        aria-label="사업자 정보"
-        title="사업자 정보"
-        className="safe-top-offset absolute right-[7.5rem] z-30 flex h-9 items-center gap-1 rounded-md bg-white/[0.08] px-3 text-[13px] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:h-8 md:right-[6.5rem] md:text-[10px]"
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-          <path
-            d="M12 8h.01M11 12h1v5h1"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>사업자정보</span>
-      </button>
-      <button
-        onClick={() => setSettingsOpen(true)}
-        aria-label="설정"
-        title={
-          isFreeTier
-            ? "설정 · 무료(Gemini) 사용 중"
-            : "설정 · 유료(Claude) 사용 중"
-        }
-        className={`safe-top-offset absolute right-3 z-30 flex h-9 items-center gap-1 rounded-md px-3 text-[13px] hover:text-text-primary md:h-8 md:text-[10px] ${
-          isFreeTier
-            ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
-            : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.16]"
-        }`}
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
-          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
-          <path
-            d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span>{isFreeTier ? "무료" : "유료"}</span>
-      </button>
+      <DesktopMenuButton onOpenBusinessInfo={() => setBusinessInfoOpen(true)} />
       <>
           {showChipPanel && (
             <div
@@ -135,7 +96,7 @@ function PageInner() {
             </div>
           )}
           <main
-            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-16 md:pb-0 md:pt-12 ${
+            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 ${
               inSplit
                 ? activeSplitView === "topic"
                   ? "flex"
@@ -164,17 +125,26 @@ function PageInner() {
                 { key: "topic", label: "사고확장" },
                 { key: "memo", label: "메모" },
                 { key: "chip", label: "칩" },
+                { key: "menu", label: "메뉴" },
               ] as const
             ).map((t) => {
-              const active = inSplit
-                ? activeSplitView === t.key
-                : t.key === "chip"
-                  ? showChipPanel
-                  : !showChipPanel && inputMode === t.key;
+              const active =
+                t.key === "menu"
+                  ? bottomMenuOpen
+                  : inSplit
+                    ? activeSplitView === t.key
+                    : t.key === "chip"
+                      ? showChipPanel
+                      : !showChipPanel && inputMode === t.key;
               return (
                 <button
                   key={t.key}
                   onClick={() => {
+                    if (t.key === "menu") {
+                      setBottomMenuOpen((v) => !v);
+                      return;
+                    }
+                    if (bottomMenuOpen) setBottomMenuOpen(false);
                     if (t.key === "chip") {
                       if (showChipPanel && !inSplit) {
                         setChipPanelOpen(false);
@@ -208,6 +178,11 @@ function PageInner() {
           </nav>
         </>
       <AuthMenu />
+      <BottomMenuSheet
+        open={bottomMenuOpen}
+        onClose={() => setBottomMenuOpen(false)}
+        onOpenBusinessInfo={() => setBusinessInfoOpen(true)}
+      />
       <LoginModal
         open={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
