@@ -84,7 +84,7 @@ function PageInner() {
             <div
               className={
                 chipAsBottomSheet
-                  ? "bottom-safe-14 safe-bottom absolute inset-x-0 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:bottom-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
+                  ? "bottom-safe-14 absolute inset-x-0 top-1/2 z-40 flex bg-neutral-900 shadow-2xl md:relative md:inset-auto md:bottom-auto md:z-auto md:h-full md:w-80 md:flex-none md:bg-transparent md:shadow-none"
                   : `${
                       inSplit && activeSplitView !== "chip"
                         ? "hidden md:flex"
@@ -165,7 +165,7 @@ function PageInner() {
                       startTopicDraft();
                     }
                   }}
-                  className={`flex-1 py-3.5 text-[14px] transition-colors ${
+                  className={`flex h-12 flex-1 items-center justify-center text-[14px] transition-colors ${
                     active
                       ? "text-text-primary"
                       : "text-text-muted hover:text-text-secondary"
