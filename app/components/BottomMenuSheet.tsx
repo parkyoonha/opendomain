@@ -31,15 +31,18 @@ export default function BottomMenuSheet({
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent | TouchEvent) => {
+    // Listen on `click` (not `mousedown`) so the trigger button's own
+    // onClick handler runs first. Otherwise re-tapping the nav "메뉴" tab
+    // races: mousedown closes → button's toggle re-opens. `click` fires
+    // after the button handler, letting the trigger's toggle-off take
+    // effect on re-click.
+    const onClick = (e: MouseEvent) => {
       if (!sheetRef.current) return;
       if (!sheetRef.current.contains(e.target as Node)) onClose();
     };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("touchstart", onDown);
+    document.addEventListener("click", onClick);
     return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("click", onClick);
     };
   }, [open, onClose]);
 

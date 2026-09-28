@@ -45,5 +45,8 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
 }
 .bottom-safe-14 {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
+  /* Aligns with the mobile bottom-nav's top edge. Nav height is
+     approximately 3rem (buttons: py-3.5 + text-[14px]) plus safe-area
+     padding; matching this puts overlay sheets flush with the nav. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 3rem);
 }
