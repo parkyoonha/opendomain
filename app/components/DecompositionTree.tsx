@@ -1187,16 +1187,17 @@ function AxisRow({
           })}
         </div>
       )}
-      {(axisCombinedIdeas.length > 0 || showAxisCombineLoading) && (
-        <CombinedIdeasBoardSection
-          combinedIdeas={axisCombinedIdeas}
-          combineStatus={showAxisCombineLoading ? "loading" : "idle"}
-          clearCombined={clearCombined}
-          focusedCombinedIdeaId={focusedCombinedIdeaId}
-          setFocusedCombinedIdeaId={setFocusedCombinedIdeaId}
-          parentAxis={axis}
-        />
-      )}
+      {showControls &&
+        (axisCombinedIdeas.length > 0 || showAxisCombineLoading) && (
+          <CombinedIdeasBoardSection
+            combinedIdeas={axisCombinedIdeas}
+            combineStatus={showAxisCombineLoading ? "loading" : "idle"}
+            clearCombined={clearCombined}
+            focusedCombinedIdeaId={focusedCombinedIdeaId}
+            setFocusedCombinedIdeaId={setFocusedCombinedIdeaId}
+            parentAxis={axis}
+          />
+        )}
       {!hideRightSide && (
         <div aria-hidden className="shrink-0" style={{ width: "800px" }} />
       )}
@@ -1846,7 +1847,7 @@ function FacetNode({
         </div>
       )}
 
-      {derived.length > 0 && (
+      {expanded && derived.length > 0 && (
         <div
           ref={derivedRef}
           className="flex shrink-0 snap-start flex-col gap-3 md:ml-4"
@@ -1889,7 +1890,7 @@ function FacetNode({
         </div>
       )}
 
-      {chips.length > 0 && (
+      {expanded && chips.length > 0 && (
         <AttachedChipsRow
           chips={chips}
           parentAxis={rootAxis}
@@ -1898,7 +1899,7 @@ function FacetNode({
           onRemove={(id) => removeAttachedChip(pk, id)}
         />
       )}
-      {(ownCombinedIdeas.length > 0 || showOwnCombineLoading) && (
+      {expanded && (ownCombinedIdeas.length > 0 || showOwnCombineLoading) && (
         <CombinedIdeasBoardSection
           combinedIdeas={ownCombinedIdeas}
           combineStatus={showOwnCombineLoading ? "loading" : "idle"}
