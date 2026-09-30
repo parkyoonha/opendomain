@@ -1665,6 +1665,8 @@ function FacetNode({
     expandedPrinciples,
     markPrincipleExpanded,
     markPrincipleCollapsed,
+    blockerPrinciples,
+    toggleBlockerPrinciple,
     selectedLens,
     combinedIdeas,
     combineStatus,
@@ -1674,6 +1676,7 @@ function FacetNode({
   } = useIdea();
 
   const pk = principleKey(rootAxis, pathName);
+  const isBlocker = blockerPrinciples.has(pk);
   const isSel =
     selectedPrinciple?.axis === rootAxis && selectedPrinciple?.name === pathName;
   const derived = subFacetDerived[pk] ?? [];
@@ -1749,25 +1752,57 @@ function FacetNode({
         <button
           onClick={handleSelect}
           className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+            isBlocker
+              ? "ring-2 ring-amber-400/70 ring-offset-2 ring-offset-black"
+              : ""
+          } ${
             isSel
               ? "bg-white text-black"
-              : "bg-white/[0.08] hover:bg-white/[0.11]"
+              : isBlocker
+                ? "bg-amber-500/15 hover:bg-amber-500/25"
+                : "bg-white/[0.08] hover:bg-white/[0.11]"
           }`}
         >
           <div
             className={`text-[14px] font-semibold md:text-[11px] ${
-              isSel ? "text-black" : "text-text-primary"
+              isSel
+                ? "text-black"
+                : isBlocker
+                  ? "text-amber-100"
+                  : "text-text-primary"
             }`}
           >
             {facetName}
           </div>
           <div
             className={`text-[13px] leading-5 md:text-[11px] md:leading-4 ${
-              isSel ? "text-black/70" : "text-text-secondary"
+              isSel
+                ? "text-black/70"
+                : isBlocker
+                  ? "text-amber-100/80"
+                  : "text-text-secondary"
             }`}
           >
             {facetText}
           </div>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleBlockerPrinciple(pk);
+          }}
+          title={
+            isBlocker
+              ? "블로커 해제 (실현을 막는 원리 표시 해제)"
+              : "이 원리가 실현의 블로커인지 표시"
+          }
+          className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[9px] transition-opacity ${
+            isBlocker
+              ? "bg-amber-500/40 text-amber-50"
+              : "bg-white/[0.08] text-text-secondary opacity-0 hover:bg-white/[0.18] hover:text-text-primary group-hover:opacity-100 focus:opacity-100"
+          }`}
+        >
+          {isBlocker ? "⚠ 블로커" : "⚠"}
         </button>
         <button
           onClick={(e) => {

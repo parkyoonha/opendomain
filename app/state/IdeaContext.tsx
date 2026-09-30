@@ -238,6 +238,13 @@ type Ctx = {
   markPrincipleExpanded: (pk: string) => void;
   markPrincipleCollapsed: (pk: string) => void;
 
+  // Principle keys the user has flagged as the realization blocker —
+  // the specific sub-principle that keeps the parent idea from being
+  // feasible. Downstream flows (chip search, combine) can prioritize
+  // these when suggesting cross-domain analogs.
+  blockerPrinciples: Set<string>;
+  toggleBlockerPrinciple: (pk: string) => void;
+
   chipRecommendations: Record<string, ChipRecommendations>;
   chipStatus: Record<string, Status>;
   runRecommendChips: (axis: string, name: string, text: string) => Promise<void>;
@@ -994,6 +1001,18 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (!prev.has(pk)) return prev;
       const next = new Set(prev);
       next.delete(pk);
+      return next;
+    });
+  }, []);
+
+  const [blockerPrinciples, setBlockerPrinciples] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggleBlockerPrinciple = useCallback((pk: string) => {
+    setBlockerPrinciples((prev) => {
+      const next = new Set(prev);
+      if (next.has(pk)) next.delete(pk);
+      else next.add(pk);
       return next;
     });
   }, []);
@@ -2161,6 +2180,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       expandedPrinciples,
       markPrincipleExpanded,
       markPrincipleCollapsed,
+      blockerPrinciples,
+      toggleBlockerPrinciple,
       chipRecommendations,
       chipStatus,
       runRecommendChips,
@@ -2316,6 +2337,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       expandedPrinciples,
       markPrincipleExpanded,
       markPrincipleCollapsed,
+      blockerPrinciples,
+      toggleBlockerPrinciple,
       chipRecommendations,
       chipStatus,
       runRecommendChips,
