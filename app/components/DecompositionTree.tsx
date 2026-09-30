@@ -25,6 +25,14 @@ import type { BigCategory } from "@/lib/constants";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
+import VerifyMethodChipRow from "./VerifyMethodChipRow";
+import VerifyEvalChipRow from "./VerifyEvalChipRow";
+import {
+  DEFAULT_VERIFY_METHOD_ID,
+  DEFAULT_VERIFY_EVAL_ID,
+  verifyMethodLabel,
+  verifyEvalLabel,
+} from "@/lib/verify";
 import MemoStack from "./MemoStack";
 import PendingTopicCard from "./PendingTopicCard";
 import ChipifyCard from "./ChipifyCard";
@@ -1011,7 +1019,24 @@ function AxisRow({
     focusedCombinedIdeaId,
     setFocusedCombinedIdeaId,
     selectedPrinciple,
+    principleControllerMode,
+    setPrincipleControllerMode,
+    principleVerifyMethod,
+    setPrincipleVerifyMethod,
+    principleVerifyEval,
+    setPrincipleVerifyEval,
+    verifyDerived,
+    verifyDerivedStatus,
+    runVerifyFacet,
   } = useIdea();
+  const axisPk = principleKey(axis, "축 전체");
+  const axisMode = principleControllerMode[axisPk] ?? "explore";
+  const axisVerifyMethod =
+    principleVerifyMethod[axisPk] ?? DEFAULT_VERIFY_METHOD_ID;
+  const axisVerifyEval =
+    principleVerifyEval[axisPk] ?? DEFAULT_VERIFY_EVAL_ID;
+  const axisVerifyGens = verifyDerived[axisPk] ?? [];
+  const [axisVerifyLoading, setAxisVerifyLoading] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
   const generationsRef = useRef<HTMLDivElement>(null);
   const showControls = showControlsProp && active && !hideRightSide;
@@ -1100,52 +1125,122 @@ function AxisRow({
 
       {showControls && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
-          <button
-            onClick={() => setChipPanelOpen(true)}
-            title="칩 라이브러리 열어 이 축과 조합하기"
-            className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-          >
-            + 축 조합
-          </button>
-          <DirectionChipRow
-            currentDirection={currentDirection}
-            customDirections={customDirections}
-            onChangeDirection={onChangeDirection}
-            addCustomDirection={addCustomDirection}
-            removeCustomDirection={removeCustomDirection}
-            collapsed={chipsCollapsed}
-            onCollapseChange={setChipsCollapsed}
-          />
-          <FacetLensRow
-            currentLens={currentLens}
-            onChangeLens={onChangeLens}
-            collapsed={lensCollapsed}
-            onCollapseChange={setLensCollapsed}
-          />
-          <ResultTypeChipRow
-            value={currentResultType}
-            onChange={onChangeResultType}
-            collapsed={chipsCollapsed}
-            onCollapseChange={setChipsCollapsed}
-          />
-          <button
-            onClick={() =>
-              onDecomposeFacet(
-                currentDirection,
-                currentLens,
-                currentResultType,
-              )
-            }
-            disabled={fStatus === "loading"}
-            className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
-          >
-            <span>분해 시작</span>
-            {fStatus === "loading" ? (
-              <DecomposeSpinnerIcon />
-            ) : (
-              <DecomposeArrowIcon />
-            )}
-          </button>
+          <div className="flex items-center gap-1 rounded-full bg-white/[0.06] p-0.5 self-start">
+            {(["explore", "verify"] as const).map((m) => {
+              const active = axisMode === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setPrincipleControllerMode(axisPk, m)}
+                  className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
+                    active
+                      ? "bg-white text-black"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {m === "explore" ? "사고확장" : "증명"}
+                </button>
+              );
+            })}
+          </div>
+
+          {axisMode === "explore" ? (
+            <>
+              <button
+                onClick={() => setChipPanelOpen(true)}
+                title="칩 라이브러리 열어 이 축과 조합하기"
+                className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
+              >
+                + 축 조합
+              </button>
+              <DirectionChipRow
+                currentDirection={currentDirection}
+                customDirections={customDirections}
+                onChangeDirection={onChangeDirection}
+                addCustomDirection={addCustomDirection}
+                removeCustomDirection={removeCustomDirection}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <FacetLensRow
+                currentLens={currentLens}
+                onChangeLens={onChangeLens}
+                collapsed={lensCollapsed}
+                onCollapseChange={setLensCollapsed}
+              />
+              <ResultTypeChipRow
+                value={currentResultType}
+                onChange={onChangeResultType}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <button
+                onClick={() =>
+                  onDecomposeFacet(
+                    currentDirection,
+                    currentLens,
+                    currentResultType,
+                  )
+                }
+                disabled={fStatus === "loading"}
+                className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
+              >
+                <span>분해 시작</span>
+                {fStatus === "loading" ? (
+                  <DecomposeSpinnerIcon />
+                ) : (
+                  <DecomposeArrowIcon />
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              <VerifyMethodChipRow
+                currentMethodId={axisVerifyMethod}
+                onChangeMethod={(id) => setPrincipleVerifyMethod(axisPk, id)}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <FacetLensRow
+                currentLens={currentLens}
+                onChangeLens={onChangeLens}
+                collapsed={lensCollapsed}
+                onCollapseChange={setLensCollapsed}
+              />
+              <VerifyEvalChipRow
+                currentEvalId={axisVerifyEval}
+                onChangeEval={(id) => setPrincipleVerifyEval(axisPk, id)}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <button
+                onClick={async () => {
+                  setAxisVerifyLoading(true);
+                  try {
+                    await runVerifyFacet(
+                      axis,
+                      "축 전체",
+                      principle,
+                      axisVerifyMethod,
+                      axisVerifyEval,
+                      currentLens,
+                    );
+                  } finally {
+                    setAxisVerifyLoading(false);
+                  }
+                }}
+                disabled={axisVerifyLoading}
+                className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-amber-400 px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:bg-amber-300 md:flex"
+              >
+                <span>증명 시작</span>
+                {axisVerifyLoading ? (
+                  <DecomposeSpinnerIcon />
+                ) : (
+                  <DecomposeArrowIcon />
+                )}
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -1182,6 +1277,35 @@ function AxisRow({
                   )}
                 </div>
                 <SubFacets axis={axis} entries={genEntries} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {showControls && axisVerifyGens.length > 0 && (
+        <div className="flex shrink-0 snap-start flex-col gap-4 md:pl-4">
+          {axisVerifyGens.map((v) => {
+            const st = verifyDerivedStatus[v.key];
+            const entries = Object.entries(v.subFacets);
+            return (
+              <div key={v.key} className="flex flex-col gap-1">
+                <div className="flex items-center gap-1 md:pl-8">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
+                    증명 · {verifyMethodLabel(v.methodId)} ·{" "}
+                    {lensLabel(v.lens)} · {verifyEvalLabel(v.evalId)}
+                  </span>
+                </div>
+                {st === "loading" && (
+                  <div className="md:pl-8 text-[10px] text-text-muted">
+                    검증 중…
+                  </div>
+                )}
+                {st === "error" && (
+                  <div className="md:pl-8 text-[10px] text-red-400">
+                    검증 실패
+                  </div>
+                )}
+                <SubFacets axis={axis} entries={entries} />
               </div>
             );
           })}
@@ -1667,6 +1791,15 @@ function FacetNode({
     markPrincipleCollapsed,
     blockerPrinciples,
     toggleBlockerPrinciple,
+    principleControllerMode,
+    setPrincipleControllerMode,
+    principleVerifyMethod,
+    setPrincipleVerifyMethod,
+    principleVerifyEval,
+    setPrincipleVerifyEval,
+    verifyDerived,
+    verifyDerivedStatus,
+    runVerifyFacet,
     selectedLens,
     combinedIdeas,
     combineStatus,
@@ -1677,6 +1810,12 @@ function FacetNode({
 
   const pk = principleKey(rootAxis, pathName);
   const isBlocker = blockerPrinciples.has(pk);
+  const mode = principleControllerMode[pk] ?? "explore";
+  const currentVerifyMethod =
+    principleVerifyMethod[pk] ?? DEFAULT_VERIFY_METHOD_ID;
+  const currentVerifyEval = principleVerifyEval[pk] ?? DEFAULT_VERIFY_EVAL_ID;
+  const verifyGens = verifyDerived[pk] ?? [];
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const isSel =
     selectedPrinciple?.axis === rootAxis && selectedPrinciple?.name === pathName;
   const derived = subFacetDerived[pk] ?? [];
@@ -1802,7 +1941,7 @@ function FacetNode({
               : "bg-white/[0.08] text-text-secondary opacity-0 hover:bg-white/[0.18] hover:text-text-primary group-hover:opacity-100 focus:opacity-100"
           }`}
         >
-          {isBlocker ? "⚠ 블로커" : "⚠"}
+          ⚠
         </button>
         <button
           onClick={(e) => {
@@ -1821,64 +1960,136 @@ function FacetNode({
       </div>
       {expanded && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
-            <button
-              onClick={() => setChipPanelOpen(true)}
-              title="칩 라이브러리 열어 이 원리와 조합하기"
-              className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-            >
-              + 축 조합
-            </button>
-            <DirectionChipRow
-              currentDirection={
-                principleDirection[pk] ?? DEFAULT_DIRECTION_ID
-              }
-              customDirections={customDirections}
-              onChangeDirection={(id) => setPrincipleDirection(pk, id)}
-              addCustomDirection={addCustomDirection}
-              removeCustomDirection={removeCustomDirection}
-              collapsed={chipsCollapsed}
-              onCollapseChange={setChipsCollapsed}
-            />
-            <FacetLensRow
-              currentLens={principleLens[pk] ?? selectedLens ?? null}
-              onChangeLens={(lens) => setPrincipleLens(pk, lens)}
-              collapsed={lensCollapsed}
-              onCollapseChange={setLensCollapsed}
-            />
-            <ResultTypeChipRow
-              value={principleResultType[pk] ?? null}
-              onChange={(rt) => setPrincipleResultType(pk, rt)}
-              collapsed={chipsCollapsed}
-              onCollapseChange={setChipsCollapsed}
-            />
-            <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1 rounded-full bg-white/[0.06] p-0.5 self-start">
+            {(["explore", "verify"] as const).map((m) => {
+              const active = mode === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setPrincipleControllerMode(pk, m)}
+                  className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
+                    active
+                      ? "bg-white text-black"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {m === "explore" ? "사고확장" : "증명"}
+                </button>
+              );
+            })}
+          </div>
+
+          {mode === "explore" ? (
+            <>
               <button
-                onClick={async () => {
-                  setSubFacetLoading(true);
-                  try {
-                    await runDecomposeSubFacet(
-                      rootAxis,
-                      pathName,
-                      facetText,
-                      principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
-                      principleLens[pk] ?? selectedLens ?? null,
-                      principleResultType[pk] ?? null,
-                    );
-                  } finally {
-                    setSubFacetLoading(false);
-                  }
-                }}
-                disabled={subFacetLoading}
-                className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black hover:bg-white/90 md:flex"
+                onClick={() => setChipPanelOpen(true)}
+                title="칩 라이브러리 열어 이 원리와 조합하기"
+                className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
               >
-                <span>분해 시작</span>
-                {subFacetLoading ? (
-                  <DecomposeSpinnerIcon />
-                ) : (
-                  <DecomposeArrowIcon />
-                )}
+                + 축 조합
               </button>
-            </div>
+              <DirectionChipRow
+                currentDirection={
+                  principleDirection[pk] ?? DEFAULT_DIRECTION_ID
+                }
+                customDirections={customDirections}
+                onChangeDirection={(id) => setPrincipleDirection(pk, id)}
+                addCustomDirection={addCustomDirection}
+                removeCustomDirection={removeCustomDirection}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <FacetLensRow
+                currentLens={principleLens[pk] ?? selectedLens ?? null}
+                onChangeLens={(lens) => setPrincipleLens(pk, lens)}
+                collapsed={lensCollapsed}
+                onCollapseChange={setLensCollapsed}
+              />
+              <ResultTypeChipRow
+                value={principleResultType[pk] ?? null}
+                onChange={(rt) => setPrincipleResultType(pk, rt)}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={async () => {
+                    setSubFacetLoading(true);
+                    try {
+                      await runDecomposeSubFacet(
+                        rootAxis,
+                        pathName,
+                        facetText,
+                        principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
+                        principleLens[pk] ?? selectedLens ?? null,
+                        principleResultType[pk] ?? null,
+                      );
+                    } finally {
+                      setSubFacetLoading(false);
+                    }
+                  }}
+                  disabled={subFacetLoading}
+                  className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black hover:bg-white/90 md:flex"
+                >
+                  <span>분해 시작</span>
+                  {subFacetLoading ? (
+                    <DecomposeSpinnerIcon />
+                  ) : (
+                    <DecomposeArrowIcon />
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <VerifyMethodChipRow
+                currentMethodId={currentVerifyMethod}
+                onChangeMethod={(id) => setPrincipleVerifyMethod(pk, id)}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <FacetLensRow
+                currentLens={principleLens[pk] ?? selectedLens ?? null}
+                onChangeLens={(lens) => setPrincipleLens(pk, lens)}
+                collapsed={lensCollapsed}
+                onCollapseChange={setLensCollapsed}
+              />
+              <VerifyEvalChipRow
+                currentEvalId={currentVerifyEval}
+                onChangeEval={(id) => setPrincipleVerifyEval(pk, id)}
+                collapsed={chipsCollapsed}
+                onCollapseChange={setChipsCollapsed}
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={async () => {
+                    setVerifyLoading(true);
+                    try {
+                      await runVerifyFacet(
+                        rootAxis,
+                        pathName,
+                        facetText,
+                        currentVerifyMethod,
+                        currentVerifyEval,
+                        principleLens[pk] ?? selectedLens ?? null,
+                      );
+                    } finally {
+                      setVerifyLoading(false);
+                    }
+                  }}
+                  disabled={verifyLoading}
+                  className="hidden items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1 text-[11px] font-bold text-black hover:bg-amber-300 md:flex"
+                >
+                  <span>증명 시작</span>
+                  {verifyLoading ? (
+                    <DecomposeSpinnerIcon />
+                  ) : (
+                    <DecomposeArrowIcon />
+                  )}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1914,6 +2125,39 @@ function FacetNode({
                       key={`${d.key}::${subName}`}
                       rootAxis={rootAxis}
                       pathName={`${pathName}>${subName}`}
+                      facetName={subName}
+                      facetText={subText}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {expanded && verifyGens.length > 0 && (
+        <div className="flex shrink-0 snap-start flex-col gap-3 md:ml-4">
+          {verifyGens.map((v) => {
+            const st = verifyDerivedStatus[v.key];
+            return (
+              <div key={v.key} className="flex flex-col gap-1">
+                <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
+                  증명 · {verifyMethodLabel(v.methodId)} · {lensLabel(v.lens)} ·{" "}
+                  {verifyEvalLabel(v.evalId)}
+                </span>
+                {st === "loading" && (
+                  <div className="text-[10px] text-text-muted">검증 중…</div>
+                )}
+                {st === "error" && (
+                  <div className="text-[10px] text-red-400">검증 실패</div>
+                )}
+                <div className="flex flex-col gap-1">
+                  {Object.entries(v.subFacets).map(([subName, subText]) => (
+                    <FacetNode
+                      key={`${v.key}::${subName}`}
+                      rootAxis={rootAxis}
+                      pathName={`${pathName}>verify:${subName}`}
                       facetName={subName}
                       facetText={subText}
                     />

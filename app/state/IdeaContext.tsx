@@ -31,6 +31,10 @@ import {
   kBuiltinDirections,
   type ThinkingDirection,
 } from "@/lib/directions";
+import {
+  DEFAULT_VERIFY_METHOD_ID,
+  DEFAULT_VERIFY_EVAL_ID,
+} from "@/lib/verify";
 
 type Status = "idle" | "loading" | "error";
 
@@ -244,6 +248,39 @@ type Ctx = {
   // these when suggesting cross-domain analogs.
   blockerPrinciples: Set<string>;
   toggleBlockerPrinciple: (pk: string) => void;
+
+  // Per-principle controller mode: "explore" (default) uses the
+  // decomposition chips (direction/lens/result), "verify" swaps them for
+  // verification method + evaluation chips. Kept per-pk so different
+  // principles can be in different modes simultaneously.
+  principleControllerMode: Record<string, "explore" | "verify">;
+  setPrincipleControllerMode: (
+    pk: string,
+    mode: "explore" | "verify",
+  ) => void;
+  principleVerifyMethod: Record<string, string>;
+  setPrincipleVerifyMethod: (pk: string, methodId: string) => void;
+  principleVerifyEval: Record<string, string>;
+  setPrincipleVerifyEval: (pk: string, evalId: string) => void;
+  verifyDerived: Record<
+    string,
+    Array<{
+      key: string;
+      methodId: string;
+      evalId: string;
+      lens: SelectedLens | null;
+      subFacets: Record<string, string>;
+    }>
+  >;
+  verifyDerivedStatus: Record<string, Status>;
+  runVerifyFacet: (
+    axis: string,
+    name: string,
+    text: string,
+    methodId: string,
+    evalId: string,
+    lens: SelectedLens | null,
+  ) => Promise<void>;
 
   chipRecommendations: Record<string, ChipRecommendations>;
   chipStatus: Record<string, Status>;
@@ -879,6 +916,104 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       }
     },
     [subFacetDerived, decomposition, customDirections, providerTag],
+  );
+
+  const [principleControllerMode, setPrincipleControllerModeState] = useState<
+    Record<string, "explore" | "verify">
+  >({});
+  const setPrincipleControllerMode = useCallback(
+    (pk: string, mode: "explore" | "verify") => {
+      setPrincipleControllerModeState((prev) => ({ ...prev, [pk]: mode }));
+    },
+    [],
+  );
+  const [principleVerifyMethod, setPrincipleVerifyMethodState] = useState<
+    Record<string, string>
+  >({});
+  const setPrincipleVerifyMethod = useCallback(
+    (pk: string, methodId: string) => {
+      setPrincipleVerifyMethodState((prev) => ({ ...prev, [pk]: methodId }));
+    },
+    [],
+  );
+  const [principleVerifyEval, setPrincipleVerifyEvalState] = useState<
+    Record<string, string>
+  >({});
+  const setPrincipleVerifyEval = useCallback((pk: string, evalId: string) => {
+    setPrincipleVerifyEvalState((prev) => ({ ...prev, [pk]: evalId }));
+  }, []);
+  const [verifyDerived, setVerifyDerived] = useState<
+    Record<
+      string,
+      Array<{
+        key: string;
+        methodId: string;
+        evalId: string;
+        lens: SelectedLens | null;
+        subFacets: Record<string, string>;
+      }>
+    >
+  >({});
+  const [verifyDerivedStatus, setVerifyDerivedStatus] = useState<
+    Record<string, Status>
+  >({});
+
+  const runVerifyFacet = useCallback(
+    async (
+      axis: string,
+      name: string,
+      text: string,
+      methodId: string,
+      evalId: string,
+      lens: SelectedLens | null,
+    ) => {
+      const pk = `${axis}::${name}`;
+      const compound = `${pk}::${methodId}::${evalId}::${lensKey(lens)}::${providerTag}`;
+      const existing = verifyDerived[pk] ?? [];
+      if (existing.some((d) => d.key === compound)) return;
+
+      setVerifyDerivedStatus((s) => ({ ...s, [compound]: "loading" }));
+      try {
+        const res = await fetch(apiPath("/api/verify-facet"), {
+          method: "POST",
+          headers: apiHeaders(),
+          body: JSON.stringify({
+            parentAxis: name,
+            parentPrinciple: text,
+            rootTopic: decomposition?.topicText,
+            bigCategory: decomposition?.bigCategory,
+            methodId,
+            evalId,
+            lens,
+          }),
+        });
+        const data = (await res.json()) as {
+          subFacets?: Record<string, string>;
+          error?: string;
+        };
+        if (!res.ok || !data.subFacets) {
+          throw new Error(data.error ?? `Request failed: ${res.status}`);
+        }
+        setVerifyDerived((m) => ({
+          ...m,
+          [pk]: [
+            ...(m[pk] ?? []),
+            {
+              key: compound,
+              methodId,
+              evalId,
+              lens,
+              subFacets: data.subFacets!,
+            },
+          ],
+        }));
+        setVerifyDerivedStatus((s) => ({ ...s, [compound]: "idle" }));
+      } catch (err) {
+        setVerifyDerivedStatus((s) => ({ ...s, [compound]: "error" }));
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [verifyDerived, decomposition, providerTag],
   );
 
   const setFacetDirection = useCallback((axis: string, directionId: string) => {
@@ -2182,6 +2317,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       markPrincipleCollapsed,
       blockerPrinciples,
       toggleBlockerPrinciple,
+      principleControllerMode,
+      setPrincipleControllerMode,
+      principleVerifyMethod,
+      setPrincipleVerifyMethod,
+      principleVerifyEval,
+      setPrincipleVerifyEval,
+      verifyDerived,
+      verifyDerivedStatus,
+      runVerifyFacet,
       chipRecommendations,
       chipStatus,
       runRecommendChips,
@@ -2339,6 +2483,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       markPrincipleCollapsed,
       blockerPrinciples,
       toggleBlockerPrinciple,
+      principleControllerMode,
+      setPrincipleControllerMode,
+      principleVerifyMethod,
+      setPrincipleVerifyMethod,
+      principleVerifyEval,
+      setPrincipleVerifyEval,
+      verifyDerived,
+      verifyDerivedStatus,
+      runVerifyFacet,
       chipRecommendations,
       chipStatus,
       runRecommendChips,
