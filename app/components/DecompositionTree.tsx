@@ -1167,14 +1167,13 @@ function AxisRow({
             <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
               추가 조건 (선택)
             </span>
-            <textarea
+            <input
               value={axisCustomContext}
               onChange={(e) =>
                 setPrincipleCustomContext(axisPk, e.target.value)
               }
-              placeholder="부모 축을 조율할 추가 조건·관점·제약을 자유롭게 입력"
-              rows={2}
-              className="rounded-md bg-white/[0.06] px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.1] focus:outline-none md:text-[11px]"
+              placeholder="부모 축을 조율할 추가 조건·관점·제약"
+              className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
             />
           </div>
 
@@ -2024,12 +2023,11 @@ function FacetNode({
             <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
               추가 조건 (선택)
             </span>
-            <textarea
+            <input
               value={customContext}
               onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-              placeholder="부모 축을 조율할 추가 조건·관점·제약을 자유롭게 입력"
-              rows={2}
-              className="rounded-md bg-white/[0.06] px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.1] focus:outline-none md:text-[11px]"
+              placeholder="부모 축을 조율할 추가 조건·관점·제약"
+              className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
             />
           </div>
 
