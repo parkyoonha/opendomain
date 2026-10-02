@@ -25,13 +25,12 @@ import type { BigCategory } from "@/lib/constants";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
-import VerifyMethodChipRow from "./VerifyMethodChipRow";
-import VerifyEvalChipRow from "./VerifyEvalChipRow";
 import {
-  DEFAULT_VERIFY_METHOD_ID,
-  DEFAULT_VERIFY_EVAL_ID,
-  verifyMethodLabel,
-  verifyEvalLabel,
+  verifyStatusIcon,
+  verifyStatusLabel,
+  verifyStatusPalette,
+  type VerifyStatus,
+  type VerifyCondition,
 } from "@/lib/verify";
 import MemoStack from "./MemoStack";
 import PendingTopicCard from "./PendingTopicCard";
@@ -1034,10 +1033,6 @@ function AxisRow({
     selectedPrinciple,
     principleControllerMode,
     setPrincipleControllerMode,
-    principleVerifyMethod,
-    setPrincipleVerifyMethod,
-    principleVerifyEval,
-    setPrincipleVerifyEval,
     principleVerifyLens,
     setPrincipleVerifyLens,
     principleCustomContext,
@@ -1045,14 +1040,12 @@ function AxisRow({
     verifyDerived,
     verifyDerivedStatus,
     runVerifyFacet,
+    selectPrinciple,
+    runRecommendChips,
   } = useIdea();
   const axisPk = principleKey(axis, "축 전체");
   const axisMode = principleControllerMode[axisPk] ?? "explore";
   const axisCustomContext = principleCustomContext[axisPk] ?? "";
-  const axisVerifyMethod =
-    principleVerifyMethod[axisPk] ?? DEFAULT_VERIFY_METHOD_ID;
-  const axisVerifyEval =
-    principleVerifyEval[axisPk] ?? DEFAULT_VERIFY_EVAL_ID;
   const axisVerifyLens = principleVerifyLens[axisPk] ?? null;
   const axisVerifyGens = verifyDerived[axisPk] ?? [];
   const [axisVerifyLoading, setAxisVerifyLoading] = useState(false);
@@ -1228,23 +1221,11 @@ function AxisRow({
             </>
           ) : (
             <>
-              <VerifyMethodChipRow
-                currentMethodId={axisVerifyMethod}
-                onChangeMethod={(id) => setPrincipleVerifyMethod(axisPk, id)}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
               <FacetLensRow
                 currentLens={axisVerifyLens}
                 onChangeLens={(lens) => setPrincipleVerifyLens(axisPk, lens)}
                 collapsed={lensCollapsed}
                 onCollapseChange={setLensCollapsed}
-              />
-              <VerifyEvalChipRow
-                currentEvalId={axisVerifyEval}
-                onChangeEval={(id) => setPrincipleVerifyEval(axisPk, id)}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
               />
               <button
                 onClick={async () => {
@@ -1254,8 +1235,6 @@ function AxisRow({
                       axis,
                       "축 전체",
                       principle,
-                      axisVerifyMethod,
-                      axisVerifyEval,
                       axisVerifyLens,
                     );
                   } finally {
@@ -1319,27 +1298,33 @@ function AxisRow({
         <div className="flex shrink-0 snap-start flex-col gap-4 md:pl-4">
           {axisVerifyGens.map((v) => {
             const st = verifyDerivedStatus[v.key];
-            const entries = Object.entries(v.subFacets);
             return (
-              <div key={v.key} className="flex flex-col gap-1">
-                <div className="flex items-center gap-1 md:pl-8">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
-                    증명 · {verifyMethodLabel(v.methodId)} ·{" "}
-                    {lensLabel(v.lens)} · {verifyEvalLabel(v.evalId)}
-                  </span>
-                </div>
-                {st === "loading" && (
-                  <div className="md:pl-8 text-[10px] text-text-muted">
-                    검증 중…
-                  </div>
-                )}
-                {st === "error" && (
-                  <div className="md:pl-8 text-[10px] text-red-400">
-                    검증 실패
-                  </div>
-                )}
-                <SubFacets axis={axis} entries={entries} />
-              </div>
+              <VerifyReportCard
+                key={v.key}
+                lens={v.lens}
+                report={v.report}
+                status={st}
+                parentAxis={axis}
+                parentName="축 전체"
+                parentText={principle}
+                onRedecompose={(cond) => {
+                  selectPrinciple({
+                    axis,
+                    name: cond.name,
+                    text: cond.principle,
+                  });
+                  void runRecommendChips(axis, cond.name, cond.principle);
+                }}
+                onCombine={(cond) => {
+                  selectPrinciple({
+                    axis,
+                    name: cond.name,
+                    text: cond.principle,
+                  });
+                  void runRecommendChips(axis, cond.name, cond.principle);
+                  setChipPanelOpen(true);
+                }}
+              />
             );
           })}
         </div>
@@ -1826,10 +1811,6 @@ function FacetNode({
     toggleBlockerPrinciple,
     principleControllerMode,
     setPrincipleControllerMode,
-    principleVerifyMethod,
-    setPrincipleVerifyMethod,
-    principleVerifyEval,
-    setPrincipleVerifyEval,
     principleVerifyLens,
     setPrincipleVerifyLens,
     principleCustomContext,
@@ -1849,9 +1830,6 @@ function FacetNode({
   const isBlocker = blockerPrinciples.has(pk);
   const mode = principleControllerMode[pk] ?? "explore";
   const customContext = principleCustomContext[pk] ?? "";
-  const currentVerifyMethod =
-    principleVerifyMethod[pk] ?? DEFAULT_VERIFY_METHOD_ID;
-  const currentVerifyEval = principleVerifyEval[pk] ?? DEFAULT_VERIFY_EVAL_ID;
   const currentVerifyLens =
     principleVerifyLens[pk] ?? null;
   const verifyGens = verifyDerived[pk] ?? [];
@@ -2094,23 +2072,11 @@ function FacetNode({
             </>
           ) : (
             <>
-              <VerifyMethodChipRow
-                currentMethodId={currentVerifyMethod}
-                onChangeMethod={(id) => setPrincipleVerifyMethod(pk, id)}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
               <FacetLensRow
                 currentLens={currentVerifyLens}
                 onChangeLens={(lens) => setPrincipleVerifyLens(pk, lens)}
                 collapsed={lensCollapsed}
                 onCollapseChange={setLensCollapsed}
-              />
-              <VerifyEvalChipRow
-                currentEvalId={currentVerifyEval}
-                onChangeEval={(id) => setPrincipleVerifyEval(pk, id)}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
               />
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
@@ -2121,8 +2087,6 @@ function FacetNode({
                         rootAxis,
                         pathName,
                         facetText,
-                        currentVerifyMethod,
-                        currentVerifyEval,
                         currentVerifyLens,
                       );
                     } finally {
@@ -2193,29 +2157,32 @@ function FacetNode({
           {verifyGens.map((v) => {
             const st = verifyDerivedStatus[v.key];
             return (
-              <div key={v.key} className="flex flex-col gap-1">
-                <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
-                  증명 · {verifyMethodLabel(v.methodId)} · {lensLabel(v.lens)} ·{" "}
-                  {verifyEvalLabel(v.evalId)}
-                </span>
-                {st === "loading" && (
-                  <div className="text-[10px] text-text-muted">검증 중…</div>
-                )}
-                {st === "error" && (
-                  <div className="text-[10px] text-red-400">검증 실패</div>
-                )}
-                <div className="flex flex-col gap-1">
-                  {Object.entries(v.subFacets).map(([subName, subText]) => (
-                    <FacetNode
-                      key={`${v.key}::${subName}`}
-                      rootAxis={rootAxis}
-                      pathName={`${pathName}>verify:${subName}`}
-                      facetName={subName}
-                      facetText={subText}
-                    />
-                  ))}
-                </div>
-              </div>
+              <VerifyReportCard
+                key={v.key}
+                lens={v.lens}
+                report={v.report}
+                status={st}
+                parentAxis={rootAxis}
+                parentName={pathName}
+                parentText={facetText}
+                onRedecompose={(cond) => {
+                  selectPrinciple({
+                    axis: rootAxis,
+                    name: cond.name,
+                    text: cond.principle,
+                  });
+                  void runRecommendChips(rootAxis, cond.name, cond.principle);
+                }}
+                onCombine={(cond) => {
+                  selectPrinciple({
+                    axis: rootAxis,
+                    name: cond.name,
+                    text: cond.principle,
+                  });
+                  void runRecommendChips(rootAxis, cond.name, cond.principle);
+                  setChipPanelOpen(true);
+                }}
+              />
             );
           })}
         </div>
@@ -2354,6 +2321,112 @@ function CombinedIdeasBoardSection({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type VerifyReportCardProps = {
+  lens: SelectedLens | null;
+  report: {
+    summary: string;
+    conditions: VerifyCondition[];
+  };
+  status?: "idle" | "loading" | "error";
+  parentAxis: string;
+  parentName: string;
+  parentText: string;
+  onRedecompose: (cond: VerifyCondition) => void;
+  onCombine: (cond: VerifyCondition) => void;
+};
+
+// Renders a single verify generation: a top summary line + a column of
+// condition cards. Each card uses the status palette (ok/partial/blocker)
+// and exposes 재분해 / 조합 actions that chain the condition into the
+// explore tree or into the chip combine flow.
+function VerifyReportCard({
+  lens,
+  report,
+  status,
+  parentAxis,
+  parentName,
+  parentText,
+  onRedecompose,
+  onCombine,
+}: VerifyReportCardProps) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-amber-400/40 bg-amber-500/[0.06] p-3">
+      <div className="flex items-center gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
+          증명 · {lensLabel(lens)}
+        </span>
+      </div>
+      {status === "loading" && (
+        <div className="text-[11px] text-text-muted">검증 중…</div>
+      )}
+      {status === "error" && (
+        <div className="text-[11px] text-red-400">검증 실패</div>
+      )}
+      {report.summary && (
+        <div className="rounded-md bg-black/30 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            성립성 요약
+          </div>
+          <div className="mt-1 text-[13px] leading-5 text-text-primary md:text-[11px] md:leading-4">
+            {report.summary}
+          </div>
+        </div>
+      )}
+      {report.conditions.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {report.conditions.map((c, i) => {
+            const pal = verifyStatusPalette[c.status];
+            return (
+              <li
+                key={`${i}-${c.name}`}
+                className={`rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${pal.chip}`}
+                      >
+                        {verifyStatusIcon[c.status]}{" "}
+                        {verifyStatusLabel[c.status]}
+                      </span>
+                      <span
+                        className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
+                      >
+                        {c.name}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                      {c.principle}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <button
+                    onClick={() => onRedecompose(c)}
+                    className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-[10px] text-text-primary hover:bg-white/[0.16] md:text-[10px]"
+                    title={`이 조건을 사고확장 모드에서 재분해 (${parentAxis} · ${parentName})`}
+                  >
+                    재분해
+                  </button>
+                  <button
+                    onClick={() => onCombine(c)}
+                    className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-[10px] text-text-primary hover:bg-white/[0.16] md:text-[10px]"
+                    title="이 조건을 칩과 조합하여 해결 시도"
+                  >
+                    조합
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {parentText ? null : null}
     </div>
   );
 }

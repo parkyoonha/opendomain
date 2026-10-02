@@ -31,10 +31,7 @@ import {
   kBuiltinDirections,
   type ThinkingDirection,
 } from "@/lib/directions";
-import {
-  DEFAULT_VERIFY_METHOD_ID,
-  DEFAULT_VERIFY_EVAL_ID,
-} from "@/lib/verify";
+import type { VerifyReport } from "@/lib/verify";
 
 type Status = "idle" | "loading" | "error";
 
@@ -258,10 +255,6 @@ type Ctx = {
     pk: string,
     mode: "explore" | "verify",
   ) => void;
-  principleVerifyMethod: Record<string, string>;
-  setPrincipleVerifyMethod: (pk: string, methodId: string) => void;
-  principleVerifyEval: Record<string, string>;
-  setPrincipleVerifyEval: (pk: string, evalId: string) => void;
   principleVerifyLens: Record<string, SelectedLens | null>;
   setPrincipleVerifyLens: (pk: string, lens: SelectedLens | null) => void;
   // Free-text parent-axis tuning. User types additional context/guidance
@@ -273,10 +266,8 @@ type Ctx = {
     string,
     Array<{
       key: string;
-      methodId: string;
-      evalId: string;
       lens: SelectedLens | null;
-      subFacets: Record<string, string>;
+      report: VerifyReport;
     }>
   >;
   verifyDerivedStatus: Record<string, Status>;
@@ -284,8 +275,6 @@ type Ctx = {
     axis: string,
     name: string,
     text: string,
-    methodId: string,
-    evalId: string,
     lens: SelectedLens | null,
   ) => Promise<void>;
 
@@ -957,21 +946,6 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
-  const [principleVerifyMethod, setPrincipleVerifyMethodState] = useState<
-    Record<string, string>
-  >({});
-  const setPrincipleVerifyMethod = useCallback(
-    (pk: string, methodId: string) => {
-      setPrincipleVerifyMethodState((prev) => ({ ...prev, [pk]: methodId }));
-    },
-    [],
-  );
-  const [principleVerifyEval, setPrincipleVerifyEvalState] = useState<
-    Record<string, string>
-  >({});
-  const setPrincipleVerifyEval = useCallback((pk: string, evalId: string) => {
-    setPrincipleVerifyEvalState((prev) => ({ ...prev, [pk]: evalId }));
-  }, []);
   const [principleVerifyLens, setPrincipleVerifyLensState] = useState<
     Record<string, SelectedLens | null>
   >({});
@@ -986,10 +960,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       string,
       Array<{
         key: string;
-        methodId: string;
-        evalId: string;
         lens: SelectedLens | null;
-        subFacets: Record<string, string>;
+        report: VerifyReport;
       }>
     >
   >({});
@@ -1002,12 +974,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       axis: string,
       name: string,
       text: string,
-      methodId: string,
-      evalId: string,
       lens: SelectedLens | null,
     ) => {
       const pk = `${axis}::${name}`;
-      const compound = `${pk}::${methodId}::${evalId}::${lensKey(lens)}::${providerTag}`;
+      const compound = `${pk}::${lensKey(lens)}::${providerTag}`;
       // Always re-run on button click.
       setVerifyDerived((m) => {
         const cur = m[pk] ?? [];
@@ -1026,17 +996,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             parentPrinciple: text,
             rootTopic: decomposition?.topicText,
             bigCategory: decomposition?.bigCategory,
-            methodId,
-            evalId,
             lens,
             userContext: principleCustomContext[pk],
           }),
         });
         const data = (await res.json()) as {
-          subFacets?: Record<string, string>;
+          report?: VerifyReport;
           error?: string;
         };
-        if (!res.ok || !data.subFacets) {
+        if (!res.ok || !data.report) {
           throw new Error(data.error ?? `Request failed: ${res.status}`);
         }
         setVerifyDerived((m) => ({
@@ -1045,10 +1013,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             ...(m[pk] ?? []),
             {
               key: compound,
-              methodId,
-              evalId,
               lens,
-              subFacets: data.subFacets!,
+              report: data.report!,
             },
           ],
         }));
@@ -2373,10 +2339,6 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       toggleBlockerPrinciple,
       principleControllerMode,
       setPrincipleControllerMode,
-      principleVerifyMethod,
-      setPrincipleVerifyMethod,
-      principleVerifyEval,
-      setPrincipleVerifyEval,
       principleVerifyLens,
       setPrincipleVerifyLens,
       principleCustomContext,
@@ -2543,10 +2505,6 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       toggleBlockerPrinciple,
       principleControllerMode,
       setPrincipleControllerMode,
-      principleVerifyMethod,
-      setPrincipleVerifyMethod,
-      principleVerifyEval,
-      setPrincipleVerifyEval,
       principleVerifyLens,
       setPrincipleVerifyLens,
       principleCustomContext,

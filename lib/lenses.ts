@@ -72,6 +72,17 @@ export type SelectedLens = {
   isCustom?: boolean;
 };
 
+// Sentinel discipline representing "pick the best domain lens automatically
+// based on the parent facet and context". Treated distinctly from a null
+// (no lens) selection: null = no lens applied, auto = LLM chooses.
+export const AUTO_LENS_DISCIPLINE = "자동";
+export const AUTO_LENS: SelectedLens = {
+  discipline: AUTO_LENS_DISCIPLINE,
+  scholar: null,
+};
+export const isAutoLens = (lens: SelectedLens | null): boolean =>
+  !!lens && lens.discipline === AUTO_LENS_DISCIPLINE;
+
 export const lensLabel = (lens: SelectedLens | null): string => {
   if (!lens) return "빈렌즈";
   if (lens.scholar) return `${lens.discipline} · ${lens.scholar}`;
@@ -83,6 +94,12 @@ export const lensKey = (lens: SelectedLens | null): string =>
 
 export const lensPromptFragment = (lens: SelectedLens | null): string => {
   if (!lens) return "";
+  if (isAutoLens(lens)) {
+    return `**적용 렌즈: 자동 선택**
+- 부모 facet의 성격·결과 유형·주제 맥락을 보고 **가장 적합한 학문/도메인 렌즈 하나를 스스로 선택**해 적용하라.
+- 선택한 렌즈가 무엇인지 자연스럽게 서술에 녹아들게 하되, 억지 인용·과잉 학술 어휘는 금지.
+- 어떤 렌즈를 골랐는지 외부 라벨로 밝힐 필요는 없다 — 결과의 사고 틀에서 느껴지면 된다.`;
+  }
   const perspective = lens.scholar
     ? `${lens.discipline}의 ${lens.scholar} 관점`
     : `${lens.discipline}의 학문적 관점`;

@@ -5,13 +5,10 @@ import { useIdea } from "../state/IdeaContext";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
-import VerifyMethodChipRow from "./VerifyMethodChipRow";
-import VerifyEvalChipRow from "./VerifyEvalChipRow";
 import {
-  DEFAULT_VERIFY_METHOD_ID,
-  DEFAULT_VERIFY_EVAL_ID,
-  verifyMethodLabel,
-  verifyEvalLabel,
+  verifyStatusIcon,
+  verifyStatusLabel,
+  verifyStatusPalette,
 } from "@/lib/verify";
 import { lensLabel } from "@/lib/lenses";
 
@@ -33,10 +30,6 @@ export default function PendingTopicCard() {
     status,
     principleControllerMode,
     setPrincipleControllerMode,
-    principleVerifyMethod,
-    setPrincipleVerifyMethod,
-    principleVerifyEval,
-    setPrincipleVerifyEval,
     principleVerifyLens,
     setPrincipleVerifyLens,
     principleCustomContext,
@@ -57,8 +50,6 @@ export default function PendingTopicCard() {
   const pk = `주제::${pendingTopic}`;
   const mode = principleControllerMode[pk] ?? "explore";
   const customContext = principleCustomContext[pk] ?? "";
-  const vMethod = principleVerifyMethod[pk] ?? DEFAULT_VERIFY_METHOD_ID;
-  const vEval = principleVerifyEval[pk] ?? DEFAULT_VERIFY_EVAL_ID;
   const vLens = principleVerifyLens[pk] ?? null;
   const vGens = verifyDerived[pk] ?? [];
 
@@ -154,36 +145,17 @@ export default function PendingTopicCard() {
         </div>
       ) : (
         <div className="flex flex-col gap-3 pt-1">
-          <VerifyMethodChipRow
-            currentMethodId={vMethod}
-            onChangeMethod={(id) => setPrincipleVerifyMethod(pk, id)}
-            collapsed={collapsedDir}
-            onCollapseChange={setCollapsedDir}
-          />
           <FacetLensRow
             currentLens={vLens}
             onChangeLens={(l) => setPrincipleVerifyLens(pk, l)}
             collapsed={collapsedLens}
             onCollapseChange={setCollapsedLens}
           />
-          <VerifyEvalChipRow
-            currentEvalId={vEval}
-            onChangeEval={(id) => setPrincipleVerifyEval(pk, id)}
-            collapsed={collapsedResult}
-            onCollapseChange={setCollapsedResult}
-          />
           <button
             onClick={async () => {
               setVerifyBusy(true);
               try {
-                await runVerifyFacet(
-                  "주제",
-                  pendingTopic,
-                  pendingTopic,
-                  vMethod,
-                  vEval,
-                  vLens,
-                );
+                await runVerifyFacet("주제", pendingTopic, pendingTopic, vLens);
               } finally {
                 setVerifyBusy(false);
               }
@@ -200,10 +172,12 @@ export default function PendingTopicCard() {
               {vGens.map((v) => {
                 const st = verifyDerivedStatus[v.key];
                 return (
-                  <div key={v.key} className="flex flex-col gap-1">
+                  <div
+                    key={v.key}
+                    className="flex flex-col gap-2 rounded-md border border-amber-400/40 bg-amber-500/[0.06] p-2"
+                  >
                     <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
-                      증명 · {verifyMethodLabel(v.methodId)} ·{" "}
-                      {lensLabel(v.lens)} · {verifyEvalLabel(v.evalId)}
+                      증명 · {lensLabel(v.lens)}
                     </span>
                     {st === "loading" && (
                       <div className="text-[10px] text-text-muted">검증 중…</div>
@@ -211,20 +185,43 @@ export default function PendingTopicCard() {
                     {st === "error" && (
                       <div className="text-[10px] text-red-400">검증 실패</div>
                     )}
+                    {v.report.summary && (
+                      <div className="rounded-md bg-black/30 px-3 py-2">
+                        <div className="text-[9px] uppercase tracking-wider text-text-muted">
+                          성립성 요약
+                        </div>
+                        <div className="mt-0.5 text-[12px] leading-5 text-text-primary md:text-[11px] md:leading-4">
+                          {v.report.summary}
+                        </div>
+                      </div>
+                    )}
                     <ul className="flex flex-col gap-1">
-                      {Object.entries(v.subFacets).map(([n, t]) => (
-                        <li
-                          key={n}
-                          className="rounded-md bg-white/[0.06] px-3 py-2"
-                        >
-                          <div className="text-[12px] font-semibold text-text-primary md:text-[11px]">
-                            {n}
-                          </div>
-                          <div className="mt-0.5 text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                            {t}
-                          </div>
-                        </li>
-                      ))}
+                      {v.report.conditions.map((c, i) => {
+                        const pal = verifyStatusPalette[c.status];
+                        return (
+                          <li
+                            key={`${i}-${c.name}`}
+                            className={`rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold ${pal.chip}`}
+                              >
+                                {verifyStatusIcon[c.status]}{" "}
+                                {verifyStatusLabel[c.status]}
+                              </span>
+                              <span
+                                className={`text-[12px] font-semibold ${pal.text} md:text-[11px]`}
+                              >
+                                {c.name}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                              {c.principle}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 );

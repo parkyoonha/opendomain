@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { callLLM, parseAxesJson, pickProvider } from "@/lib/llm";
-import { verifyPrompt } from "@/lib/verify";
+import { callLLM, pickProvider } from "@/lib/llm";
+import {
+  verifySystemPrompt,
+  verifyUserPrompt,
+  type VerifyReport,
+  type VerifyStatus,
+} from "@/lib/verify";
 import { modelFor, type BigCategory } from "@/lib/constants";
-import type { SelectedLens } from "@/lib/lenses";
+import { lensPromptFragment, type SelectedLens } from "@/lib/lenses";
 
 export const runtime = "nodejs";
 
@@ -11,11 +16,34 @@ type Body = {
   parentPrinciple?: string;
   rootTopic?: string;
   bigCategory?: BigCategory;
-  methodId?: string;
-  evalId?: string;
   lens?: SelectedLens | null;
   userContext?: string;
 };
+
+function parseVerifyReport(content: string): VerifyReport {
+  const parsed = JSON.parse(content) as {
+    summary?: string;
+    conditions?: {
+      name?: string;
+      principle?: string;
+      status?: string;
+    }[];
+  };
+  const allowed = new Set<VerifyStatus>(["ok", "partial", "blocker"]);
+  const conditions = (parsed.conditions ?? [])
+    .map((c) => ({
+      name: (c?.name ?? "").trim(),
+      principle: (c?.principle ?? "").trim(),
+      status: (allowed.has(c?.status as VerifyStatus)
+        ? (c?.status as VerifyStatus)
+        : "partial") as VerifyStatus,
+    }))
+    .filter((c) => c.name && c.principle);
+  return {
+    summary: (parsed.summary ?? "").trim(),
+    conditions,
+  };
+}
 
 export async function POST(req: Request) {
   const userGeminiKey = req.headers.get("x-user-gemini-key");
@@ -33,8 +61,6 @@ export async function POST(req: Request) {
 
   const parentAxis = body.parentAxis?.trim();
   const parentPrinciple = body.parentPrinciple?.trim();
-  const methodId = body.methodId?.trim() ?? "physics";
-  const evalId = body.evalId?.trim() ?? "qualitative";
   if (!parentAxis || !parentPrinciple) {
     return NextResponse.json(
       { error: "parentAxis and parentPrinciple are required" },
@@ -42,15 +68,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const lensLine = body.lens
-    ? `\n렌즈: ${body.lens.discipline}${body.lens.scholar ? ` · ${body.lens.scholar}` : ""}`
-    : "";
-
-  const system = `당신은 아이디어의 실현 가능성을 냉정하게 검증하는 검토자다. 낙관·비관 슬로건 금지. 구체 조건·수치·사례로만 답한다.`;
-  const userContextLine = body.userContext?.trim()
-    ? `\n\n**사용자 추가 지시 (최우선 제약)**: ${body.userContext.trim()}`
-    : "";
-  const user = `${verifyPrompt(parentAxis, parentPrinciple, methodId, evalId, body.rootTopic)}${lensLine}${userContextLine}`;
+  const lensFrag = lensPromptFragment(body.lens ?? null);
+  const system = `${verifySystemPrompt()}${lensFrag ? `\n\n${lensFrag}` : ""}`;
+  const user = verifyUserPrompt(
+    parentAxis,
+    parentPrinciple,
+    body.rootTopic,
+    body.userContext,
+  );
 
   try {
     const content = await callLLM({
@@ -63,8 +88,8 @@ export async function POST(req: Request) {
         { role: "user", content: user },
       ],
     });
-    const subFacets = parseAxesJson(content);
-    return NextResponse.json({ subFacets });
+    const report = parseVerifyReport(content);
+    return NextResponse.json({ report });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

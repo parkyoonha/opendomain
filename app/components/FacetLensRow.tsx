@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useIdea } from "../state/IdeaContext";
-import { kBuiltinLenses, lensLabel, type SelectedLens } from "@/lib/lenses";
+import {
+  kBuiltinLenses,
+  lensLabel,
+  AUTO_LENS,
+  isAutoLens,
+  type SelectedLens,
+} from "@/lib/lenses";
 
 const CHIP_BASE =
   "rounded-full px-5 py-2 text-[14px] transition-colors whitespace-nowrap md:px-3 md:py-1 md:text-[11px]";
@@ -120,6 +126,15 @@ export default function FacetLensRow({
           </>
         ) : (
           <>
+            <button
+              onClick={() => pick(AUTO_LENS)}
+              className={`${CHIP_BASE} ${
+                isAutoLens(currentLens) ? CHIP_ACTIVE : CHIP_INACTIVE
+              }`}
+              title="상황에 맞는 렌즈를 LLM이 자동 선택"
+            >
+              자동
+            </button>
             {allLenses.map((l) => {
               const active = currentLens?.discipline === l.discipline;
               return (
