@@ -50,7 +50,8 @@ export default function PendingTopicCard() {
   const vGens = verifyDerived[pk] ?? [];
 
   return (
-    <div className="decomp-controller mb-3 flex w-[calc(100vw-3rem)] max-w-full flex-col gap-3 rounded-lg bg-white/[0.05] p-4 md:w-[560px]">
+    <div className="flex flex-col gap-3">
+    <div className="decomp-controller flex w-[calc(100vw-3rem)] max-w-full flex-col gap-3 rounded-lg bg-white/[0.05] p-4 md:w-[560px]">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
@@ -162,50 +163,53 @@ export default function PendingTopicCard() {
             <span>증명 시작</span>
             {verifyBusy ? <Spinner /> : <Arrow />}
           </button>
-
-          {vGens.length > 0 && (
-            <div className="mt-2 flex flex-col gap-3">
-              {vGens.map((v) => {
-                const st = verifyDerivedStatus[v.key];
-                return (
-                  <div key={v.key} className="flex flex-col gap-1">
-                    <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
-                      증명 · {lensLabel(v.lens)}
-                    </span>
-                    {st === "loading" && (
-                      <div className="text-[10px] text-text-muted">검증 중…</div>
-                    )}
-                    {st === "error" && (
-                      <div className="text-[10px] text-red-400">검증 실패</div>
-                    )}
-                    {v.report.summary && (
-                      <div className="text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
-                        <span className="text-text-muted">요약 · </span>
-                        {v.report.summary}
-                      </div>
-                    )}
-                    <ul className="flex flex-col gap-1">
-                      {v.report.conditions.map((c, i) => (
-                        <li
-                          key={`${i}-${c.name}`}
-                          className="rounded-md bg-white/[0.08] px-3 py-2"
-                        >
-                          <div className="text-[13px] font-semibold text-text-primary md:text-[11px]">
-                            {verifyStatusIcon[c.status]} {c.name}
-                          </div>
-                          <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                            {c.principle}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
+    </div>
+
+    {/* Verify results render OUTSIDE the pending card so the user sees
+        them as separate axes, not clamped inside the card border. */}
+    {mode === "verify" && vGens.length > 0 && (
+      <div className="flex w-[calc(100vw-3rem)] max-w-full flex-col gap-3 md:w-[560px]">
+        {vGens.map((v) => {
+          const st = verifyDerivedStatus[v.key];
+          return (
+            <div key={v.key} className="flex flex-col gap-1">
+              <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
+                증명 · {lensLabel(v.lens)}
+              </span>
+              {st === "loading" && (
+                <div className="text-[10px] text-text-muted">검증 중…</div>
+              )}
+              {st === "error" && (
+                <div className="text-[10px] text-red-400">검증 실패</div>
+              )}
+              {v.report.summary && (
+                <div className="text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
+                  <span className="text-text-muted">요약 · </span>
+                  {v.report.summary}
+                </div>
+              )}
+              <ul className="flex flex-col gap-1">
+                {v.report.conditions.map((c, i) => (
+                  <li
+                    key={`${i}-${c.name}`}
+                    className="rounded-md bg-white/[0.08] px-3 py-2"
+                  >
+                    <div className="text-[13px] font-semibold text-text-primary md:text-[11px]">
+                      {verifyStatusIcon[c.status]} {c.name}
+                    </div>
+                    <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                      {c.principle}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    )}
     </div>
   );
 }
