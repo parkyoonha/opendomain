@@ -27,6 +27,8 @@ import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import {
   verifyStatusIcon,
+  verifyStatusLabel,
+  verifyStatusPalette,
   type VerifyCondition,
 } from "@/lib/verify";
 import MemoStack from "./MemoStack";
@@ -2346,21 +2348,22 @@ function CombinedIdeasBoardSection({
 type VerifyReportCardProps = {
   lens: SelectedLens | null;
   report: {
-    summary: string;
+    target: string;
     conditions: VerifyCondition[];
   };
   status?: "idle" | "loading" | "error";
   parentAxis: string;
 };
 
-// Renders a single verify generation in a structure *identical* to the
-// explore generation render (header pill + SubFacets-shaped column of
-// FacetNodes), so the two feel like the same tree node type. Each
-// condition is a FacetNode — clicking it selects the principle and
-// opens the explore controller via the same handleSelect flow. A small
-// colored status badge is prepended to the FacetNode's facetName so
-// users can scan ok / partial / blocker without a sibling column
-// changing the layout width.
+// Renders a single verify generation:
+//   - header pill (증명 · lens)
+//   - target line (목표)
+//   - 필수 조건 list with PASS / FAIL / UNKNOWN badges
+//   - for every FAIL condition, an inline cascade:
+//       · issue label + 원인 (cause)
+//       · 해결 변수 list, each as a FacetNode so the user can click to
+//         open a controller and further decompose / combine that
+//         specific solution direction with chips.
 function VerifyReportCard({
   lens,
   report,
@@ -2368,7 +2371,7 @@ function VerifyReportCard({
   parentAxis,
 }: VerifyReportCardProps) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1 md:pl-8">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
           증명 · {lensLabel(lens)}
@@ -2380,28 +2383,86 @@ function VerifyReportCard({
       {status === "error" && (
         <div className="md:pl-8 text-[11px] text-red-400">검증 실패</div>
       )}
-      {report.summary && (
-        <div className="md:pl-8 max-w-[560px] text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
-          <span className="text-text-muted">요약 · </span>
-          {report.summary}
+      {report.target && (
+        <div className="md:pl-8 max-w-[560px] text-[13px] leading-5 text-text-primary md:text-[12px] md:leading-4">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            목표
+          </span>
+          <div className="mt-0.5 font-semibold">{report.target}</div>
         </div>
       )}
       {report.conditions.length > 0 && (
-        <div className="relative flex items-start md:pl-8">
-          <ul className="flex flex-col gap-1">
+        <div className="md:pl-8 max-w-[560px]">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            필수 조건
+          </div>
+          <ul className="mt-1 flex flex-col gap-2">
             {report.conditions.map((c, i) => {
-              const prefixedName = `${verifyStatusIcon[c.status]} ${c.name}`;
+              const pal = verifyStatusPalette[c.status];
               return (
-                <li
-                  key={`${i}-${c.name}`}
-                  className="flex items-start"
-                >
-                  <FacetNode
-                    rootAxis={parentAxis}
-                    pathName={c.name}
-                    facetName={prefixedName}
-                    facetText={c.principle}
-                  />
+                <li key={`${i}-${c.name}`} className="flex flex-col gap-1.5">
+                  <div
+                    className={`rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
+                      >
+                        {verifyStatusIcon[c.status]} {c.name}
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                      >
+                        {verifyStatusLabel[c.status]}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                      {c.principle}
+                    </div>
+                  </div>
+
+                  {c.status === "fail" && c.cascade && (
+                    <div className="ml-3 flex flex-col gap-1.5 border-l border-rose-400/30 pl-3">
+                      {c.cascade.issue && (
+                        <div className="text-[11px] text-rose-200 md:text-[10px]">
+                          <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                            실패 지점 ·{" "}
+                          </span>
+                          {c.cascade.issue}
+                        </div>
+                      )}
+                      {c.cascade.cause && (
+                        <div className="text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                          <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                            원인 ·{" "}
+                          </span>
+                          {c.cascade.cause}
+                        </div>
+                      )}
+                      {c.cascade.solutionVariables.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[9px] uppercase tracking-wider text-text-muted">
+                            해결 변수 — 클릭하여 조합·재분해
+                          </div>
+                          <ul className="flex flex-col gap-1">
+                            {c.cascade.solutionVariables.map((sv) => (
+                              <li
+                                key={sv}
+                                className="flex items-start"
+                              >
+                                <FacetNode
+                                  rootAxis={parentAxis}
+                                  pathName={sv}
+                                  facetName={sv}
+                                  facetText={`${c.cascade?.issue ?? c.name} 극복을 위한 해결 변수`}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

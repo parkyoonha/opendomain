@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useIdea } from "../state/IdeaContext";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
-import { verifyStatusIcon } from "@/lib/verify";
+import {
+  verifyStatusIcon,
+  verifyStatusLabel,
+  verifyStatusPalette,
+} from "@/lib/verify";
 import { lensLabel } from "@/lib/lenses";
 
 export default function PendingTopicCard() {
@@ -38,6 +42,8 @@ export default function PendingTopicCard() {
   const [collapsedLens, setCollapsedLens] = useState(true);
   const [collapsedResult, setCollapsedResult] = useState(false);
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const verifyColRef = useRef<HTMLDivElement>(null);
+  const prevGenCountRef = useRef(0);
 
   if (!pendingTopic) return null;
 
@@ -49,9 +55,42 @@ export default function PendingTopicCard() {
   const vLens = principleVerifyLens[pk] ?? null;
   const vGens = verifyDerived[pk] ?? [];
 
+  // Scroll the verify column into view the first time a new generation
+  // appears, mirroring the explore board's horizontal auto-scroll.
+  useLayoutEffect(() => {
+    const prev = prevGenCountRef.current;
+    prevGenCountRef.current = vGens.length;
+    if (vGens.length <= prev) return;
+    const el = verifyColRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      let scroller: HTMLElement | null = el.parentElement;
+      while (scroller) {
+        const s = getComputedStyle(scroller);
+        if (
+          s.overflowX === "auto" ||
+          s.overflowX === "scroll" ||
+          s.overflow === "auto" ||
+          s.overflow === "scroll"
+        )
+          break;
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
+        return;
+      }
+      const wRect = el.getBoundingClientRect();
+      const sRect = scroller.getBoundingClientRect();
+      const delta = wRect.right - sRect.right + 24;
+      scroller.scrollBy({ left: delta, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [vGens.length]);
+
   return (
-    <div className="flex flex-col gap-3">
-    <div className="decomp-controller flex w-[calc(100vw-3rem)] max-w-full flex-col gap-3 rounded-lg bg-white/[0.05] p-4 md:w-[560px]">
+    <div className="flex w-max items-start gap-4">
+    <div className="decomp-controller flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-3 rounded-lg bg-white/[0.05] p-4 md:w-[560px]">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
@@ -167,14 +206,23 @@ export default function PendingTopicCard() {
       )}
     </div>
 
-    {/* Verify results render OUTSIDE the pending card so the user sees
-        them as separate axes, not clamped inside the card border. */}
+    {/* Verify results render to the RIGHT of the pending card as a
+        separate column, so the user scrolls horizontally to the newly
+        produced conditions (mirrors the explore board layout). */}
     {mode === "verify" && vGens.length > 0 && (
-      <div className="flex w-[calc(100vw-3rem)] max-w-full flex-col gap-3 md:w-[560px]">
+      <div
+        ref={verifyColRef}
+        className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-3 md:w-[560px]"
+      >
         {vGens.map((v) => {
           const st = verifyDerivedStatus[v.key];
+          const appendToContext = (addition: string) => {
+            const prior = (customContext ?? "").trim();
+            const next = prior ? `${prior}\n${addition}` : addition;
+            setPrincipleCustomContext(pk, next);
+          };
           return (
-            <div key={v.key} className="flex flex-col gap-1">
+            <div key={v.key} className="flex flex-col gap-2">
               <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
                 증명 · {lensLabel(v.lens)}
               </span>
@@ -184,27 +232,98 @@ export default function PendingTopicCard() {
               {st === "error" && (
                 <div className="text-[10px] text-red-400">검증 실패</div>
               )}
-              {v.report.summary && (
-                <div className="text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
-                  <span className="text-text-muted">요약 · </span>
-                  {v.report.summary}
+              {v.report.target && (
+                <div className="text-[13px] leading-5 text-text-primary md:text-[12px] md:leading-4">
+                  <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                    목표
+                  </span>
+                  <div className="mt-0.5 font-semibold">
+                    {v.report.target}
+                  </div>
                 </div>
               )}
-              <ul className="flex flex-col gap-1">
-                {v.report.conditions.map((c, i) => (
-                  <li
-                    key={`${i}-${c.name}`}
-                    className="rounded-md bg-white/[0.08] px-3 py-2"
-                  >
-                    <div className="text-[13px] font-semibold text-text-primary md:text-[11px]">
-                      {verifyStatusIcon[c.status]} {c.name}
-                    </div>
-                    <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                      {c.principle}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {v.report.conditions.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                    필수 조건
+                  </div>
+                  <ul className="mt-1 flex flex-col gap-2">
+                    {v.report.conditions.map((c, i) => {
+                      const pal = verifyStatusPalette[c.status];
+                      return (
+                        <li
+                          key={`${i}-${c.name}`}
+                          className="flex flex-col gap-1.5"
+                        >
+                          <button
+                            onClick={() =>
+                              appendToContext(`${c.name}: ${c.principle}`)
+                            }
+                            title="이 조건을 '추가 조건'에 추가"
+                            className={`rounded-md border px-3 py-2 text-left transition-opacity hover:opacity-90 ${pal.border} ${pal.bg}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div
+                                className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
+                              >
+                                {verifyStatusIcon[c.status]} {c.name}
+                              </div>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                              >
+                                {verifyStatusLabel[c.status]}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                              {c.principle}
+                            </div>
+                          </button>
+
+                          {c.status === "fail" && c.cascade && (
+                            <div className="ml-3 flex flex-col gap-1.5 border-l border-rose-400/30 pl-3">
+                              {c.cascade.issue && (
+                                <div className="text-[11px] text-rose-200 md:text-[10px]">
+                                  <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                    실패 지점 ·{" "}
+                                  </span>
+                                  {c.cascade.issue}
+                                </div>
+                              )}
+                              {c.cascade.cause && (
+                                <div className="text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                                  <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                    원인 ·{" "}
+                                  </span>
+                                  {c.cascade.cause}
+                                </div>
+                              )}
+                              {c.cascade.solutionVariables.length > 0 && (
+                                <div className="flex flex-col gap-1">
+                                  <div className="text-[9px] uppercase tracking-wider text-text-muted">
+                                    해결 변수 — 클릭하여 추가 조건에 반영
+                                  </div>
+                                  <ul className="flex flex-col gap-1">
+                                    {c.cascade.solutionVariables.map((sv) => (
+                                      <li key={sv}>
+                                        <button
+                                          onClick={() => appendToContext(sv)}
+                                          className="w-full rounded-md bg-white/[0.06] px-3 py-1.5 text-left text-[12px] text-text-primary hover:bg-white/[0.11] md:text-[11px]"
+                                        >
+                                          {sv}
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
           );
         })}

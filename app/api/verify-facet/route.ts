@@ -22,25 +22,50 @@ type Body = {
 
 function parseVerifyReport(content: string): VerifyReport {
   const parsed = JSON.parse(content) as {
-    summary?: string;
+    target?: string;
     conditions?: {
       name?: string;
       principle?: string;
       status?: string;
+      cascade?: {
+        issue?: string;
+        cause?: string;
+        solutionVariables?: unknown;
+      };
     }[];
   };
-  const allowed = new Set<VerifyStatus>(["ok", "partial", "blocker"]);
+  const allowed = new Set<VerifyStatus>(["pass", "fail", "unknown"]);
   const conditions = (parsed.conditions ?? [])
-    .map((c) => ({
-      name: (c?.name ?? "").trim(),
-      principle: (c?.principle ?? "").trim(),
-      status: (allowed.has(c?.status as VerifyStatus)
+    .map((c) => {
+      const status: VerifyStatus = allowed.has(c?.status as VerifyStatus)
         ? (c?.status as VerifyStatus)
-        : "partial") as VerifyStatus,
-    }))
+        : "unknown";
+      const rawVars = c?.cascade?.solutionVariables;
+      const solutionVariables = Array.isArray(rawVars)
+        ? rawVars
+            .filter((v): v is string => typeof v === "string")
+            .map((v) => v.trim())
+            .filter(Boolean)
+        : [];
+      const cascade =
+        status === "fail" &&
+        (c?.cascade?.issue || c?.cascade?.cause || solutionVariables.length)
+          ? {
+              issue: (c?.cascade?.issue ?? "").trim(),
+              cause: (c?.cascade?.cause ?? "").trim(),
+              solutionVariables,
+            }
+          : undefined;
+      return {
+        name: (c?.name ?? "").trim(),
+        principle: (c?.principle ?? "").trim(),
+        status,
+        cascade,
+      };
+    })
     .filter((c) => c.name && c.principle);
   return {
-    summary: (parsed.summary ?? "").trim(),
+    target: (parsed.target ?? "").trim(),
     conditions,
   };
 }
