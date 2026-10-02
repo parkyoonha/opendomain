@@ -5,11 +5,7 @@ import { useIdea } from "../state/IdeaContext";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
-import {
-  verifyStatusIcon,
-  verifyStatusLabel,
-  verifyStatusPalette,
-} from "@/lib/verify";
+import { verifyStatusIcon } from "@/lib/verify";
 import { lensLabel } from "@/lib/lenses";
 
 export default function PendingTopicCard() {
@@ -168,14 +164,11 @@ export default function PendingTopicCard() {
           </button>
 
           {vGens.length > 0 && (
-            <div className="mt-2 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-3">
               {vGens.map((v) => {
                 const st = verifyDerivedStatus[v.key];
                 return (
-                  <div
-                    key={v.key}
-                    className="flex flex-col gap-2 rounded-md border border-amber-400/40 bg-amber-500/[0.06] p-2"
-                  >
+                  <div key={v.key} className="flex flex-col gap-1">
                     <span className="inline-flex w-fit items-center rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
                       증명 · {lensLabel(v.lens)}
                     </span>
@@ -186,42 +179,25 @@ export default function PendingTopicCard() {
                       <div className="text-[10px] text-red-400">검증 실패</div>
                     )}
                     {v.report.summary && (
-                      <div className="rounded-md bg-black/30 px-3 py-2">
-                        <div className="text-[9px] uppercase tracking-wider text-text-muted">
-                          성립성 요약
-                        </div>
-                        <div className="mt-0.5 text-[12px] leading-5 text-text-primary md:text-[11px] md:leading-4">
-                          {v.report.summary}
-                        </div>
+                      <div className="text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
+                        <span className="text-text-muted">요약 · </span>
+                        {v.report.summary}
                       </div>
                     )}
                     <ul className="flex flex-col gap-1">
-                      {v.report.conditions.map((c, i) => {
-                        const pal = verifyStatusPalette[c.status];
-                        return (
-                          <li
-                            key={`${i}-${c.name}`}
-                            className={`rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold ${pal.chip}`}
-                              >
-                                {verifyStatusIcon[c.status]}{" "}
-                                {verifyStatusLabel[c.status]}
-                              </span>
-                              <span
-                                className={`text-[12px] font-semibold ${pal.text} md:text-[11px]`}
-                              >
-                                {c.name}
-                              </span>
-                            </div>
-                            <div className="mt-1 text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                              {c.principle}
-                            </div>
-                          </li>
-                        );
-                      })}
+                      {v.report.conditions.map((c, i) => (
+                        <li
+                          key={`${i}-${c.name}`}
+                          className="rounded-md bg-white/[0.08] px-3 py-2"
+                        >
+                          <div className="text-[13px] font-semibold text-text-primary md:text-[11px]">
+                            {verifyStatusIcon[c.status]} {c.name}
+                          </div>
+                          <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                            {c.principle}
+                          </div>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 );

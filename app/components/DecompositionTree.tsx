@@ -27,9 +27,6 @@ import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import {
   verifyStatusIcon,
-  verifyStatusLabel,
-  verifyStatusPalette,
-  type VerifyStatus,
   type VerifyCondition,
 } from "@/lib/verify";
 import MemoStack from "./MemoStack";
@@ -2356,53 +2353,22 @@ type VerifyReportCardProps = {
   parentAxis: string;
 };
 
-// Renders a single verify generation: an amber header tag + summary box +
-// one FacetNode per condition. The conditions reuse FacetNode so they
-// have the same width/click behavior as explore sub-facets — clicking a
-// condition opens its own controller in explore mode so the user can
-// further decompose or combine via the standard tree flow. A small
-// colored status badge sits next to each FacetNode to signal
-// ok / partial / blocker at a glance.
+// Renders a single verify generation in a structure *identical* to the
+// explore generation render (header pill + SubFacets-shaped column of
+// FacetNodes), so the two feel like the same tree node type. Each
+// condition is a FacetNode — clicking it selects the principle and
+// opens the explore controller via the same handleSelect flow. A small
+// colored status badge is prepended to the FacetNode's facetName so
+// users can scan ok / partial / blocker without a sibling column
+// changing the layout width.
 function VerifyReportCard({
   lens,
   report,
   status,
   parentAxis,
 }: VerifyReportCardProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const didScrollRef = useRef(false);
-
-  // Mirror SubFacets' "center the newly rendered group" behavior so the
-  // user is pulled to the generated conditions as soon as they come back.
-  useLayoutEffect(() => {
-    if (status !== "idle") return;
-    if (report.conditions.length === 0) return;
-    if (didScrollRef.current) return;
-    didScrollRef.current = true;
-    const el = scrollRef.current;
-    if (!el) return;
-    const raf = requestAnimationFrame(() => {
-      let scroller: HTMLElement | null = el.parentElement;
-      while (scroller) {
-        const s = getComputedStyle(scroller);
-        if (s.overflowX === "auto" || s.overflowX === "scroll") break;
-        scroller = scroller.parentElement;
-      }
-      if (!scroller) {
-        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        return;
-      }
-      const wRect = el.getBoundingClientRect();
-      const sRect = scroller.getBoundingClientRect();
-      const targetLeft = sRect.left + (sRect.width - wRect.width) / 2;
-      const delta = wRect.left - targetLeft;
-      scroller.scrollBy({ left: delta, behavior: "smooth" });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [status, report.conditions.length]);
-
   return (
-    <div ref={scrollRef} className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1 md:pl-8">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
           증명 · {lensLabel(lens)}
@@ -2415,42 +2381,32 @@ function VerifyReportCard({
         <div className="md:pl-8 text-[11px] text-red-400">검증 실패</div>
       )}
       {report.summary && (
-        <div className="md:pl-8">
-          <div className="rounded-md border border-amber-400/40 bg-amber-500/[0.06] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-text-muted">
-              성립성 요약
-            </div>
-            <div className="mt-1 text-[13px] leading-5 text-text-primary md:text-[11px] md:leading-4">
-              {report.summary}
-            </div>
-          </div>
+        <div className="md:pl-8 max-w-[560px] text-[12px] leading-5 text-text-secondary md:text-[11px] md:leading-4">
+          <span className="text-text-muted">요약 · </span>
+          {report.summary}
         </div>
       )}
       {report.conditions.length > 0 && (
-        <ul className="flex flex-col gap-1 md:pl-8">
-          {report.conditions.map((c, i) => {
-            const pal = verifyStatusPalette[c.status];
-            return (
-              <li
-                key={`${i}-${c.name}`}
-                className="flex items-start gap-2"
-              >
-                <span
-                  title={verifyStatusLabel[c.status]}
-                  className={`mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${pal.chip}`}
+        <div className="relative flex items-start md:pl-8">
+          <ul className="flex flex-col gap-1">
+            {report.conditions.map((c, i) => {
+              const prefixedName = `${verifyStatusIcon[c.status]} ${c.name}`;
+              return (
+                <li
+                  key={`${i}-${c.name}`}
+                  className="flex items-start"
                 >
-                  {verifyStatusIcon[c.status]}
-                </span>
-                <FacetNode
-                  rootAxis={parentAxis}
-                  pathName={c.name}
-                  facetName={c.name}
-                  facetText={c.principle}
-                />
-              </li>
-            );
-          })}
-        </ul>
+                  <FacetNode
+                    rootAxis={parentAxis}
+                    pathName={c.name}
+                    facetName={prefixedName}
+                    facetText={c.principle}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
