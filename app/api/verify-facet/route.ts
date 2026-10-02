@@ -14,6 +14,7 @@ type Body = {
   methodId?: string;
   evalId?: string;
   lens?: SelectedLens | null;
+  userContext?: string;
 };
 
 export async function POST(req: Request) {
@@ -46,7 +47,10 @@ export async function POST(req: Request) {
     : "";
 
   const system = `당신은 아이디어의 실현 가능성을 냉정하게 검증하는 검토자다. 낙관·비관 슬로건 금지. 구체 조건·수치·사례로만 답한다.`;
-  const user = `${verifyPrompt(parentAxis, parentPrinciple, methodId, evalId, body.rootTopic)}${lensLine}`;
+  const userContextLine = body.userContext?.trim()
+    ? `\n\n**사용자 추가 지시 (최우선 제약)**: ${body.userContext.trim()}`
+    : "";
+  const user = `${verifyPrompt(parentAxis, parentPrinciple, methodId, evalId, body.rootTopic)}${lensLine}${userContextLine}`;
 
   try {
     const content = await callLLM({

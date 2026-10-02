@@ -262,6 +262,13 @@ type Ctx = {
   setPrincipleVerifyMethod: (pk: string, methodId: string) => void;
   principleVerifyEval: Record<string, string>;
   setPrincipleVerifyEval: (pk: string, evalId: string) => void;
+  principleVerifyLens: Record<string, SelectedLens | null>;
+  setPrincipleVerifyLens: (pk: string, lens: SelectedLens | null) => void;
+  // Free-text parent-axis tuning. User types additional context/guidance
+  // that gets injected into the next decompose or verify request's prompt
+  // for that principle. Keyed per pk.
+  principleCustomContext: Record<string, string>;
+  setPrincipleCustomContext: (pk: string, text: string) => void;
   verifyDerived: Record<
     string,
     Array<{
@@ -855,6 +862,16 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const [principleCustomContext, setPrincipleCustomContextState] = useState<
+    Record<string, string>
+  >({});
+  const setPrincipleCustomContext = useCallback(
+    (pk: string, text: string) => {
+      setPrincipleCustomContextState((prev) => ({ ...prev, [pk]: text }));
+    },
+    [],
+  );
+
   const runDecomposeSubFacet = useCallback(
     async (
       axis: string,
@@ -866,8 +883,14 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     ) => {
       const pk = `${axis}::${name}`;
       const compound = `${pk}::${directionId}::${lensKey(lens)}::${resultType ?? "*"}::${providerTag}`;
-      const existing = subFacetDerived[pk] ?? [];
-      if (existing.some((d) => d.key === compound)) return;
+      // Always re-run on button click: drop any existing gen with the same
+      // compound so the fresh fetch replaces it (user expectation per bug #2).
+      setSubFacetDerived((m) => {
+        const cur = m[pk] ?? [];
+        const filtered = cur.filter((d) => d.key !== compound);
+        if (filtered.length === cur.length) return m;
+        return { ...m, [pk]: filtered };
+      });
 
       const directionMeta =
         kBuiltinDirections.find((d) => d.id === directionId) ??
@@ -887,6 +910,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             directionLabel: directionMeta?.label,
             lens,
             resultType,
+            userContext: principleCustomContext[pk],
           }),
         });
         const data = (await res.json()) as {
@@ -915,7 +939,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [subFacetDerived, decomposition, customDirections, providerTag],
+    [
+      subFacetDerived,
+      decomposition,
+      customDirections,
+      providerTag,
+      principleCustomContext,
+    ],
   );
 
   const [principleControllerMode, setPrincipleControllerModeState] = useState<
@@ -942,6 +972,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const setPrincipleVerifyEval = useCallback((pk: string, evalId: string) => {
     setPrincipleVerifyEvalState((prev) => ({ ...prev, [pk]: evalId }));
   }, []);
+  const [principleVerifyLens, setPrincipleVerifyLensState] = useState<
+    Record<string, SelectedLens | null>
+  >({});
+  const setPrincipleVerifyLens = useCallback(
+    (pk: string, lens: SelectedLens | null) => {
+      setPrincipleVerifyLensState((prev) => ({ ...prev, [pk]: lens }));
+    },
+    [],
+  );
   const [verifyDerived, setVerifyDerived] = useState<
     Record<
       string,
@@ -969,8 +1008,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     ) => {
       const pk = `${axis}::${name}`;
       const compound = `${pk}::${methodId}::${evalId}::${lensKey(lens)}::${providerTag}`;
-      const existing = verifyDerived[pk] ?? [];
-      if (existing.some((d) => d.key === compound)) return;
+      // Always re-run on button click.
+      setVerifyDerived((m) => {
+        const cur = m[pk] ?? [];
+        const filtered = cur.filter((d) => d.key !== compound);
+        if (filtered.length === cur.length) return m;
+        return { ...m, [pk]: filtered };
+      });
 
       setVerifyDerivedStatus((s) => ({ ...s, [compound]: "loading" }));
       try {
@@ -985,6 +1029,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             methodId,
             evalId,
             lens,
+            userContext: principleCustomContext[pk],
           }),
         });
         const data = (await res.json()) as {
@@ -1013,7 +1058,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [verifyDerived, decomposition, providerTag],
+    [verifyDerived, decomposition, providerTag, principleCustomContext],
   );
 
   const setFacetDirection = useCallback((axis: string, directionId: string) => {
@@ -1826,10 +1871,17 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setFacetDirectionState((prev) => ({ ...prev, [axis]: directionId }));
       setFacetLensState((prev) => ({ ...prev, [axis]: lens }));
       setFacetResultTypeState((prev) => ({ ...prev, [axis]: resultType }));
-      if (facetDecompositionsByKey[key]) {
-        appendAxisGen(axis, { key, directionId, lens, resultType });
-        return;
-      }
+      // Always re-run on button click: drop existing gen with this compound
+      // (user clicked expecting a fresh result).
+      setAxisGens((prev) => {
+        const cur = prev[axis] ?? [];
+        const filtered = cur.filter((g) => g.key !== key);
+        if (filtered.length === cur.length) return prev;
+        const clone = { ...prev };
+        if (filtered.length === 0) delete clone[axis];
+        else clone[axis] = filtered;
+        return clone;
+      });
 
       const directionMeta =
         kBuiltinDirections.find((d) => d.id === directionId) ??
@@ -1849,6 +1901,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             directionLabel: directionMeta?.label,
             lens,
             resultType,
+            userContext: principleCustomContext[`${axis}::축 전체`],
           }),
         });
         const data = (await res.json()) as {
@@ -1879,6 +1932,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       providerTag,
       appendAxisGen,
       selectedLens,
+      principleCustomContext,
     ],
   );
 
@@ -2323,6 +2377,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setPrincipleVerifyMethod,
       principleVerifyEval,
       setPrincipleVerifyEval,
+      principleVerifyLens,
+      setPrincipleVerifyLens,
+      principleCustomContext,
+      setPrincipleCustomContext,
       verifyDerived,
       verifyDerivedStatus,
       runVerifyFacet,
@@ -2489,6 +2547,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setPrincipleVerifyMethod,
       principleVerifyEval,
       setPrincipleVerifyEval,
+      principleVerifyLens,
+      setPrincipleVerifyLens,
+      principleCustomContext,
+      setPrincipleCustomContext,
       verifyDerived,
       verifyDerivedStatus,
       runVerifyFacet,

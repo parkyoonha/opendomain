@@ -15,6 +15,7 @@ type Body = {
   directionLabel?: string;
   lens?: SelectedLens | null;
   resultType?: BigCategory | null;
+  userContext?: string;
 };
 
 export async function POST(req: Request) {
@@ -66,7 +67,10 @@ export async function POST(req: Request) {
       ? `\n주제 도메인: ${body.rootTopic} (사고 방향의 규칙이 최우선. 이 도메인 어휘를 사용하되 주제를 문자 그대로 재진술하지 말 것)`
       : `\n**핵심 주제 (anchor): ${body.rootTopic}** — 모든 sub-facet은 반드시 이 주제의 구체 맥락으로 되돌아와야 한다. 추상 개념·렌즈에만 매달려 주제를 놓치면 실패.`
     : "";
-  const user = `${rootLine ? rootLine + "\n\n" : ""}부모 축: ${parentAxis}\n부모 facet: ${parentPrinciple}${directionLine}${lensLine}${resultLine}`;
+  const userContextLine = body.userContext?.trim()
+    ? `\n\n**사용자 추가 지시 (최우선 제약)**: ${body.userContext.trim()}`
+    : "";
+  const user = `${rootLine ? rootLine + "\n\n" : ""}부모 축: ${parentAxis}\n부모 facet: ${parentPrinciple}${directionLine}${lensLine}${resultLine}${userContextLine}`;
 
   const tier = body.resultType ? "flash" : "lite";
   // counter (반박) needs strict adherence to the "disagree with parent"

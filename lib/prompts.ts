@@ -358,26 +358,49 @@ export const facetDecompositionSystemPrompt = (
 
   if (resultType) {
     const spec = resultTypeIdeaSpec(resultType);
-    return `당신은 사용자가 선택한 facet을 **다루거나 활용하는 ${spec.label} 3~5개**를 생성하는 창의가다.
+    const directionLabel =
+      effectiveDirection === "principle"
+        ? ""
+        : customDirectionLabel ??
+          {
+            interpretation: "해석",
+            counter: "반박/모순",
+            emotion: "감정",
+            question: "질문",
+            expansion: "확장",
+            elements: "요소",
+          }[effectiveDirection] ??
+          "";
+
+    const combinedHeader = directionLabel
+      ? `당신은 **${directionLabel}** 관점에서 부모 facet을 바라본 **${spec.label} 아이디어 3~5개**를 생성하는 창의가다.
+사고 방향(${directionLabel})이 아이디어의 각도를 결정하고, 결과 형태(${spec.label})가 산출물의 모양을 결정한다. 둘은 반드시 함께 작동한다.
+예: 사고방향=반박/모순 + 결과형태=제품 → "부모 facet 주장을 반박하는 전제 위에서 작동하는 제품" (단순 반박 서술도, 단순 제품 아이디어도 아님).`
+      : `당신은 사용자가 선택한 facet을 **다루거나 활용하는 ${spec.label} 3~5개**를 생성하는 창의가다.`;
+
+    return `${combinedHeader}
 부모 facet은 사용자가 파고들고 싶어하는 문제·현상·구조의 한 조각이다.
 **설명·정의 재진술 금지. 실제 실행 가능한 아이디어만 뽑아라.**
+
+⚠️ **결과 형태 하드 제약 — ${spec.label}**: 산출물은 **반드시** ${spec.label} 형태여야 한다. 부모 facet의 서술을 확장·재해석하는 것(또 다른 facet 설명)으로 빠지지 마라. 각 항목은 그 자체로 하나의 ${spec.label}이어야 한다.
 
 결과 형태 규칙 — ${spec.label}:
 ${spec.body}
 
 각 아이디어 규칙:
 - name: 아이디어 이름 (짧고 강렬, 밈처럼 기억에 남게 6~14자)
-- principle: 이 아이디어가 부모 facet과 어떻게 관계 맺는지·어떻게 작동하는지 1문장(30~70자, 구체 메커니즘 포함)
+- principle: 이 아이디어가 부모 facet과 어떻게 관계 맺는지·어떻게 작동하는지 1문장(30~70자, 구체 메커니즘 포함)${directionLabel ? `. ${directionLabel} 관점이 문장 안에 실제로 반영될 것.` : ""}
 - 좋음 예시: ${spec.example}
 - 나쁨: 부모 facet의 정의를 반복하는 서술 (예: "감각의 제약을 다루는 서비스")
 - 나쁨: "AI 기반 플랫폼", "커뮤니티 앱" 같은 뻔한 껍데기
+- 나쁨: 부모 facet을 또 다시 분해·해설만 하고 ${spec.label} 형태가 되지 않는 것
 
 반드시 다음 JSON 스키마로 응답:
 {
   "axes": [
     {"name": "아이디어 이름", "principle": "설명 한 줄"}
   ]
-}${directionDirective}${lensDirective}`;
+}${lensDirective}`;
   }
 
   const resultDirective = "";

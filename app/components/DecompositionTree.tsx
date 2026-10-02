@@ -483,13 +483,23 @@ function MobileDecomposeFab({
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     const visibleSet = new Set<Element>();
+    const recomputeVisible = () => {
+      // Stale entries (unmounted controllers whose IO leave event we may
+      // have missed) would otherwise keep the FAB hidden/visible wrongly
+      // after a sub-facet removal. Drop any disconnected nodes before
+      // counting so the "button auto-restore" bug (#6) doesn't bite.
+      for (const el of Array.from(visibleSet)) {
+        if (!document.contains(el)) visibleSet.delete(el);
+      }
+      setControllerVisible(visibleSet.size > 0);
+    };
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) visibleSet.add(e.target);
           else visibleSet.delete(e.target);
         }
-        setControllerVisible(visibleSet.size > 0);
+        recomputeVisible();
       },
       { threshold: 0.3 },
     );
@@ -500,6 +510,9 @@ function MobileDecomposeFab({
         observed.add(el);
         observer.observe(el);
       });
+      // Re-check after each DOM mutation in case a controller was removed
+      // without IO firing a leave event in time.
+      recomputeVisible();
     };
     observeAll();
     const mo = new MutationObserver(observeAll);
@@ -1025,16 +1038,22 @@ function AxisRow({
     setPrincipleVerifyMethod,
     principleVerifyEval,
     setPrincipleVerifyEval,
+    principleVerifyLens,
+    setPrincipleVerifyLens,
+    principleCustomContext,
+    setPrincipleCustomContext,
     verifyDerived,
     verifyDerivedStatus,
     runVerifyFacet,
   } = useIdea();
   const axisPk = principleKey(axis, "축 전체");
   const axisMode = principleControllerMode[axisPk] ?? "explore";
+  const axisCustomContext = principleCustomContext[axisPk] ?? "";
   const axisVerifyMethod =
     principleVerifyMethod[axisPk] ?? DEFAULT_VERIFY_METHOD_ID;
   const axisVerifyEval =
     principleVerifyEval[axisPk] ?? DEFAULT_VERIFY_EVAL_ID;
+  const axisVerifyLens = principleVerifyLens[axisPk] ?? null;
   const axisVerifyGens = verifyDerived[axisPk] ?? [];
   const [axisVerifyLoading, setAxisVerifyLoading] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
@@ -1144,6 +1163,21 @@ function AxisRow({
             })}
           </div>
 
+          <div className="flex flex-col gap-1">
+            <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+              추가 조건 (선택)
+            </span>
+            <textarea
+              value={axisCustomContext}
+              onChange={(e) =>
+                setPrincipleCustomContext(axisPk, e.target.value)
+              }
+              placeholder="부모 축을 조율할 추가 조건·관점·제약을 자유롭게 입력"
+              rows={2}
+              className="rounded-md bg-white/[0.06] px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.1] focus:outline-none md:text-[11px]"
+            />
+          </div>
+
           {axisMode === "explore" ? (
             <>
               <button
@@ -1202,8 +1236,8 @@ function AxisRow({
                 onCollapseChange={setChipsCollapsed}
               />
               <FacetLensRow
-                currentLens={currentLens}
-                onChangeLens={onChangeLens}
+                currentLens={axisVerifyLens}
+                onChangeLens={(lens) => setPrincipleVerifyLens(axisPk, lens)}
                 collapsed={lensCollapsed}
                 onCollapseChange={setLensCollapsed}
               />
@@ -1223,7 +1257,7 @@ function AxisRow({
                       principle,
                       axisVerifyMethod,
                       axisVerifyEval,
-                      currentLens,
+                      axisVerifyLens,
                     );
                   } finally {
                     setAxisVerifyLoading(false);
@@ -1797,6 +1831,10 @@ function FacetNode({
     setPrincipleVerifyMethod,
     principleVerifyEval,
     setPrincipleVerifyEval,
+    principleVerifyLens,
+    setPrincipleVerifyLens,
+    principleCustomContext,
+    setPrincipleCustomContext,
     verifyDerived,
     verifyDerivedStatus,
     runVerifyFacet,
@@ -1811,9 +1849,12 @@ function FacetNode({
   const pk = principleKey(rootAxis, pathName);
   const isBlocker = blockerPrinciples.has(pk);
   const mode = principleControllerMode[pk] ?? "explore";
+  const customContext = principleCustomContext[pk] ?? "";
   const currentVerifyMethod =
     principleVerifyMethod[pk] ?? DEFAULT_VERIFY_METHOD_ID;
   const currentVerifyEval = principleVerifyEval[pk] ?? DEFAULT_VERIFY_EVAL_ID;
+  const currentVerifyLens =
+    principleVerifyLens[pk] ?? null;
   const verifyGens = verifyDerived[pk] ?? [];
   const [verifyLoading, setVerifyLoading] = useState(false);
   const isSel =
@@ -1979,6 +2020,19 @@ function FacetNode({
             })}
           </div>
 
+          <div className="flex flex-col gap-1">
+            <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+              추가 조건 (선택)
+            </span>
+            <textarea
+              value={customContext}
+              onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
+              placeholder="부모 축을 조율할 추가 조건·관점·제약을 자유롭게 입력"
+              rows={2}
+              className="rounded-md bg-white/[0.06] px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.1] focus:outline-none md:text-[11px]"
+            />
+          </div>
+
           {mode === "explore" ? (
             <>
               <button
@@ -2049,8 +2103,8 @@ function FacetNode({
                 onCollapseChange={setChipsCollapsed}
               />
               <FacetLensRow
-                currentLens={principleLens[pk] ?? selectedLens ?? null}
-                onChangeLens={(lens) => setPrincipleLens(pk, lens)}
+                currentLens={currentVerifyLens}
+                onChangeLens={(lens) => setPrincipleVerifyLens(pk, lens)}
                 collapsed={lensCollapsed}
                 onCollapseChange={setLensCollapsed}
               />
@@ -2071,7 +2125,7 @@ function FacetNode({
                         facetText,
                         currentVerifyMethod,
                         currentVerifyEval,
-                        principleLens[pk] ?? selectedLens ?? null,
+                        currentVerifyLens,
                       );
                     } finally {
                       setVerifyLoading(false);
