@@ -280,7 +280,7 @@ export default function PendingTopicCard() {
                           </button>
 
                           {c.status === "fail" && c.cascade && (
-                            <div className="ml-3 flex flex-col gap-1.5 border-l border-rose-400/30 pl-3">
+                            <div className="ml-3 flex flex-col gap-1.5 pl-3">
                               {c.cascade.issue && (
                                 <div className="text-[11px] text-rose-200 md:text-[10px]">
                                   <span className="text-[9px] uppercase tracking-wider text-text-muted">
