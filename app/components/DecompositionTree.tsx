@@ -200,7 +200,10 @@ export default function DecompositionTree() {
     principleDirection,
     principleLens,
     principleResultType,
+    principleControllerMode,
+    principleVerifyLens,
     runDecomposeSubFacet,
+    runVerifyFacet,
     topicPurposeId,
     commitPending,
     selectedLens,
@@ -263,6 +266,8 @@ export default function DecompositionTree() {
           principleDirection={{}}
           principleLens={{}}
           principleResultType={{}}
+          principleControllerMode={principleControllerMode}
+          principleVerifyLens={principleVerifyLens}
           multiAxisDirection={DEFAULT_DIRECTION_ID}
           multiAxisLens={null}
           multiAxisResultType={null}
@@ -273,6 +278,7 @@ export default function DecompositionTree() {
           runDecomposeFacet={runDecomposeFacet}
           runDecomposeSubFacet={runDecomposeSubFacet}
           runDecomposeMultiAxis={runDecomposeMultiAxis}
+          runVerifyFacet={runVerifyFacet}
         />
       </div>
     );
@@ -404,6 +410,8 @@ export default function DecompositionTree() {
         principleDirection={principleDirection}
         principleLens={principleLens}
         principleResultType={principleResultType}
+        principleControllerMode={principleControllerMode}
+        principleVerifyLens={principleVerifyLens}
         multiAxisDirection={multiAxisDirection}
         multiAxisLens={multiAxisLens}
         multiAxisResultType={multiAxisResultType}
@@ -414,6 +422,7 @@ export default function DecompositionTree() {
         runDecomposeFacet={runDecomposeFacet}
         runDecomposeSubFacet={runDecomposeSubFacet}
         runDecomposeMultiAxis={runDecomposeMultiAxis}
+        runVerifyFacet={runVerifyFacet}
       />
     </div>
   );
@@ -429,6 +438,8 @@ type MobileDecomposeFabProps = {
   principleDirection: Record<string, string>;
   principleLens: Record<string, SelectedLens | null>;
   principleResultType: Record<string, BigCategory | null>;
+  principleControllerMode: Record<string, "explore" | "verify">;
+  principleVerifyLens: Record<string, SelectedLens | null>;
   multiAxisDirection: string;
   multiAxisLens: SelectedLens | null;
   multiAxisResultType: BigCategory | null;
@@ -455,6 +466,12 @@ type MobileDecomposeFabProps = {
     lens?: SelectedLens | null,
     resultType?: BigCategory | null,
   ) => Promise<void>;
+  runVerifyFacet: (
+    axis: string,
+    name: string,
+    text: string,
+    lens: SelectedLens | null,
+  ) => Promise<void>;
 };
 
 function MobileDecomposeFab({
@@ -467,6 +484,8 @@ function MobileDecomposeFab({
   principleDirection,
   principleLens,
   principleResultType,
+  principleControllerMode,
+  principleVerifyLens,
   multiAxisDirection,
   multiAxisLens,
   multiAxisResultType,
@@ -477,6 +496,7 @@ function MobileDecomposeFab({
   runDecomposeFacet,
   runDecomposeSubFacet,
   runDecomposeMultiAxis,
+  runVerifyFacet,
 }: MobileDecomposeFabProps) {
   const [controllerVisible, setControllerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -528,9 +548,46 @@ function MobileDecomposeFab({
   if (!canPending && !canMulti && !canPrinciple) return null;
   if (!controllerVisible) return null;
 
+  // Which pk is "active" for mode detection — pending topic has its own pk
+  // keyed on the topic string, principle uses principleKey. Multi-axis is
+  // explore-only for now.
+  const activePk = canPending && pendingTopic
+    ? `주제::${pendingTopic}`
+    : canPrinciple && selectedPrinciple
+      ? principleKey(selectedPrinciple.axis, selectedPrinciple.name)
+      : null;
+  const activeMode: "explore" | "verify" =
+    canMulti ? "explore" : activePk ? principleControllerMode[activePk] ?? "explore" : "explore";
+
   const handleClick = async () => {
     setLoading(true);
     try {
+      // Verify branch: FAB must call runVerifyFacet, not the explore
+      // decomposers, otherwise the user sees plain sub-facets instead of
+      // the condition-cards format.
+      if (activeMode === "verify") {
+        if (canPending && pendingTopic) {
+          await runVerifyFacet(
+            "주제",
+            pendingTopic,
+            pendingTopic,
+            principleVerifyLens[`주제::${pendingTopic}`] ?? null,
+          );
+          return;
+        }
+        if (canPrinciple && selectedPrinciple) {
+          const { axis, name, text } = selectedPrinciple;
+          const pk = principleKey(axis, name);
+          await runVerifyFacet(
+            axis,
+            name,
+            text,
+            principleVerifyLens[pk] ?? null,
+          );
+          return;
+        }
+      }
+
       if (canPending) {
         await commitPending(topicPurposeId);
         return;
@@ -568,14 +625,18 @@ function MobileDecomposeFab({
     }
   };
 
+  const isVerify = activeMode === "verify";
+
   return (
     <button
       onClick={handleClick}
       disabled={loading}
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
-      className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden"
+      className={`absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden ${
+        isVerify ? "bg-amber-400" : "bg-white"
+      }`}
     >
-      <span>분해 시작</span>
+      <span>{isVerify ? "증명 시작" : "분해 시작"}</span>
       {loading ? (
         <svg
           viewBox="0 0 24 24"
