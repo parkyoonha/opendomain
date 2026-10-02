@@ -1101,8 +1101,6 @@ function AxisRow({
     verifyDerived,
     verifyDerivedStatus,
     runVerifyFacet,
-    selectPrinciple,
-    runRecommendChips,
   } = useIdea();
   const axisPk = principleKey(axis, "축 전체");
   const axisMode = principleControllerMode[axisPk] ?? "explore";
@@ -1366,25 +1364,6 @@ function AxisRow({
                 report={v.report}
                 status={st}
                 parentAxis={axis}
-                parentName="축 전체"
-                parentText={principle}
-                onRedecompose={(cond) => {
-                  selectPrinciple({
-                    axis,
-                    name: cond.name,
-                    text: cond.principle,
-                  });
-                  void runRecommendChips(axis, cond.name, cond.principle);
-                }}
-                onCombine={(cond) => {
-                  selectPrinciple({
-                    axis,
-                    name: cond.name,
-                    text: cond.principle,
-                  });
-                  void runRecommendChips(axis, cond.name, cond.principle);
-                  setChipPanelOpen(true);
-                }}
               />
             );
           })}
@@ -2224,25 +2203,6 @@ function FacetNode({
                 report={v.report}
                 status={st}
                 parentAxis={rootAxis}
-                parentName={pathName}
-                parentText={facetText}
-                onRedecompose={(cond) => {
-                  selectPrinciple({
-                    axis: rootAxis,
-                    name: cond.name,
-                    text: cond.principle,
-                  });
-                  void runRecommendChips(rootAxis, cond.name, cond.principle);
-                }}
-                onCombine={(cond) => {
-                  selectPrinciple({
-                    axis: rootAxis,
-                    name: cond.name,
-                    text: cond.principle,
-                  });
-                  void runRecommendChips(rootAxis, cond.name, cond.principle);
-                  setChipPanelOpen(true);
-                }}
               />
             );
           })}
@@ -2394,100 +2354,104 @@ type VerifyReportCardProps = {
   };
   status?: "idle" | "loading" | "error";
   parentAxis: string;
-  parentName: string;
-  parentText: string;
-  onRedecompose: (cond: VerifyCondition) => void;
-  onCombine: (cond: VerifyCondition) => void;
 };
 
-// Renders a single verify generation: a top summary line + a column of
-// condition cards. Each card uses the status palette (ok/partial/blocker)
-// and exposes 재분해 / 조합 actions that chain the condition into the
-// explore tree or into the chip combine flow.
+// Renders a single verify generation: an amber header tag + summary box +
+// one FacetNode per condition. The conditions reuse FacetNode so they
+// have the same width/click behavior as explore sub-facets — clicking a
+// condition opens its own controller in explore mode so the user can
+// further decompose or combine via the standard tree flow. A small
+// colored status badge sits next to each FacetNode to signal
+// ok / partial / blocker at a glance.
 function VerifyReportCard({
   lens,
   report,
   status,
   parentAxis,
-  parentName,
-  parentText,
-  onRedecompose,
-  onCombine,
 }: VerifyReportCardProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const didScrollRef = useRef(false);
+
+  // Mirror SubFacets' "center the newly rendered group" behavior so the
+  // user is pulled to the generated conditions as soon as they come back.
+  useLayoutEffect(() => {
+    if (status !== "idle") return;
+    if (report.conditions.length === 0) return;
+    if (didScrollRef.current) return;
+    didScrollRef.current = true;
+    const el = scrollRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      let scroller: HTMLElement | null = el.parentElement;
+      while (scroller) {
+        const s = getComputedStyle(scroller);
+        if (s.overflowX === "auto" || s.overflowX === "scroll") break;
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+      const wRect = el.getBoundingClientRect();
+      const sRect = scroller.getBoundingClientRect();
+      const targetLeft = sRect.left + (sRect.width - wRect.width) / 2;
+      const delta = wRect.left - targetLeft;
+      scroller.scrollBy({ left: delta, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [status, report.conditions.length]);
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-amber-400/40 bg-amber-500/[0.06] p-3">
-      <div className="flex items-center gap-1">
+    <div ref={scrollRef} className="flex flex-col gap-2">
+      <div className="flex items-center gap-1 md:pl-8">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-500/25 px-2.5 py-0.5 text-[10px] font-medium text-amber-100">
           증명 · {lensLabel(lens)}
         </span>
       </div>
       {status === "loading" && (
-        <div className="text-[11px] text-text-muted">검증 중…</div>
+        <div className="md:pl-8 text-[11px] text-text-muted">검증 중…</div>
       )}
       {status === "error" && (
-        <div className="text-[11px] text-red-400">검증 실패</div>
+        <div className="md:pl-8 text-[11px] text-red-400">검증 실패</div>
       )}
       {report.summary && (
-        <div className="rounded-md bg-black/30 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-text-muted">
-            성립성 요약
-          </div>
-          <div className="mt-1 text-[13px] leading-5 text-text-primary md:text-[11px] md:leading-4">
-            {report.summary}
+        <div className="md:pl-8">
+          <div className="rounded-md border border-amber-400/40 bg-amber-500/[0.06] px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted">
+              성립성 요약
+            </div>
+            <div className="mt-1 text-[13px] leading-5 text-text-primary md:text-[11px] md:leading-4">
+              {report.summary}
+            </div>
           </div>
         </div>
       )}
       {report.conditions.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="flex flex-col gap-1 md:pl-8">
           {report.conditions.map((c, i) => {
             const pal = verifyStatusPalette[c.status];
             return (
               <li
                 key={`${i}-${c.name}`}
-                className={`rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+                className="flex items-start gap-2"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${pal.chip}`}
-                      >
-                        {verifyStatusIcon[c.status]}{" "}
-                        {verifyStatusLabel[c.status]}
-                      </span>
-                      <span
-                        className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
-                      >
-                        {c.name}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                      {c.principle}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <button
-                    onClick={() => onRedecompose(c)}
-                    className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-[10px] text-text-primary hover:bg-white/[0.16] md:text-[10px]"
-                    title={`이 조건을 사고확장 모드에서 재분해 (${parentAxis} · ${parentName})`}
-                  >
-                    재분해
-                  </button>
-                  <button
-                    onClick={() => onCombine(c)}
-                    className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-[10px] text-text-primary hover:bg-white/[0.16] md:text-[10px]"
-                    title="이 조건을 칩과 조합하여 해결 시도"
-                  >
-                    조합
-                  </button>
-                </div>
+                <span
+                  title={verifyStatusLabel[c.status]}
+                  className={`mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${pal.chip}`}
+                >
+                  {verifyStatusIcon[c.status]}
+                </span>
+                <FacetNode
+                  rootAxis={parentAxis}
+                  pathName={c.name}
+                  facetName={c.name}
+                  facetText={c.principle}
+                />
               </li>
             );
           })}
         </ul>
       )}
-      {parentText ? null : null}
     </div>
   );
 }

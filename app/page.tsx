@@ -159,9 +159,16 @@ function PageInner() {
                       return;
                     }
                     if (showChipPanel) setChipPanelOpen(false);
-                    if (t.key === "memo" && inputMode !== "memo") {
+                    // Mirror desktop InputBar: tapping the memo/topic tab
+                    // always starts a fresh draft unless the user is
+                    // already on an empty draft of that mode. Without
+                    // this the mobile user who is already inside a memo
+                    // group has no way to create a new group via the
+                    // bottom tab — typing just appends to the current
+                    // group.
+                    if (t.key === "memo") {
                       startMemoDraft();
-                    } else if (t.key === "topic" && inputMode !== "topic") {
+                    } else if (t.key === "topic") {
                       startTopicDraft();
                     }
                   }}
