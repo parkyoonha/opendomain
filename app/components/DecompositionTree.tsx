@@ -2384,7 +2384,7 @@ function VerifyReportCard({
         <div className="md:pl-8 text-[11px] text-red-400">검증 실패</div>
       )}
       {report.target && (
-        <div className="md:pl-8 max-w-[560px] text-[13px] leading-5 text-text-primary md:text-[12px] md:leading-4">
+        <div className="md:pl-8 w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] text-[13px] leading-5 text-text-primary md:text-[12px] md:leading-4">
           <span className="text-[10px] uppercase tracking-wider text-text-muted">
             목표
           </span>
@@ -2402,7 +2402,7 @@ function VerifyReportCard({
               return (
                 <li key={`${i}-${c.name}`} className="flex flex-col gap-1.5">
                   <div
-                    className={`max-w-[560px] rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+                    className={`w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] shrink-0 rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div
@@ -2424,7 +2424,7 @@ function VerifyReportCard({
                   {c.status === "fail" && c.cascade && (
                     <div className="ml-3 flex flex-col gap-1.5 pl-3">
                       {c.cascade.issue && (
-                        <div className="max-w-[540px] text-[11px] text-rose-200 md:text-[10px]">
+                        <div className="w-[max(20vw,220px)] max-md:w-[calc(100vw-4rem)] text-[11px] text-rose-200 md:text-[10px]">
                           <span className="text-[9px] uppercase tracking-wider text-text-muted">
                             실패 지점 ·{" "}
                           </span>
@@ -2432,7 +2432,7 @@ function VerifyReportCard({
                         </div>
                       )}
                       {c.cascade.cause && (
-                        <div className="max-w-[540px] text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                        <div className="w-[max(20vw,220px)] max-md:w-[calc(100vw-4rem)] text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
                           <span className="text-[9px] uppercase tracking-wider text-text-muted">
                             원인 ·{" "}
                           </span>
