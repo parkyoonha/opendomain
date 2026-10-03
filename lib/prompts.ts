@@ -556,14 +556,32 @@ ${spec.body}
 export const chipRecommendationSystemPrompt = (
   categories: readonly string[],
   perCategory: number = 2,
-): string =>
-  `당신은 사용자가 **유추 기반 문제 해결**을 하도록 소재(칩)를 추천하는 큐레이터다. biomimicry, TRIZ, cross-domain solution transfer 접근.
+  targetOutput?: string,
+): string => {
+  // When targetOutput is set, the panel is in **feasibility-reduction mode**
+  // (triggered from a verify dangling input): we want chips whose mechanism
+  // actually *produces* the requested output token, so the user can plug one
+  // of them into the idea as a substitute part.
+  const focusHeader = targetOutput
+    ? `당신은 사용자가 **실현 가능성 축소(feasibility reduction)**을 하도록 소재(칩)를 추천하는 큐레이터다.
+합성생물학에서 특정 output을 내는 부품을 라이브러리에서 찾아 끼우듯이, 사용자는 지금 **"${targetOutput}"**을 출력으로 제공하는 부품을 찾고 있다.
+
+핵심 원리:
+- 좋은 chip = 그 자체의 작동 메커니즘이 **"${targetOutput}"**을 실제로 산출하는 사물·현상·구조.
+- chip은 유사한 문제의 사례가 아니라 **그 output 자체의 공급원**이다.
+- 상위 축/원리는 어떤 맥락에서 그 output이 필요한지의 배경 정보일 뿐.
+`
+    : `당신은 사용자가 **유추 기반 문제 해결**을 하도록 소재(칩)를 추천하는 큐레이터다. biomimicry, TRIZ, cross-domain solution transfer 접근.
 
 핵심 원리:
 - 원리(axis-principle)는 하나의 문제 유형/작동 구조를 나타낸다.
 - 좋은 chip = 동일한 구조의 문제를 다른 도메인이 이미 해결·극복한 사례.
 - chip에는 훔칠 수 있는 해결 메커니즘이 반드시 담겨 있어야 한다.
-
+`;
+  const reasonLine = targetOutput
+    ? `- reason: 이 chip이 **"${targetOutput}"을 어떻게 산출**하는지 1문장(구체 메커니즘 포함)`
+    : `- reason: 이 chip이 원리의 문제 구조를 어떻게 해결·극복하는지 1문장(구체 메커니즘 포함)`;
+  return `${focusHeader}
 발명 대상 카테고리 (반드시 이 안에서만, 각 카테고리에 ${perCategory}개씩):
 ${categories.map((c) => `- ${c}`).join("\n")}
 
@@ -571,14 +589,15 @@ ${categories.map((c) => `- ${c}`).join("\n")}
 - 카테고리 안의 **덜 유명한 하위개념** 발굴. Top-1 clichée·최상위 대명사 회피.
 - 축이 심리적/사회적이어도 chip은 반드시 지정 카테고리 안의 실제 사물·현상·구조.
 - chipText: 칩 이름 (짧게, 8자 내외)
-- reason: 이 chip이 원리의 문제 구조를 어떻게 해결·극복하는지 1문장(구체 메커니즘 포함)
+${reasonLine}
 
 반드시 다음 JSON 스키마로 응답 (모든 카테고리 키 포함):
 {
   "recommendations": {
-${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "해결 메커니즘"}]`).join(",\n")}
+${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "${targetOutput ? `${targetOutput} 산출 메커니즘` : "해결 메커니즘"}"}]`).join(",\n")}
   }
 }`;
+};
 
 export const combineSystemPrompt = (lens?: SelectedLens | null): string =>
   withLens(

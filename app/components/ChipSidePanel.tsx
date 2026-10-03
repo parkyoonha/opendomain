@@ -55,6 +55,9 @@ export default function ChipSidePanel() {
     selectedPrinciple,
     chipRecommendations,
     chipStatus,
+    runRecommendChips,
+    chipFocusTargetOutput,
+    setChipFocusTargetOutput,
     chipDecompositions,
     chipDecompStatus,
     runDecomposeChip,
@@ -89,8 +92,22 @@ export default function ChipSidePanel() {
     if (!hasPrinciple && tab === "similar") setTab("search");
   }, [selectedPrinciple, hasPrinciple, tab]);
 
+  // When focus (verify dangling input) is set, jump to the similar tab and
+  // ensure recs are fetched for the (principle, focus) pair.
+  useEffect(() => {
+    if (!chipFocusTargetOutput || !selectedPrinciple) return;
+    setTab("similar");
+    void runRecommendChips(
+      selectedPrinciple.axis,
+      selectedPrinciple.name,
+      selectedPrinciple.text,
+    );
+  }, [chipFocusTargetOutput, selectedPrinciple, runRecommendChips]);
+
   const pk = selectedPrinciple
-    ? principleKey(selectedPrinciple.axis, selectedPrinciple.name)
+    ? chipFocusTargetOutput
+      ? `${principleKey(selectedPrinciple.axis, selectedPrinciple.name)}::out::${chipFocusTargetOutput}`
+      : principleKey(selectedPrinciple.axis, selectedPrinciple.name)
     : null;
   const recs = pk ? chipRecommendations[pk] : undefined;
   const recStatus = pk ? chipStatus[pk] : undefined;
@@ -159,6 +176,28 @@ export default function ChipSidePanel() {
                   : `${selectedPrinciple!.axis} · ${selectedPrinciple!.name}`}
               </div>
             </>
+          )}
+          {chipFocusTargetOutput && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-rose-400/60 bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-100 md:text-[10px]">
+              <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                공급원 탐색 ·
+              </span>
+              <span className="font-semibold">{chipFocusTargetOutput}</span>
+              <button
+                onClick={() => setChipFocusTargetOutput(null)}
+                aria-label="공급원 탐색 해제"
+                className="ml-0.5 rounded text-rose-200/80 hover:text-white"
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -420,6 +459,16 @@ export default function ChipSidePanel() {
 
         {tab === "similar" && hasPrinciple && (
           <div className="flex flex-col gap-3">
+            {chipFocusTargetOutput && (
+              <div className="rounded-md border border-rose-400/30 bg-rose-500/5 px-3 py-2 text-[11px] leading-5 text-rose-100 md:text-[10px] md:leading-4">
+                <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                  모드 ·{" "}
+                </span>
+                <span className="font-semibold">{chipFocusTargetOutput}</span>
+                을(를) <span className="font-semibold">출력으로 산출</span>하는
+                부품을 탐색합니다. 추천 reason에 그 산출 메커니즘이 담깁니다.
+              </div>
+            )}
             {recStatus === "loading" && (
               <p className="text-[14px] text-text-muted md:text-[11px]">유사칩 생성 중...</p>
             )}

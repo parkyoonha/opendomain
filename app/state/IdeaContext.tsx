@@ -282,6 +282,12 @@ type Ctx = {
   chipStatus: Record<string, Status>;
   runRecommendChips: (axis: string, name: string, text: string) => Promise<void>;
 
+  // When set, the chip panel's 유사칩 tab switches to feasibility-reduction
+  // mode: it fetches chips whose mechanism *outputs* this token (used when
+  // the user clicks a verify dangling input or substitute direction).
+  chipFocusTargetOutput: string | null;
+  setChipFocusTargetOutput: (token: string | null) => void;
+
   selectedChip: SelectedChip | null;
   selectChip: (c: SelectedChip | null) => void;
   chipDecompositions: Record<string, Record<string, string>>;
@@ -1187,6 +1193,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     DecompositionHistoryItem[]
   >([]);
   const [chipPanelOpen, setChipPanelOpen] = useState(false);
+  const [chipFocusTargetOutput, setChipFocusTargetOutput] = useState<
+    string | null
+  >(null);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [focusedCombinedIdeaId, setFocusedCombinedIdeaId] = useState<
     string | null
@@ -2039,7 +2048,12 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const runRecommendChips = useCallback(
     async (axis: string, name: string, text: string) => {
       if (!decomposition) return;
-      const key = principleKey(axis, name);
+      // Cache key separates normal recs from focused (verify dangling-input)
+      // recs so switching focus doesn't overwrite the base recommendations.
+      const focus = chipFocusTargetOutput;
+      const key = focus
+        ? `${principleKey(axis, name)}::out::${focus}`
+        : principleKey(axis, name);
       if (chipRecommendations[key]) return;
 
       setChipStatus((s) => ({ ...s, [key]: "loading" }));
@@ -2051,6 +2065,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             topicText: decomposition.topicText,
             axis,
             principle: text,
+            targetOutput: focus ?? undefined,
           }),
         });
         const data = (await res.json()) as {
@@ -2067,7 +2082,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [decomposition, chipRecommendations],
+    [decomposition, chipRecommendations, chipFocusTargetOutput],
   );
 
   const selectChip = useCallback((c: SelectedChip | null) => {
@@ -2349,6 +2364,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       chipRecommendations,
       chipStatus,
       runRecommendChips,
+      chipFocusTargetOutput,
+      setChipFocusTargetOutput,
       selectedChip,
       selectChip,
       chipDecompositions,
@@ -2515,6 +2532,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       chipRecommendations,
       chipStatus,
       runRecommendChips,
+      chipFocusTargetOutput,
+      setChipFocusTargetOutput,
       selectedChip,
       selectChip,
       chipDecompositions,

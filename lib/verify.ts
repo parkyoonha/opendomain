@@ -1,47 +1,60 @@
-// Verification: user picks a lens (or 자동) + optional free text, then runs
-// a feasibility judgment on the parent facet.
+// Verification is **feasibility reduction via typed recombination**.
 //
-// Output structure (TRIZ-inspired):
-//   target: the parent facet, restated as a goal statement
-//   conditions: 4-5 required conditions that must all hold for the goal
-//               to be realizable. Each is judged PASS / FAIL / UNKNOWN.
-//   For every FAIL condition, a cascade is produced:
-//     - issue: the specific thing that fails (short label)
-//     - cause: the root reason it fails (one sentence)
-//     - solutionVariables: 3-5 distinct directions to resolve it
-//                          (each becomes a new principle the user can
-//                           further decompose or combine with chips)
+// The user has an idea; we decompose it into the parts (requirements)
+// that must exist for the idea to be realized. Each part is treated like
+// a BioBrick-style component: it declares what it *consumes* (inputs)
+// and what it *produces* (outputs). Composition is only valid when some
+// requirement's output supplies another's input — exactly like matching
+// restriction sites in synthetic biology.
 //
-// UNKNOWN conditions mean the AI cannot decide with its current knowledge
-// — those are offered as "verify further" leads rather than dismissed.
+// Output structure:
+//   target: the parent facet, restated as a one-line goal
+//   requirements: 4~6 parts, each with
+//     - id        stable short id ("A", "B", ...)
+//     - name      short label (6~16자)
+//     - description  why this part is required (1~2 sentences)
+//     - inputs    short tokens of what it needs
+//     - outputs   short tokens of what it provides
+//     - feasibility  "feasible" | "infeasible" | "unknown"
+//     - rationale    reason for the feasibility judgment
+//     - substituteDirections  (only when infeasible) alternative
+//         part-directions that keep the same output but have a
+//         feasible implementation. Each becomes a seed the user can
+//         further decompose or combine with chips.
+//   edges: outputs of one requirement that supply inputs of another
+//          (fromId -> toId via a shared token)
+//   danglingInputs: inputs that no requirement currently supplies —
+//                   these are the "missing parts" the user must
+//                   invent or substitute to make the whole idea
+//                   realizable.
 
-export type VerifyStatus = "pass" | "fail" | "unknown";
+export type Feasibility = "feasible" | "infeasible" | "unknown";
 
-export const verifyStatusLabel: Record<VerifyStatus, string> = {
-  pass: "PASS",
-  fail: "FAIL",
-  unknown: "UNKNOWN",
+export const feasibilityLabel: Record<Feasibility, string> = {
+  feasible: "가능",
+  infeasible: "불가능",
+  unknown: "판정보류",
 };
 
-export const verifyStatusIcon: Record<VerifyStatus, string> = {
-  pass: "✓",
-  fail: "✗",
+export const feasibilityIcon: Record<Feasibility, string> = {
+  feasible: "✓",
+  infeasible: "✗",
   unknown: "?",
 };
 
-// Tailwind palette per status. pass = emerald, fail = rose, unknown =
-// slate (muted, "no verdict yet").
-export const verifyStatusPalette: Record<
-  VerifyStatus,
+// Tailwind palette per feasibility. feasible = emerald, infeasible = rose,
+// unknown = slate.
+export const feasibilityPalette: Record<
+  Feasibility,
   { border: string; bg: string; text: string; chip: string }
 > = {
-  pass: {
+  feasible: {
     border: "border-emerald-400/60",
     bg: "bg-emerald-500/10",
     text: "text-emerald-100",
     chip: "bg-emerald-500/30 text-emerald-100",
   },
-  fail: {
+  infeasible: {
     border: "border-rose-400/60",
     bg: "bg-rose-500/10",
     text: "text-rose-100",
@@ -55,84 +68,120 @@ export const verifyStatusPalette: Record<
   },
 };
 
-export type VerifyCascade = {
-  issue: string;
-  cause: string;
-  solutionVariables: string[];
+export type RequirementPart = {
+  id: string;
+  name: string;
+  description: string;
+  inputs: string[];
+  outputs: string[];
+  feasibility: Feasibility;
+  rationale: string;
+  substituteDirections?: string[];
 };
 
-export type VerifyCondition = {
-  name: string;
-  principle: string; // Why this condition is required for the goal
-  status: VerifyStatus;
-  cascade?: VerifyCascade; // Only present when status === "fail"
+export type RequirementEdge = {
+  fromId: string;
+  toId: string;
+  token: string;
+};
+
+export type DanglingInput = {
+  requirementId: string;
+  token: string;
 };
 
 export type VerifyReport = {
   target: string;
-  conditions: VerifyCondition[];
+  requirements: RequirementPart[];
+  edges: RequirementEdge[];
+  danglingInputs: DanglingInput[];
 };
 
 export const verifySystemPrompt = (): string =>
-  `당신은 아이디어의 실현 가능성을 **공학자처럼 냉정하게 판정**하는 분석가다.
-낙관·비관 슬로건, 애매한 서술 금지. 조건은 물리/공학/인지/시장 중 적절한 축으로 구체화한다.
+  `당신은 아이디어의 실현 가능성을 **부품 조합의 문제로 환원하는 공학자**다.
+합성생물학에서 DNA 부품이 "입력 인터페이스"와 "출력 인터페이스"를 선언하고
+서로 맞을 때만 조립되는 것처럼, 아이디어의 필수 요건들도 각자가 **무엇을 필요로 하고(입력) 무엇을 제공하는지(출력)**가 명확해야 조합이 성립한다.
 
-응답 구조는 다음 두 부분이다:
+응답은 다음 네 부분이다.
 
 ## 1. 목표 (target)
-- 부모 facet을 **한 줄의 목표문**으로 다시 쓴다 ("~를 ~한다" 또는 "~를 달성한다" 형태).
-- 사용자가 넣은 추가 조건이 있으면 그걸 반영해 목표를 구체화.
+- 부모 facet을 한 줄 목표문으로 다시 쓴다 ("~를 ~한다" 형태).
+- 사용자가 추가 조건을 넣었으면 반영.
 
-## 2. 필수 조건 (conditions) — **정확히 4~5개**
-목표가 성립하려면 모두 참이어야 하는 **독립적 전제** 4~5개.
+## 2. 필수 요건 (requirements) — **정확히 4~6개**
+목표가 성립하려면 모두 참이어야 하는 **독립적 부품(요건)**. 각 요건:
 
-각 조건:
-- **name**: 조건 축의 이름 (6~16자). 추진력·마찰·토크·구조강도·무게중심 같은 공학/구조 축을 선호.
-- **principle**: 1~2문장(60~140자). 이 문장은 **반드시 판정의 근거**여야 한다. 상태별로 이렇게 쓴다:
-  - PASS → "~한 메커니즘/기술/사례로 충족 가능하다" 식의 **긍정 근거** (존재하는 기술, 유사 사례, 적용 가능한 물리 등)
-  - FAIL → "~한 제약·모순 때문에 충족 불가하다" 식의 **실패 근거** (어떤 수치·물리 한계·공정 제약에 걸리는지)
-  - UNKNOWN → "~를 모르기 때문에 판정 불가하다" 식의 **불확실성의 근원** (어떤 데이터/실험이 더 있어야 결정 가능한지)
-  일반 서술("~이어야 한다", "~가 중요하다") 금지. 반드시 **상태의 이유**를 제공.
-- **status**: 반드시 "pass" / "fail" / "unknown" 중 하나.
-  - "pass": 현존 기술·물리·사례로 충족 가능하다고 확실히 판단
-  - "fail": 현재 수준에서 명확한 제약·모순 때문에 충족 불가 또는 큰 차이 존재
+- **id**: 안정 식별자 "A", "B", "C", "D"...
+- **name**: 요건 이름 6~16자. 공학/구조/시스템 축을 선호.
+- **description**: 이 요건이 왜 필수인지 1~2문장 (40~140자).
+- **inputs**: 이 요건이 **필요로 하는 것들**. 짧은 토큰 리스트 (각 2~10자).
+  예: ["전력", "공간", "회전부"], ["자본", "거래처"].
+  ⚠️ **다른 요건의 output으로 공급받을 수 있는 수준**으로 추상화하라.
+  너무 구체적이면 매칭이 안 되고, 너무 포괄적("자원")이면 의미가 없다.
+- **outputs**: 이 요건이 **제공하는 것들**. 짧은 토큰 리스트.
+  예: ["공기 흐름"], ["안전성"], ["수익"].
+- **feasibility**: 반드시 세 값 중 하나.
+  - "feasible": 현존 기술·물리·사례로 이 요건을 그대로 구현 가능하다
+  - "infeasible": 명확한 제약·모순 때문에 그대로는 구현 불가 (다른 요건과 입력이 충돌하거나, 물리/시장 한계에 걸림)
   - "unknown": 현재 정보로는 판정 불가 (추가 실험·데이터 필요)
+- **rationale**: 1문장(40~120자). feasibility 판정의 **근거**.
+  - feasible: "~한 메커니즘/기술/사례로 충족 가능하다"
+  - infeasible: "~한 제약 때문에 구현 불가" (어떤 수치·물리 한계·모순에 걸리는지)
+  - unknown: "~를 모르기 때문에 판정 불가" (어떤 데이터가 필요한지)
+- **substituteDirections**: **infeasible일 때만** 포함. 3~5개 짧은 명제(6~16자).
+  **같은 outputs를 제공하되 inputs 구성이 다른 "대체 부품 방향"**을 제시한다.
+  예: output이 "공기 흐름"인데 "회전부 노출" 입력이 안 되는 경우 →
+    ["베르누이 증폭", "에어커튼 유도", "제트 바이패스", "압전 송풍"]
+  각 방향은 사용자가 유사칩/다른 분야 사례와 조합해 재탐색할 **설계 변수**다.
+  feasible/unknown 요건에는 이 필드를 넣지 마라.
 
-### FAIL인 조건에만 추가되는 cascade
-FAIL 상태의 조건에는 반드시 \`cascade\` 객체를 포함한다.
+## 3. 조립 간선 (edges)
+요건들 사이의 input↔output 매칭. 어떤 요건의 output이 어떤 요건의 input을 공급하는지를 명시한다.
 
-- **issue**: 그 조건이 어떤 식으로 실패하는지 짧은 요지 (10~20자).
-  예: "무게중심 이동", "출력 밀도 부족".
-- **cause**: 왜 그렇게 실패하는지 1문장(40~100자). 물리적·구조적·시스템적 원인.
-  예: "바퀴 축 위치가 상승하면서 장치의 무게중심이 지지영역 밖으로 이동한다."
-- **solutionVariables**: 그 원인을 극복할 수 있는 **독립적 해결 방향 3~5개**. 각 방향은 짧은 명제(6~16자).
-  예: "지지영역 확대", "무게중심 낮추기", "무게중심 이동시키기", "지지점 추가", "자세 능동 제어".
-  각 해결 변수는 사용자가 그 자체를 다른 분야 사례(만물 칩)와 조합해 해결안을 탐색할 수 있는 **설계 변수**여야 한다.
+각 간선: { fromId, toId, token }
+- fromId: output을 제공하는 요건 id
+- toId: input을 소비하는 요건 id
+- token: 둘 사이에서 매칭된 토큰 문자열. **반드시 fromId.outputs와 toId.inputs 양쪽에 똑같이 등장**해야 한다 (문자열 일치).
 
-PASS/UNKNOWN 조건에는 cascade를 넣지 마라 (해당 필드 생략).
+⚠️ 매칭이 성립하려면 토큰이 **글자 단위로 동일**해야 한다. 요건들을 설계할 때 inputs/outputs의 토큰을 **의도적으로 재사용**하라.
+
+## 4. 누락 매칭 (danglingInputs)
+어떤 요건의 input인데 다른 어떤 요건의 output으로도 공급되지 않는 것.
+
+각 항목: { requirementId, token }
+- 이것들이 **"아직 발명되지 않은 부품"**이다. 사용자가 유사칩이나 다른 분야 사례로 공급원을 찾아야 할 지점.
 
 규칙 요약:
-- 조건 간 중복 금지. 각각 독립 평가 축.
-- status는 반드시 세 값 중 하나.
-- FAIL이면 cascade 필수. PASS/UNKNOWN이면 cascade 없음.
+- requirements는 정확히 4~6개.
+- 모든 inputs/outputs 토큰은 짧고(2~10자) 서로 재사용 가능하게 정규화된 형태로.
+- feasibility는 세 값 중 하나.
+- infeasible이면 substituteDirections 필수. feasible/unknown이면 생략.
+- edges의 token은 반드시 양쪽 요건의 inputs/outputs에 글자 단위 일치.
+- danglingInputs는 edges로 연결되지 않은 input만 포함.
 
 반드시 다음 JSON 스키마로 응답:
 {
   "target": "목표문 한 줄",
-  "conditions": [
+  "requirements": [
     {
-      "name": "조건 축 이름",
-      "principle": "왜 필수인지 1문장",
-      "status": "pass" | "fail" | "unknown",
-      "cascade": {
-        "issue": "짧은 실패 요지",
-        "cause": "실패 원인 1문장",
-        "solutionVariables": ["해결 변수 1", "해결 변수 2", "..."]
-      }
+      "id": "A",
+      "name": "요건 이름",
+      "description": "왜 필수인지 1~2문장",
+      "inputs": ["토큰1", "토큰2"],
+      "outputs": ["토큰3"],
+      "feasibility": "feasible" | "infeasible" | "unknown",
+      "rationale": "판정 근거 1문장",
+      "substituteDirections": ["대체 방향 1", "..."]
     }
+  ],
+  "edges": [
+    { "fromId": "A", "toId": "D", "token": "공기 흐름" }
+  ],
+  "danglingInputs": [
+    { "requirementId": "D", "token": "고객" }
   ]
 }
-conditions 배열에 정확히 4~5개.`;
+requirements는 정확히 4~6개.`;
 
 export const verifyUserPrompt = (
   parentAxis: string,

@@ -11,6 +11,9 @@ type Body = {
   principle?: string;
   categories?: string[];
   perCategory?: number;
+  // When set, switches the prompt into "find chips whose mechanism
+  // outputs this token" mode (verify dangling-input substitution).
+  targetOutput?: string;
 };
 
 export async function POST(req: Request) {
@@ -43,8 +46,15 @@ export async function POST(req: Request) {
     body.categories && body.categories.length > 0
       ? body.categories
       : [...kSimilarCategories];
-  const system = chipRecommendationSystemPrompt(categories, perCategory);
-  const user = `주제: ${topicText}\n축: ${axis}\n원리: ${principle}`;
+  const targetOutput = body.targetOutput?.trim() || undefined;
+  const system = chipRecommendationSystemPrompt(
+    categories,
+    perCategory,
+    targetOutput,
+  );
+  const user = targetOutput
+    ? `찾고 있는 출력(output): ${targetOutput}\n맥락 주제: ${topicText}\n맥락 축: ${axis}\n맥락 원리: ${principle}`
+    : `주제: ${topicText}\n축: ${axis}\n원리: ${principle}`;
 
   try {
     const content = await callLLM({

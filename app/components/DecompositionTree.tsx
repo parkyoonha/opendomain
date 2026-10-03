@@ -26,10 +26,12 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import {
-  verifyStatusIcon,
-  verifyStatusLabel,
-  verifyStatusPalette,
-  type VerifyCondition,
+  feasibilityIcon,
+  feasibilityLabel,
+  feasibilityPalette,
+  type RequirementPart,
+  type RequirementEdge,
+  type DanglingInput,
 } from "@/lib/verify";
 import MemoStack from "./MemoStack";
 import PendingTopicCard from "./PendingTopicCard";
@@ -2349,27 +2351,67 @@ type VerifyReportCardProps = {
   lens: SelectedLens | null;
   report: {
     target: string;
-    conditions: VerifyCondition[];
+    requirements: RequirementPart[];
+    edges: RequirementEdge[];
+    danglingInputs: DanglingInput[];
   };
   status?: "idle" | "loading" | "error";
   parentAxis: string;
 };
 
-// Renders a single verify generation:
+// Renders a single verify generation as a *typed-requirement composition*:
 //   - header pill (증명 · lens)
 //   - target line (목표)
-//   - 필수 조건 list with PASS / FAIL / UNKNOWN badges
-//   - for every FAIL condition, an inline cascade:
-//       · issue label + 원인 (cause)
-//       · 해결 변수 list, each as a FacetNode so the user can click to
-//         open a controller and further decompose / combine that
-//         specific solution direction with chips.
+//   - 필수 요건 list — each requirement is a card with:
+//       · name + feasibility badge (가능 / 불가능 / 판정보류)
+//       · description + rationale
+//       · 입력 pills (red if dangling, green if supplied by an edge)
+//       · 출력 pills
+//       · when infeasible: substituteDirections rendered as FacetNodes so
+//         the user can further decompose / combine them with chips.
+//   - 누락 매칭 list — dangling input tokens that no requirement supplies.
 function VerifyReportCard({
   lens,
   report,
   status,
   parentAxis,
 }: VerifyReportCardProps) {
+  const {
+    selectPrinciple,
+    setChipFocusTargetOutput,
+    setChipPanelOpen,
+    runRecommendChips,
+  } = useIdea();
+  // Index edges by consuming requirement, by token, so each input pill
+  // can show "supplied by X" when a matching edge exists.
+  const supplyByInput = new Map<string, string>(); // key = `${toId}::${token}`
+  for (const e of report.edges) {
+    supplyByInput.set(`${e.toId}::${e.token}`, e.fromId);
+  }
+  const danglingSet = new Set(
+    report.danglingInputs.map((d) => `${d.requirementId}::${d.token}`),
+  );
+
+  // Opening the chip panel focused on a required output: we synthesize a
+  // "principle" from the dangling token so the chip-recommendation API
+  // still has an axis/principle context to work with, then set the focus
+  // and open the panel. The chip panel's own effect re-fetches with the
+  // focus token.
+  const openChipPanelForOutput = (token: string, requirementId: string) => {
+    const owner = report.requirements.find((r) => r.id === requirementId);
+    const sel = {
+      axis: parentAxis,
+      name: `${token} 공급원`,
+      text: owner
+        ? `${owner.id}. ${owner.name} 요건이 필요로 하는 "${token}"의 공급원`
+        : `"${token}"의 공급원`,
+    };
+    selectPrinciple(sel);
+    setChipFocusTargetOutput(token);
+    setChipPanelOpen(true);
+    void runRecommendChips(sel.axis, sel.name, sel.text);
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1 md:pl-8">
@@ -2391,16 +2433,16 @@ function VerifyReportCard({
           <div className="mt-0.5 font-semibold">{report.target}</div>
         </div>
       )}
-      {report.conditions.length > 0 && (
+      {report.requirements.length > 0 && (
         <div className="md:pl-8">
           <div className="text-[10px] uppercase tracking-wider text-text-muted">
-            필수 조건
+            필수 요건
           </div>
           <ul className="mt-1 flex flex-col gap-2">
-            {report.conditions.map((c, i) => {
-              const pal = verifyStatusPalette[c.status];
+            {report.requirements.map((r) => {
+              const pal = feasibilityPalette[r.feasibility];
               return (
-                <li key={`${i}-${c.name}`} className="flex flex-col gap-1.5">
+                <li key={r.id} className="flex flex-col gap-1.5">
                   <div
                     className={`w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] shrink-0 rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
                   >
@@ -2408,61 +2450,139 @@ function VerifyReportCard({
                       <div
                         className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
                       >
-                        {verifyStatusIcon[c.status]} {c.name}
+                        {feasibilityIcon[r.feasibility]} {r.id}. {r.name}
                       </div>
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
                       >
-                        {verifyStatusLabel[c.status]}
+                        {feasibilityLabel[r.feasibility]}
                       </span>
                     </div>
                     <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                      {c.principle}
+                      {r.description}
                     </div>
+                    {r.rationale && (
+                      <div className="mt-1 text-[11px] leading-5 text-text-muted md:text-[10px] md:leading-4">
+                        <span className="text-[9px] uppercase tracking-wider">
+                          근거 ·{" "}
+                        </span>
+                        {r.rationale}
+                      </div>
+                    )}
+                    {(r.inputs.length > 0 || r.outputs.length > 0) && (
+                      <div className="mt-2 flex flex-col gap-1">
+                        {r.inputs.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                              입력
+                            </span>
+                            {r.inputs.map((tok) => {
+                              const key = `${r.id}::${tok}`;
+                              const supplier = supplyByInput.get(key);
+                              const isDangling = danglingSet.has(key);
+                              const chipCls = isDangling
+                                ? "border border-rose-400/60 bg-rose-500/15 text-rose-100"
+                                : supplier
+                                  ? "border border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
+                                  : "border border-white/15 bg-white/[0.06] text-text-secondary";
+                              return (
+                                <span
+                                  key={tok}
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] md:text-[9px] ${chipCls}`}
+                                  title={
+                                    supplier
+                                      ? `${supplier} 요건의 출력으로 공급됨`
+                                      : isDangling
+                                        ? "공급원 없음 — 유사칩/대체 방향 필요"
+                                        : undefined
+                                  }
+                                >
+                                  {tok}
+                                  {supplier && (
+                                    <span className="ml-1 text-[9px] text-emerald-200/80 md:text-[8px]">
+                                      ← {supplier}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {r.outputs.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                              출력
+                            </span>
+                            {r.outputs.map((tok) => (
+                              <span
+                                key={tok}
+                                className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-100 md:text-[9px]"
+                              >
+                                {tok}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {c.status === "fail" && c.cascade && (
-                    <div className="ml-3 flex flex-col gap-1.5 pl-3">
-                      {c.cascade.issue && (
-                        <div className="w-[max(20vw,220px)] max-md:w-[calc(100vw-4rem)] text-[11px] text-rose-200 md:text-[10px]">
-                          <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                            실패 지점 ·{" "}
-                          </span>
-                          {c.cascade.issue}
+                  {r.feasibility === "infeasible" &&
+                    r.substituteDirections &&
+                    r.substituteDirections.length > 0 && (
+                      <div className="ml-3 flex flex-col gap-1 pl-3">
+                        <div className="text-[9px] uppercase tracking-wider text-text-muted">
+                          대체 방향 — 클릭하여 조합·재분해
                         </div>
-                      )}
-                      {c.cascade.cause && (
-                        <div className="w-[max(20vw,220px)] max-md:w-[calc(100vw-4rem)] text-[11px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                          <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                            원인 ·{" "}
-                          </span>
-                          {c.cascade.cause}
-                        </div>
-                      )}
-                      {c.cascade.solutionVariables.length > 0 && (
-                        <div className="flex flex-col gap-1">
-                          <div className="text-[9px] uppercase tracking-wider text-text-muted">
-                            해결 변수 — 클릭하여 조합·재분해
-                          </div>
-                          <ul className="flex flex-col gap-1">
-                            {c.cascade.solutionVariables.map((sv) => (
-                              <li
-                                key={sv}
-                                className="flex items-start"
-                              >
-                                <FacetNode
-                                  rootAxis={parentAxis}
-                                  pathName={sv}
-                                  facetName={sv}
-                                  facetText={`${c.cascade?.issue ?? c.name} 극복을 위한 해결 변수`}
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                        <ul className="flex flex-col gap-1">
+                          {r.substituteDirections.map((sv) => (
+                            <li key={sv} className="flex items-start">
+                              <FacetNode
+                                rootAxis={parentAxis}
+                                pathName={sv}
+                                facetName={sv}
+                                facetText={`${r.name} 요건의 대체 부품 방향 — 같은 출력(${r.outputs.join(", ")})을 다른 입력 조합으로 구현`}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {report.danglingInputs.length > 0 && (
+        <div className="md:pl-8 mt-1 flex flex-col gap-1 w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)]">
+          <div className="text-[10px] uppercase tracking-wider text-rose-200/80">
+            누락 매칭 — 공급원 탐색
+          </div>
+          <ul className="flex flex-col gap-1">
+            {report.danglingInputs.map((d) => {
+              const owner = report.requirements.find(
+                (r) => r.id === d.requirementId,
+              );
+              return (
+                <li key={`${d.requirementId}::${d.token}`}>
+                  <button
+                    onClick={() =>
+                      openChipPanelForOutput(d.token, d.requirementId)
+                    }
+                    className="w-full rounded-md border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-left text-[12px] text-rose-100 transition-colors hover:bg-rose-500/20 md:text-[11px]"
+                    title={`"${d.token}"을 출력으로 산출하는 부품을 유사칩 패널에서 찾기`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{d.token}</span>
+                      <span className="shrink-0 text-[9px] uppercase tracking-wider text-rose-200/80">
+                        {owner?.id ?? d.requirementId} 필요
+                      </span>
                     </div>
-                  )}
+                    <div className="mt-0.5 text-[10px] leading-4 text-rose-200/80">
+                      유사칩에서 공급원 탐색 →
+                    </div>
+                  </button>
                 </li>
               );
             })}

@@ -4,7 +4,8 @@ import {
   verifySystemPrompt,
   verifyUserPrompt,
   type VerifyReport,
-  type VerifyStatus,
+  type Feasibility,
+  type RequirementPart,
 } from "@/lib/verify";
 import { modelFor, type BigCategory } from "@/lib/constants";
 import { lensPromptFragment, type SelectedLens } from "@/lib/lenses";
@@ -20,53 +21,73 @@ type Body = {
   userContext?: string;
 };
 
+const asStringArray = (v: unknown): string[] =>
+  Array.isArray(v)
+    ? v.filter((s): s is string => typeof s === "string").map((s) => s.trim()).filter(Boolean)
+    : [];
+
 function parseVerifyReport(content: string): VerifyReport {
   const parsed = JSON.parse(content) as {
     target?: string;
-    conditions?: {
+    requirements?: Array<{
+      id?: string;
       name?: string;
-      principle?: string;
-      status?: string;
-      cascade?: {
-        issue?: string;
-        cause?: string;
-        solutionVariables?: unknown;
-      };
-    }[];
+      description?: string;
+      inputs?: unknown;
+      outputs?: unknown;
+      feasibility?: string;
+      rationale?: string;
+      substituteDirections?: unknown;
+    }>;
+    edges?: Array<{ fromId?: string; toId?: string; token?: string }>;
+    danglingInputs?: Array<{ requirementId?: string; token?: string }>;
   };
-  const allowed = new Set<VerifyStatus>(["pass", "fail", "unknown"]);
-  const conditions = (parsed.conditions ?? [])
-    .map((c) => {
-      const status: VerifyStatus = allowed.has(c?.status as VerifyStatus)
-        ? (c?.status as VerifyStatus)
+
+  const allowed = new Set<Feasibility>(["feasible", "infeasible", "unknown"]);
+
+  const requirements: RequirementPart[] = (parsed.requirements ?? [])
+    .map((r, idx) => {
+      const feasibility: Feasibility = allowed.has(r?.feasibility as Feasibility)
+        ? (r?.feasibility as Feasibility)
         : "unknown";
-      const rawVars = c?.cascade?.solutionVariables;
-      const solutionVariables = Array.isArray(rawVars)
-        ? rawVars
-            .filter((v): v is string => typeof v === "string")
-            .map((v) => v.trim())
-            .filter(Boolean)
-        : [];
-      const cascade =
-        status === "fail" &&
-        (c?.cascade?.issue || c?.cascade?.cause || solutionVariables.length)
-          ? {
-              issue: (c?.cascade?.issue ?? "").trim(),
-              cause: (c?.cascade?.cause ?? "").trim(),
-              solutionVariables,
-            }
-          : undefined;
+      const subs = asStringArray(r?.substituteDirections);
       return {
-        name: (c?.name ?? "").trim(),
-        principle: (c?.principle ?? "").trim(),
-        status,
-        cascade,
+        id: (r?.id ?? String.fromCharCode(65 + idx)).trim() || String.fromCharCode(65 + idx),
+        name: (r?.name ?? "").trim(),
+        description: (r?.description ?? "").trim(),
+        inputs: asStringArray(r?.inputs),
+        outputs: asStringArray(r?.outputs),
+        feasibility,
+        rationale: (r?.rationale ?? "").trim(),
+        substituteDirections: feasibility === "infeasible" && subs.length ? subs : undefined,
       };
     })
-    .filter((c) => c.name && c.principle);
+    .filter((r) => r.name && r.description);
+
+  const validIds = new Set(requirements.map((r) => r.id));
+
+  const edges = (parsed.edges ?? [])
+    .map((e) => ({
+      fromId: (e?.fromId ?? "").trim(),
+      toId: (e?.toId ?? "").trim(),
+      token: (e?.token ?? "").trim(),
+    }))
+    .filter((e) => e.fromId && e.toId && e.token)
+    .filter((e) => validIds.has(e.fromId) && validIds.has(e.toId));
+
+  const danglingInputs = (parsed.danglingInputs ?? [])
+    .map((d) => ({
+      requirementId: (d?.requirementId ?? "").trim(),
+      token: (d?.token ?? "").trim(),
+    }))
+    .filter((d) => d.requirementId && d.token)
+    .filter((d) => validIds.has(d.requirementId));
+
   return {
     target: (parsed.target ?? "").trim(),
-    conditions,
+    requirements,
+    edges,
+    danglingInputs,
   };
 }
 
