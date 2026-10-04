@@ -2047,7 +2047,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
   const runRecommendChips = useCallback(
     async (axis: string, name: string, text: string) => {
-      if (!decomposition) return;
+      // Verify can trigger focused chip search from the PendingTopicCard
+      // (before any decomposition exists), so fall back to pendingTopic.
+      const topicText = decomposition?.topicText ?? pendingTopic ?? "";
+      if (!topicText) return;
       // Cache key separates normal recs from focused (verify dangling-input)
       // recs so switching focus doesn't overwrite the base recommendations.
       const focus = chipFocusTargetOutput;
@@ -2062,7 +2065,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
-            topicText: decomposition.topicText,
+            topicText,
             axis,
             principle: text,
             targetOutput: focus ?? undefined,
@@ -2082,7 +2085,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [decomposition, chipRecommendations, chipFocusTargetOutput],
+    [decomposition, pendingTopic, chipRecommendations, chipFocusTargetOutput],
   );
 
   const selectChip = useCallback((c: SelectedChip | null) => {

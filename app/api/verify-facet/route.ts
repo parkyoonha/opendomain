@@ -6,6 +6,8 @@ import {
   type VerifyReport,
   type Feasibility,
   type RequirementPart,
+  type RequirementTier,
+  kRequirementTiers,
 } from "@/lib/verify";
 import { modelFor, type BigCategory } from "@/lib/constants";
 import { lensPromptFragment, type SelectedLens } from "@/lib/lenses";
@@ -31,8 +33,12 @@ function parseVerifyReport(content: string): VerifyReport {
     target?: string;
     requirements?: Array<{
       id?: string;
+      tier?: string;
       name?: string;
       description?: string;
+      needs?: unknown;
+      provides?: unknown;
+      // Backwards-tolerant: accept inputs/outputs from older model outputs.
       inputs?: unknown;
       outputs?: unknown;
       feasibility?: string;
@@ -40,26 +46,44 @@ function parseVerifyReport(content: string): VerifyReport {
       substituteDirections?: unknown;
     }>;
     edges?: Array<{ fromId?: string; toId?: string; token?: string }>;
+    danglingNeeds?: Array<{ requirementId?: string; token?: string }>;
+    // Backwards-tolerant alias.
     danglingInputs?: Array<{ requirementId?: string; token?: string }>;
   };
 
-  const allowed = new Set<Feasibility>(["feasible", "infeasible", "unknown"]);
+  const allowedFeasibility = new Set<Feasibility>([
+    "feasible",
+    "infeasible",
+    "unknown",
+  ]);
+  const allowedTier = new Set<RequirementTier>(kRequirementTiers);
 
   const requirements: RequirementPart[] = (parsed.requirements ?? [])
     .map((r, idx) => {
-      const feasibility: Feasibility = allowed.has(r?.feasibility as Feasibility)
+      const feasibility: Feasibility = allowedFeasibility.has(
+        r?.feasibility as Feasibility,
+      )
         ? (r?.feasibility as Feasibility)
         : "unknown";
+      const tier: RequirementTier = allowedTier.has(r?.tier as RequirementTier)
+        ? (r?.tier as RequirementTier)
+        : "결합";
       const subs = asStringArray(r?.substituteDirections);
+      const needs = asStringArray(r?.needs);
+      const provides = asStringArray(r?.provides);
       return {
-        id: (r?.id ?? String.fromCharCode(65 + idx)).trim() || String.fromCharCode(65 + idx),
+        id:
+          (r?.id ?? String.fromCharCode(65 + idx)).trim() ||
+          String.fromCharCode(65 + idx),
+        tier,
         name: (r?.name ?? "").trim(),
         description: (r?.description ?? "").trim(),
-        inputs: asStringArray(r?.inputs),
-        outputs: asStringArray(r?.outputs),
+        needs: needs.length ? needs : asStringArray(r?.inputs),
+        provides: provides.length ? provides : asStringArray(r?.outputs),
         feasibility,
         rationale: (r?.rationale ?? "").trim(),
-        substituteDirections: feasibility === "infeasible" && subs.length ? subs : undefined,
+        substituteDirections:
+          feasibility === "infeasible" && subs.length ? subs : undefined,
       };
     })
     .filter((r) => r.name && r.description);
@@ -75,7 +99,8 @@ function parseVerifyReport(content: string): VerifyReport {
     .filter((e) => e.fromId && e.toId && e.token)
     .filter((e) => validIds.has(e.fromId) && validIds.has(e.toId));
 
-  const danglingInputs = (parsed.danglingInputs ?? [])
+  const rawDangling = parsed.danglingNeeds ?? parsed.danglingInputs ?? [];
+  const danglingNeeds = rawDangling
     .map((d) => ({
       requirementId: (d?.requirementId ?? "").trim(),
       token: (d?.token ?? "").trim(),
@@ -87,7 +112,7 @@ function parseVerifyReport(content: string): VerifyReport {
     target: (parsed.target ?? "").trim(),
     requirements,
     edges,
-    danglingInputs,
+    danglingNeeds,
   };
 }
 
