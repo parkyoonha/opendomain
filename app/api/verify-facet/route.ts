@@ -45,6 +45,7 @@ function parseVerifyReport(content: string): VerifyReport {
       rationale?: string;
       substituteDirections?: unknown;
       conflictingNeed?: string;
+      resolvedGoal?: string;
     }>;
     edges?: Array<{ fromId?: string; toId?: string; token?: string }>;
     danglingNeeds?: Array<{ requirementId?: string; token?: string }>;
@@ -73,6 +74,7 @@ function parseVerifyReport(content: string): VerifyReport {
       const needs = asStringArray(r?.needs);
       const provides = asStringArray(r?.provides);
       const conflicting = (r?.conflictingNeed ?? "").trim();
+      const resolved = (r?.resolvedGoal ?? "").trim();
       return {
         id:
           (r?.id ?? String.fromCharCode(65 + idx)).trim() ||
@@ -88,6 +90,8 @@ function parseVerifyReport(content: string): VerifyReport {
           feasibility === "infeasible" && subs.length ? subs : undefined,
         conflictingNeed:
           feasibility === "infeasible" && conflicting ? conflicting : undefined,
+        resolvedGoal:
+          feasibility === "infeasible" && resolved ? resolved : undefined,
       };
     })
     .filter((r) => r.name && r.description);

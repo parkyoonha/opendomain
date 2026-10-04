@@ -104,6 +104,11 @@ export type RequirementPart = {
   // needs is actually the blocker (so the resolve button can seed the
   // matrix with that as excludeNeed). Empty/absent → no specific exclude.
   conflictingNeed?: string;
+  // When feasibility === "infeasible", a one-line restated goal that
+  // treats "this conflict is solved" as a new product goal. Shown
+  // prominently in the 충돌·실패 block so the user reads the blocker
+  // as a sub-goal (e.g. "회전 날개 없이 바람을 만드는 선풍기").
+  resolvedGoal?: string;
 };
 
 export type RequirementEdge = {
@@ -179,8 +184,15 @@ export const verifySystemPrompt = (): string =>
   - "결합" — 다른 요건의 산출을 소비해 변환 후 또 다른 산출을 만든다.
   - "완성" — 산출이 목표문을 **직접** 만족한다 (최종 결과).
   최소 1개 이상의 "완성" 요건이 있어야 한다.
-- **name**: 요건 이름 **6~14자**. 명사형, 공학/구조/기능 축.
-- **description**: **최대 24자의 한 줄 서술**. "~한다" 또는 "~이 필요" 식의 짧은 동사구. 예: "전력으로 공기를 밀어낸다", "노출된 회전부가 없다", "일반 가정에서 쓸 수 있다". ⚠️ 두 문장 금지, 40자 넘기면 안 됨.
+- **name**: 요건 이름 **6~12자**. 명사형, 기능 축. **쉬운 말**로. 예: "바람 생성", "안전 외형", "힘 저장", "소음 억제", "크기".
+- **description**: **최대 24자의 한 줄 서술**. "~한다" 또는 "~이 필요" 식의 짧은 동사구. 예: "바람을 만든다", "노출된 회전부가 없다", "일반 가정에서 쓸 수 있다".
+
+⚠️ **전문용어 금지 (매우 중요)**
+- 사용자 입력 아이디어에 전문용어가 섞여 있어도 **요건의 name/description은 일반인이 그대로 이해할 수 있는 쉬운 말**로 번역하라.
+- ❌ 금지: "래칫 게이팅", "임피던스 매칭", "비선형 반응", "압전 변환", "탄성 모듈러스", "히스테리시스" 같은 공학/학술 조어
+- ✅ 허용: "힘을 모아 뒀다가 터뜨린다", "소음이 작다", "손목에 작게 찬다", "충격이 공격자에게 전달된다"
+- 전문 부품명·기술명은 **needs/provides 토큰에만** 사용 (사용자 UI엔 안 보임, LLM 매칭용).
+- 핵심: 두 번째 캡처본 수준의 쉬움 — "A: 바람을 만든다", "B: 노출된 회전부가 없다 (안전성)", "C: 조용하다", "D: 일반 가정에서 쓸 수 있다".
 - **needs**: 이 요건이 **필요로 하는 것들**. 짧은 토큰 리스트 (각 2~10자).
   ⚠️ **다른 요건의 provides로 공급받을 수 있는 수준**으로 추상화하라.
 - **provides**: 이 요건이 **산출하는 것들**. 짧은 토큰 리스트.
@@ -191,6 +203,10 @@ export const verifySystemPrompt = (): string =>
 - **rationale**: **최대 40자 한 줄**. 왜 그 feasibility인지. infeasible이면 **어느 요건·토큰과 충돌하는지** 반드시 명시.
 - **substituteDirections**: infeasible일 때만. 3~5개 짧은 명제(6~16자). 같은 provides를 유지하되 needs 구성이 다른 대체 부품 방향.
 - **conflictingNeed**: **infeasible일 때만**. 이 요건의 needs 중 **다른 요건과 모순을 일으키는 토큰** 하나를 그대로 적는다. 예: 이 요건이 "회전 날개"를 needs로 가지는데 다른 요건이 "회전부 노출 없음"을 needs로 요구하면 conflictingNeed 값은 "회전 날개". 사용자가 "해결" 버튼을 눌렀을 때 매칭 매트릭스에서 이 토큰을 제외하기 위함. feasible/unknown에는 넣지 마라.
+- **resolvedGoal**: **infeasible일 때만**. 그 충돌이 해결된 상태의 **아이디어 전체를 한 줄 목표문으로 재진술** (최대 40자). "~없이 ~한다", "~로 ~을 만든다" 식의 **쉬운 말 목표문**. 예:
+  - 원 아이디어: "아이가 손가락 넣어도 안전한 선풍기", 충돌: A가 회전 날개를 요구함 → resolvedGoal: "회전 날개 없이 바람을 만드는 선풍기"
+  - 원 아이디어: "손목 스프링-래칫 방어구", 충돌: 반발력이 공격자에 안 닿음 → resolvedGoal: "충격이 공격자에게 제대로 전달되는 손목 방어구"
+  이 문장은 사용자가 "해결" 버튼으로 매칭 매트릭스를 열기 전에 **새로운 목표로서** 읽는다. 전문용어 금지, 반드시 쉬운 말로.
 
 ## 3. 조립 간선 (edges)
 요건들 사이의 provides↔needs 매칭.
@@ -247,7 +263,8 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
       "feasibility": "feasible" | "infeasible" | "unknown",
       "rationale": "최대 40자 한 줄 근거",
       "substituteDirections": ["대체 방향 1", "..."],
-      "conflictingNeed": "충돌 토큰 (infeasible만)"
+      "conflictingNeed": "충돌 토큰 (infeasible만)",
+      "resolvedGoal": "충돌 해결된 상태의 재진술 목표문 (infeasible만)"
     }
   ],
   "edges": [

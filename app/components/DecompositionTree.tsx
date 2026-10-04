@@ -2504,7 +2504,7 @@ function VerifyReportCard({
           </ul>
         </div>
       ))}
-      {/* 충돌·실패 요약 + 해결 버튼 */}
+      {/* 충돌·실패를 "하위 목표"로 재서술한 블록 */}
       {(() => {
         const infeasibleReqs = report.requirements.filter(
           (r) => r.feasibility === "infeasible",
@@ -2517,25 +2517,28 @@ function VerifyReportCard({
         return (
           <div className={`${widthCls} mt-1 flex flex-col gap-1.5`}>
             <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
-              충돌·실패
+              충돌·실패 → 새 목표
             </span>
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {infeasibleReqs.map((r) => {
                 const target = r.provides[0];
                 const exclude =
                   r.conflictingNeed ?? r.needs[0] ?? undefined;
+                const subGoal =
+                  r.resolvedGoal ||
+                  (exclude && target
+                    ? `${exclude} 없이 ${target}을 만드는 방법`
+                    : r.name);
                 return (
                   <li
                     key={`inf-${r.id}`}
-                    className="flex flex-col gap-1 rounded-md bg-rose-500/10 px-3 py-2"
+                    className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
                   >
-                    <div className="text-[12px] text-rose-100 md:text-[11px]">
-                      <span className="font-semibold">{r.name}</span>
-                      {r.rationale && (
-                        <span className="ml-1 text-rose-200/80">
-                          · {r.rationale}
-                        </span>
-                      )}
+                    <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                      목표
+                    </div>
+                    <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
+                      {subGoal}
                     </div>
                     {target && (
                       <button
@@ -2555,20 +2558,17 @@ function VerifyReportCard({
                 );
               })}
               {report.danglingNeeds.map((d) => {
-                const owner = report.requirements.find(
-                  (r) => r.id === d.requirementId,
-                );
+                const subGoal = `${d.token}을(를) 공급할 메커니즘`;
                 return (
                   <li
                     key={`dn-${d.requirementId}-${d.token}`}
-                    className="flex flex-col gap-1 rounded-md bg-rose-500/10 px-3 py-2"
+                    className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
                   >
-                    <div className="text-[12px] text-rose-100 md:text-[11px]">
-                      <span className="font-semibold">{d.token}</span>
-                      <span className="ml-1 text-rose-200/80">
-                        · 공급원 없음
-                        {owner && ` (${owner.name}가 필요)`}
-                      </span>
+                    <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                      목표
+                    </div>
+                    <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
+                      {subGoal}
                     </div>
                     <button
                       onClick={() =>
