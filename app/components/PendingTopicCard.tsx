@@ -42,8 +42,10 @@ export default function PendingTopicCard() {
     selectPrinciple,
     setChipFocusTargetOutput,
     setChipFocusExcludeNeed,
+    setChipFocusRequirements,
     setChipPanelOpen,
     runRecommendChips,
+    runChipFocusMatrix,
   } = useIdea();
   const [collapsedDir, setCollapsedDir] = useState(false);
   const [collapsedLens, setCollapsedLens] = useState(true);
@@ -268,6 +270,33 @@ export default function PendingTopicCard() {
                     items: v.report.requirements.filter((r) => r.tier === t),
                   }))
                   .filter((g) => g.items.length > 0);
+                const matrixReqs = v.report.requirements.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  needs: r.needs,
+                  provides: r.provides,
+                }));
+                const openPanelForOutput = (
+                  token: string,
+                  requirementId: string,
+                ) => {
+                  const owner = v.report.requirements.find(
+                    (r) => r.id === requirementId,
+                  );
+                  const sel = {
+                    axis: "주제",
+                    name: `${token} 공급원`,
+                    text: owner
+                      ? `${owner.name} 요건이 필요로 하는 "${token}"의 공급원 (주제: ${pendingTopic})`
+                      : `"${token}"의 공급원 (주제: ${pendingTopic})`,
+                  };
+                  selectPrinciple(sel);
+                  setChipFocusTargetOutput(token);
+                  setChipFocusExcludeNeed(null);
+                  setChipFocusRequirements(matrixReqs);
+                  setChipPanelOpen(true);
+                  void runChipFocusMatrix(sel.axis, sel.name, sel.text);
+                };
                 const openPanelExcluding = (
                   excludeToken: string,
                   owner: (typeof v.report.requirements)[number],
@@ -282,8 +311,9 @@ export default function PendingTopicCard() {
                   selectPrinciple(sel);
                   setChipFocusTargetOutput(targetProvide);
                   setChipFocusExcludeNeed(excludeToken);
+                  setChipFocusRequirements(matrixReqs);
                   setChipPanelOpen(true);
-                  void runRecommendChips(sel.axis, sel.name, sel.text);
+                  void runChipFocusMatrix(sel.axis, sel.name, sel.text);
                 };
                 return (
                   <div className="flex flex-col gap-2">
@@ -347,19 +377,27 @@ export default function PendingTopicCard() {
                                           ? "bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
                                           : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.14]";
                                       const titleProvide = r.provides[0];
+                                      const disabled =
+                                        !isDangling && !titleProvide;
                                       return (
                                         <button
                                           key={`n-${tok}`}
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            openPanelExcluding(tok, r);
+                                            if (isDangling) {
+                                              openPanelForOutput(tok, r.id);
+                                            } else {
+                                              openPanelExcluding(tok, r);
+                                            }
                                           }}
-                                          disabled={!titleProvide}
+                                          disabled={disabled}
                                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] transition-colors md:text-[9px] ${chipCls} disabled:cursor-default`}
                                           title={
-                                            titleProvide
-                                              ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
-                                              : undefined
+                                            isDangling
+                                              ? `"${tok}"을 산출하는 부품을 전체 요건과 매칭 검사`
+                                              : titleProvide
+                                                ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
+                                                : undefined
                                           }
                                         >
                                           {tok}
@@ -410,52 +448,6 @@ export default function PendingTopicCard() {
                   </div>
                 );
               })()}
-              {v.report.danglingNeeds.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
-                    공급원 탐색
-                  </span>
-                  <ul className="flex flex-col gap-1">
-                    {v.report.danglingNeeds.map((d) => {
-                      const owner = v.report.requirements.find(
-                        (r) => r.id === d.requirementId,
-                      );
-                      const openPanelFocus = () => {
-                        const sel = {
-                          axis: "주제",
-                          name: `${d.token} 공급원`,
-                          text: owner
-                            ? `${owner.name} 요건이 필요로 하는 "${d.token}"의 공급원 (주제: ${pendingTopic})`
-                            : `"${d.token}"의 공급원 (주제: ${pendingTopic})`,
-                        };
-                        selectPrinciple(sel);
-                        setChipFocusTargetOutput(d.token);
-                        setChipFocusExcludeNeed(null);
-                        setChipPanelOpen(true);
-                        void runRecommendChips(sel.axis, sel.name, sel.text);
-                      };
-                      return (
-                        <li key={`${d.requirementId}::${d.token}`}>
-                          <button
-                            onClick={openPanelFocus}
-                            title={`"${d.token}"을 산출하는 부품을 유사칩 패널에서 찾기`}
-                            className="w-full rounded-md bg-rose-500/10 px-3 py-1.5 text-left text-[12px] text-rose-100 hover:bg-rose-500/20 md:text-[11px]"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{d.token}</span>
-                              {owner && (
-                                <span className="shrink-0 text-[10px] text-rose-200/80 md:text-[9px]">
-                                  {owner.name}가 필요
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
             </div>
           );
         })}

@@ -31,7 +31,8 @@ import {
   kBuiltinDirections,
   type ThinkingDirection,
 } from "@/lib/directions";
-import type { VerifyReport } from "@/lib/verify";
+import type { VerifyReport, FocusChipCandidate } from "@/lib/verify";
+import type { FocusMatrixReq } from "@/lib/prompts";
 
 type Status = "idle" | "loading" | "error";
 
@@ -293,6 +294,18 @@ type Ctx = {
   // need pill in a verify requirement).
   chipFocusExcludeNeed: string | null;
   setChipFocusExcludeNeed: (token: string | null) => void;
+  // The full requirement set from the verify report that triggered the
+  // focus mode. Needed so the chip panel can run the 후보 × 요건 매칭
+  // matrix instead of a flat list.
+  chipFocusRequirements: FocusMatrixReq[] | null;
+  setChipFocusRequirements: (reqs: FocusMatrixReq[] | null) => void;
+  chipFocusMatrix: Record<string, FocusChipCandidate[]>;
+  chipFocusMatrixStatus: Record<string, Status>;
+  runChipFocusMatrix: (
+    axis: string,
+    name: string,
+    text: string,
+  ) => Promise<void>;
 
   selectedChip: SelectedChip | null;
   selectChip: (c: SelectedChip | null) => void;
@@ -1205,6 +1218,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [chipFocusExcludeNeed, setChipFocusExcludeNeed] = useState<
     string | null
   >(null);
+  const [chipFocusRequirements, setChipFocusRequirements] = useState<
+    FocusMatrixReq[] | null
+  >(null);
+  const [chipFocusMatrix, setChipFocusMatrix] = useState<
+    Record<string, FocusChipCandidate[]>
+  >({});
+  const [chipFocusMatrixStatus, setChipFocusMatrixStatus] = useState<
+    Record<string, Status>
+  >({});
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [focusedCombinedIdeaId, setFocusedCombinedIdeaId] = useState<
     string | null
@@ -2109,6 +2131,58 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const runChipFocusMatrix = useCallback(
+    async (axis: string, name: string, text: string) => {
+      const topicText = decomposition?.topicText ?? pendingTopic ?? "";
+      const target = chipFocusTargetOutput;
+      const reqs = chipFocusRequirements;
+      if (!topicText || !target || !reqs || reqs.length === 0) return;
+      const exclude = chipFocusExcludeNeed;
+      const reqsKey = reqs.map((r) => r.id).join(",");
+      const base = principleKey(axis, name);
+      const key = exclude
+        ? `${base}::mx::${target}::ex::${exclude}::rq::${reqsKey}`
+        : `${base}::mx::${target}::rq::${reqsKey}`;
+      if (chipFocusMatrix[key]) return;
+
+      setChipFocusMatrixStatus((s) => ({ ...s, [key]: "loading" }));
+      try {
+        const res = await fetch(apiPath("/api/focus-chip-matrix"), {
+          method: "POST",
+          headers: apiHeaders(),
+          body: JSON.stringify({
+            topicText,
+            axis,
+            principle: text,
+            targetOutput: target,
+            excludeNeed: exclude ?? undefined,
+            requirements: reqs,
+          }),
+        });
+        const data = (await res.json()) as {
+          chips?: FocusChipCandidate[];
+          error?: string;
+        };
+        if (!res.ok || !data.chips) {
+          throw new Error(data.error ?? `Request failed: ${res.status}`);
+        }
+        setChipFocusMatrix((m) => ({ ...m, [key]: data.chips! }));
+        setChipFocusMatrixStatus((s) => ({ ...s, [key]: "idle" }));
+      } catch (err) {
+        setChipFocusMatrixStatus((s) => ({ ...s, [key]: "error" }));
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [
+      decomposition,
+      pendingTopic,
+      chipFocusTargetOutput,
+      chipFocusExcludeNeed,
+      chipFocusRequirements,
+      chipFocusMatrix,
+    ],
+  );
+
   const selectChip = useCallback((c: SelectedChip | null) => {
     setSelectedChip(c);
   }, []);
@@ -2392,6 +2466,11 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setChipFocusTargetOutput,
       chipFocusExcludeNeed,
       setChipFocusExcludeNeed,
+      chipFocusRequirements,
+      setChipFocusRequirements,
+      chipFocusMatrix,
+      chipFocusMatrixStatus,
+      runChipFocusMatrix,
       selectedChip,
       selectChip,
       chipDecompositions,
@@ -2562,6 +2641,11 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setChipFocusTargetOutput,
       chipFocusExcludeNeed,
       setChipFocusExcludeNeed,
+      chipFocusRequirements,
+      setChipFocusRequirements,
+      chipFocusMatrix,
+      chipFocusMatrixStatus,
+      runChipFocusMatrix,
       selectedChip,
       selectChip,
       chipDecompositions,

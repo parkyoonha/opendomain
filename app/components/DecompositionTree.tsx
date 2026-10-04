@@ -2382,9 +2382,17 @@ function VerifyReportCard({
     selectPrinciple,
     setChipFocusTargetOutput,
     setChipFocusExcludeNeed,
+    setChipFocusRequirements,
     setChipPanelOpen,
     runRecommendChips,
+    runChipFocusMatrix,
   } = useIdea();
+  const matrixReqs = report.requirements.map((r) => ({
+    id: r.id,
+    name: r.name,
+    needs: r.needs,
+    provides: r.provides,
+  }));
   // Index edges by consuming requirement, by token, so each need pill
   // can show "supplied by X" when a matching edge exists.
   const supplyByNeed = new Map<string, string>(); // key = `${toId}::${token}`
@@ -2402,6 +2410,7 @@ function VerifyReportCard({
     }))
     .filter((g) => g.items.length > 0);
 
+  // Click a dangling need pill: find chips that *provide* that token.
   const openChipPanelForOutput = (token: string, requirementId: string) => {
     const owner = report.requirements.find((r) => r.id === requirementId);
     const sel = {
@@ -2414,12 +2423,13 @@ function VerifyReportCard({
     selectPrinciple(sel);
     setChipFocusTargetOutput(token);
     setChipFocusExcludeNeed(null);
+    setChipFocusRequirements(matrixReqs);
     setChipPanelOpen(true);
-    void runRecommendChips(sel.axis, sel.name, sel.text);
+    void runChipFocusMatrix(sel.axis, sel.name, sel.text);
   };
 
-  // Click a need pill to find lateral alternatives — "produce the
-  // owner's provides WITHOUT depending on this need" (wingless-fan move).
+  // Click a non-dangling need pill: find lateral alternatives — "produce
+  // the owner's provides WITHOUT depending on this need" (wingless-fan).
   const openChipPanelExcludingNeed = (
     excludeToken: string,
     owner: RequirementPart,
@@ -2434,8 +2444,9 @@ function VerifyReportCard({
     selectPrinciple(sel);
     setChipFocusTargetOutput(targetProvide);
     setChipFocusExcludeNeed(excludeToken);
+    setChipFocusRequirements(matrixReqs);
     setChipPanelOpen(true);
-    void runRecommendChips(sel.axis, sel.name, sel.text);
+    void runChipFocusMatrix(sel.axis, sel.name, sel.text);
   };
 
   const widthCls = "w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)]";
@@ -2511,16 +2522,23 @@ function VerifyReportCard({
                             ? "bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
                             : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.14]";
                         const titleProvide = r.provides[0];
+                        const disabled = !isDangling && !titleProvide;
                         return (
                           <button
                             key={`n-${tok}`}
-                            onClick={() => openChipPanelExcludingNeed(tok, r)}
-                            disabled={!titleProvide}
+                            onClick={() =>
+                              isDangling
+                                ? openChipPanelForOutput(tok, r.id)
+                                : openChipPanelExcludingNeed(tok, r)
+                            }
+                            disabled={disabled}
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] transition-colors md:text-[9px] ${chipCls} disabled:cursor-default`}
                             title={
-                              titleProvide
-                                ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
-                                : "산출 토큰이 없어 대체 탐색 불가"
+                              isDangling
+                                ? `"${tok}"을 산출하는 부품을 전체 요건과 매칭 검사`
+                                : titleProvide
+                                  ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
+                                  : "산출 토큰이 없어 대체 탐색 불가"
                             }
                           >
                             {tok}
@@ -2565,40 +2583,6 @@ function VerifyReportCard({
           </ul>
         </div>
       ))}
-      {report.danglingNeeds.length > 0 && (
-        <div className={`${widthCls} flex flex-col gap-1`}>
-          <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
-            공급원 탐색
-          </span>
-          <ul className="flex flex-col gap-1">
-            {report.danglingNeeds.map((d) => {
-              const owner = report.requirements.find(
-                (r) => r.id === d.requirementId,
-              );
-              return (
-                <li key={`${d.requirementId}::${d.token}`}>
-                  <button
-                    onClick={() =>
-                      openChipPanelForOutput(d.token, d.requirementId)
-                    }
-                    className="w-full rounded-md bg-rose-500/10 px-3 py-1.5 text-left text-[12px] text-rose-100 transition-colors hover:bg-rose-500/20 md:text-[11px]"
-                    title={`"${d.token}"을 산출하는 부품을 유사칩 패널에서 찾기`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">{d.token}</span>
-                      {owner && (
-                        <span className="shrink-0 text-[10px] text-rose-200/80 md:text-[9px]">
-                          {owner.name}가 필요
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

@@ -616,6 +616,81 @@ ${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "${re
 }`;
 };
 
+// Focus-matrix mode: when verify dangling / need-exclusion opens the
+// chip panel, we no longer want a free-associated grouped list — we want
+// the LLM to **pre-evaluate** each candidate against every requirement
+// so the UI can render the classic 후보 × 요건 matching table (○/△/✗).
+// This is the automated "매칭 검사" step that lets the user compare
+// candidates at a glance instead of guessing from a flat list.
+
+export type FocusMatrixReq = {
+  id: string;
+  name: string;
+  needs: string[];
+  provides: string[];
+};
+
+export const chipFocusMatrixSystemPrompt = (
+  categories: readonly string[],
+  perCategoryCount: number,
+  targetOutput: string,
+  excludeNeed: string | undefined,
+  requirements: readonly FocusMatrixReq[],
+): string => {
+  const reqLines = requirements
+    .map(
+      (r) =>
+        `- ${r.id}. ${r.name}  (필요: ${r.needs.join(", ") || "-"} / 산출: ${r.provides.join(", ") || "-"})`,
+    )
+    .join("\n");
+  const total = categories.length * perCategoryCount;
+  const excludeLine = excludeNeed
+    ? `
+⚠️ **배제 조건**: 이 chip은 "${excludeNeed}"에 의존하면 안 된다 ("날개 없는 선풍기" 패턴 — 같은 산출을 다른 메커니즘으로).`
+    : "";
+  return `당신은 사용자가 아이디어를 조합해 완성할 수 있도록, 후보 부품(칩)을 전체 요건에 대해 **사전 매칭 검사**하는 공학자다.
+
+사용자는 지금 **"${targetOutput}"**을 산출로 제공하는 부품을 찾는다.${excludeLine}
+
+그러나 조합이 성립하려면 그 chip이 다른 요건들과도 모순 없이 끼워져야 한다. 그래서 **각 후보 chip에 대해, 전체 요건 리스트의 모든 항목이 그 chip을 썼을 때도 여전히 성립하는지**를 평가한다.
+
+## 전체 요건
+${reqLines}
+
+## 후보 발굴 (chipText + category)
+- 다음 카테고리에서, 각 카테고리당 ${perCategoryCount}개씩, 총 **${total}개 전후**:
+${categories.map((c) => `  - ${c}`).join("\n")}
+- 각 chip은 그 자체의 메커니즘이 **"${targetOutput}"**을 실제로 산출하는 사물·현상·구조.
+- 상위 clichée 회피, 덜 유명한 하위개념 우선.
+- chipText는 8자 내외.
+
+## 각 chip의 매칭 평가 (matches 배열)
+전체 요건의 **모든 id**에 대해 하나씩 평가. 평가 규칙:
+- **"pass"**: 이 chip이 그 요건을 **그대로 또는 자연스럽게 만족**한다. note는 비워도 됨.
+- **"partial"**: 조건부 만족·일부 조정 필요. note에 **8~20자**로 조건.
+- **"fail"**: 그 요건과 모순·심각한 트레이드오프. note에 **8~20자**로 왜 실패.
+
+산출 요건(targetOutput을 요구하는 요건)에 대한 평가는 chip의 핵심 능력 평가다. 다른 요건은 "chip을 넣어도 그 요건이 깨지지 않는가"의 검사다.
+
+⚠️ 매칭 평가는 반드시 **엄격**해야 한다. 모든 셀을 pass로 채우지 마라. 한 chip이 네 요건 중 모두 pass면 "golden" 후보이고 그런 건 드물다.
+
+## 응답 JSON 스키마
+{
+  "chips": [
+    {
+      "chipText": "칩 이름",
+      "category": "카테고리 이름 (위 목록 중 하나)",
+      "reason": "이 chip이 ${excludeNeed ? `${excludeNeed} 없이 ` : ""}${targetOutput}을 어떻게 산출하는지 1문장",
+      "matches": [
+        { "requirementId": "A", "verdict": "pass" | "partial" | "fail", "note": "" },
+        ...
+      ]
+    }
+  ]
+}
+chips 배열에 ${total}개 전후. 각 chip의 matches는 전체 요건 수와 같은 길이, requirementId는 위 목록의 id와 글자 일치.`;
+};
+
 export const combineSystemPrompt = (lens?: SelectedLens | null): string =>
   withLens(
     `당신은 사용자가 선택한 축 원리를 조합해 **짧은 아이디어 후보 5개**를 생성한다.

@@ -17,6 +17,7 @@ import {
 } from "@/lib/constants";
 import { chipSearchModeLabel, type ChipSearchMode } from "@/lib/prompts";
 import { lensLabel } from "@/lib/lenses";
+import { focusMatchColor, focusMatchIcon } from "@/lib/verify";
 import FacetLensRow from "./FacetLensRow";
 
 type Tab = "library" | "similar" | "search" | "history";
@@ -60,6 +61,11 @@ export default function ChipSidePanel() {
     setChipFocusTargetOutput,
     chipFocusExcludeNeed,
     setChipFocusExcludeNeed,
+    chipFocusRequirements,
+    setChipFocusRequirements,
+    chipFocusMatrix,
+    chipFocusMatrixStatus,
+    runChipFocusMatrix,
     chipDecompositions,
     chipDecompStatus,
     runDecomposeChip,
@@ -95,22 +101,49 @@ export default function ChipSidePanel() {
   }, [selectedPrinciple, hasPrinciple, tab]);
 
   // When focus (verify dangling need / need-exclusion) is set, jump to
-  // the similar tab and ensure recs are fetched for the current (principle,
-  // focus, exclude) triple.
+  // the similar tab and fetch. If a full requirement set is also present
+  // (click came from a verify report), run the 후보 × 요건 매칭 matrix
+  // instead of the flat recommendation.
   useEffect(() => {
     if (!chipFocusTargetOutput || !selectedPrinciple) return;
     setTab("similar");
-    void runRecommendChips(
-      selectedPrinciple.axis,
-      selectedPrinciple.name,
-      selectedPrinciple.text,
-    );
+    if (chipFocusRequirements && chipFocusRequirements.length > 0) {
+      void runChipFocusMatrix(
+        selectedPrinciple.axis,
+        selectedPrinciple.name,
+        selectedPrinciple.text,
+      );
+    } else {
+      void runRecommendChips(
+        selectedPrinciple.axis,
+        selectedPrinciple.name,
+        selectedPrinciple.text,
+      );
+    }
   }, [
     chipFocusTargetOutput,
     chipFocusExcludeNeed,
+    chipFocusRequirements,
     selectedPrinciple,
     runRecommendChips,
+    runChipFocusMatrix,
   ]);
+
+  const matrixMode = Boolean(
+    chipFocusTargetOutput &&
+      chipFocusRequirements &&
+      chipFocusRequirements.length > 0,
+  );
+  const matrixKey = (() => {
+    if (!matrixMode || !selectedPrinciple || !chipFocusTargetOutput) return null;
+    const reqsKey = chipFocusRequirements!.map((r) => r.id).join(",");
+    const base = principleKey(selectedPrinciple.axis, selectedPrinciple.name);
+    return chipFocusExcludeNeed
+      ? `${base}::mx::${chipFocusTargetOutput}::ex::${chipFocusExcludeNeed}::rq::${reqsKey}`
+      : `${base}::mx::${chipFocusTargetOutput}::rq::${reqsKey}`;
+  })();
+  const matrixResults = matrixKey ? chipFocusMatrix[matrixKey] : undefined;
+  const matrixStatus = matrixKey ? chipFocusMatrixStatus[matrixKey] : undefined;
 
   const pk = selectedPrinciple
     ? chipFocusTargetOutput
@@ -199,6 +232,7 @@ export default function ChipSidePanel() {
                     onClick={() => {
                       setChipFocusTargetOutput(null);
                       setChipFocusExcludeNeed(null);
+                      setChipFocusRequirements(null);
                     }}
                     aria-label="산출 공급원 탐색 해제"
                     className="rounded text-sky-200/80 hover:text-white"
@@ -496,7 +530,7 @@ export default function ChipSidePanel() {
           </div>
         )}
 
-        {tab === "similar" && hasPrinciple && (
+        {tab === "similar" && hasPrinciple && !matrixMode && (
           <div className="flex flex-col gap-3">
             {recStatus === "loading" && (
               <p className="text-[14px] text-text-muted md:text-[11px]">유사칩 생성 중...</p>
@@ -556,6 +590,140 @@ export default function ChipSidePanel() {
                   </div>
                 );
               })}
+          </div>
+        )}
+
+        {tab === "similar" && hasPrinciple && matrixMode && (
+          <div className="flex flex-col gap-3">
+            {matrixStatus === "loading" && (
+              <p className="text-[14px] text-text-muted md:text-[11px]">
+                후보 × 요건 매칭 검사 중...
+              </p>
+            )}
+            {matrixStatus === "error" && (
+              <p className="text-[14px] text-red-400 md:text-[11px]">
+                매칭 로드 실패
+              </p>
+            )}
+            {matrixResults && chipFocusRequirements && (
+              <div className="overflow-x-auto">
+                <table className="w-max border-separate border-spacing-0 text-[11px] md:text-[10px]">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-black px-2 py-1 text-left text-[9px] uppercase tracking-wider text-text-muted">
+                        후보
+                      </th>
+                      {chipFocusRequirements.map((r) => (
+                        <th
+                          key={r.id}
+                          className="min-w-[64px] px-1.5 py-1 text-left text-[9px] font-semibold text-text-secondary"
+                          title={`${r.id}. ${r.name}`}
+                        >
+                          <div className="truncate max-w-[88px]">{r.name}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrixResults.map((c) => {
+                      const chip: Staged = {
+                        source: "similar",
+                        chipText: c.chipText,
+                        reason: c.reason,
+                        kindOrCategory: c.category || "매칭",
+                      };
+                      const isStaged = sameChip(staged, chip);
+                      const allPass =
+                        c.matches.length > 0 &&
+                        c.matches.every((m) => m.verdict === "pass");
+                      const rowBg = isStaged
+                        ? "bg-white text-black"
+                        : allPass
+                          ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                          : "hover:bg-white/5";
+                      return (
+                        <tr
+                          key={c.chipText}
+                          onClick={() => stage(chip)}
+                          className={`cursor-pointer transition-colors ${rowBg}`}
+                        >
+                          <td
+                            className={`sticky left-0 z-10 px-2 py-1 align-top ${
+                              isStaged
+                                ? "bg-white"
+                                : allPass
+                                  ? "bg-emerald-500/10"
+                                  : "bg-black"
+                            }`}
+                          >
+                            <div
+                              className={`font-semibold ${
+                                isStaged ? "text-black" : "text-text-primary"
+                              }`}
+                            >
+                              {c.chipText}
+                            </div>
+                            <div
+                              className={`mt-0.5 line-clamp-2 text-[9px] leading-3 ${
+                                isStaged
+                                  ? "text-black/70"
+                                  : "text-text-muted"
+                              }`}
+                              title={c.reason}
+                            >
+                              {c.reason}
+                            </div>
+                          </td>
+                          {chipFocusRequirements.map((r) => {
+                            const m = c.matches.find(
+                              (x) => x.requirementId === r.id,
+                            );
+                            if (!m)
+                              return (
+                                <td
+                                  key={r.id}
+                                  className="px-1.5 py-1 text-center text-text-muted"
+                                >
+                                  —
+                                </td>
+                              );
+                            return (
+                              <td
+                                key={r.id}
+                                className="px-1.5 py-1 align-top"
+                                title={m.note || undefined}
+                              >
+                                <div
+                                  className={`font-bold ${focusMatchColor[m.verdict]}`}
+                                >
+                                  {focusMatchIcon[m.verdict]}
+                                </div>
+                                {m.note && m.verdict !== "pass" && (
+                                  <div
+                                    className={`mt-0.5 line-clamp-2 text-[9px] leading-3 ${
+                                      isStaged
+                                        ? "text-black/70"
+                                        : "text-text-muted"
+                                    }`}
+                                  >
+                                    {m.note}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {matrixResults && matrixResults.length === 0 && matrixStatus !== "loading" && (
+              <p className="text-[14px] text-text-muted md:text-[11px]">
+                매칭 가능한 후보가 없습니다
+              </p>
+            )}
           </div>
         )}
 

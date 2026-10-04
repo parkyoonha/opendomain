@@ -120,6 +120,39 @@ export type VerifyReport = {
   danglingNeeds: DanglingNeed[];
 };
 
+// Focus-matrix: when the user clicks a need pill in a verify report, the
+// chip panel evaluates candidate chips against ALL requirements and
+// renders a 후보 × 요건 matching table. This is the "automated 매칭 검사"
+// step so the user sees which candidate satisfies which requirements at
+// a glance rather than guessing from a flat list.
+
+export type FocusMatchVerdict = "pass" | "partial" | "fail";
+
+export const focusMatchIcon: Record<FocusMatchVerdict, string> = {
+  pass: "○",
+  partial: "△",
+  fail: "✗",
+};
+
+export const focusMatchColor: Record<FocusMatchVerdict, string> = {
+  pass: "text-emerald-200",
+  partial: "text-amber-200",
+  fail: "text-rose-200",
+};
+
+export type FocusMatchCell = {
+  requirementId: string;
+  verdict: FocusMatchVerdict;
+  note: string;
+};
+
+export type FocusChipCandidate = {
+  chipText: string;
+  category: string;
+  reason: string;
+  matches: FocusMatchCell[];
+};
+
 export const verifySystemPrompt = (): string =>
   `당신은 아이디어의 실현 가능성을 **부품 조합의 문제로 환원하는 공학자**다.
 합성생물학에서 DNA 부품이 "필요(input)"와 "산출(output)"을 선언하고
