@@ -2381,6 +2381,7 @@ function VerifyReportCard({
   const {
     selectPrinciple,
     setChipFocusTargetOutput,
+    setChipFocusExcludeNeed,
     setChipPanelOpen,
     runRecommendChips,
   } = useIdea();
@@ -2412,6 +2413,27 @@ function VerifyReportCard({
     };
     selectPrinciple(sel);
     setChipFocusTargetOutput(token);
+    setChipFocusExcludeNeed(null);
+    setChipPanelOpen(true);
+    void runRecommendChips(sel.axis, sel.name, sel.text);
+  };
+
+  // Click a need pill to find lateral alternatives — "produce the
+  // owner's provides WITHOUT depending on this need" (wingless-fan move).
+  const openChipPanelExcludingNeed = (
+    excludeToken: string,
+    owner: RequirementPart,
+  ) => {
+    const targetProvide = owner.provides[0];
+    if (!targetProvide) return;
+    const sel = {
+      axis: parentAxis,
+      name: `${targetProvide} 공급원 (${excludeToken} 제외)`,
+      text: `${owner.name} 요건을 "${excludeToken}" 없이 구현하는 대안 — ${targetProvide}을(를) 다른 메커니즘으로 산출`,
+    };
+    selectPrinciple(sel);
+    setChipFocusTargetOutput(targetProvide);
+    setChipFocusExcludeNeed(excludeToken);
     setChipPanelOpen(true);
     void runRecommendChips(sel.axis, sel.name, sel.text);
   };
@@ -2442,7 +2464,7 @@ function VerifyReportCard({
       {groups.map(({ tier, items }) => (
         <div key={tier} className="flex flex-col gap-1.5">
           <span
-            className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wider ${tierBadgePalette[tier]}`}
+            className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wider ${tierBadgePalette[tier]}`}
           >
             {tier}
           </span>
@@ -2452,7 +2474,7 @@ function VerifyReportCard({
               return (
                 <li
                   key={r.id}
-                  className={`${widthCls} rounded-md border px-3 py-2 ${pal.border} ${pal.bg}`}
+                  className={`${widthCls} rounded-md px-3 py-2 ${pal.bg}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div
@@ -2474,40 +2496,49 @@ function VerifyReportCard({
                       {r.rationale}
                     </div>
                   )}
-                  {(r.needs.length > 0 || r.provides.length > 0) && (
-                    <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+                  {r.needs.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                        필요
+                      </span>
                       {r.needs.map((tok) => {
                         const key = `${r.id}::${tok}`;
                         const supplier = supplyByNeed.get(key);
                         const isDangling = danglingSet.has(key);
                         const chipCls = isDangling
-                          ? "border border-rose-400/60 bg-rose-500/15 text-rose-100"
+                          ? "bg-rose-500/15 text-rose-100 hover:bg-rose-500/25"
                           : supplier
-                            ? "border border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
-                            : "border border-white/15 bg-white/[0.06] text-text-secondary";
+                            ? "bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
+                            : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.14]";
+                        const titleProvide = r.provides[0];
                         return (
-                          <span
+                          <button
                             key={`n-${tok}`}
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] md:text-[9px] ${chipCls}`}
+                            onClick={() => openChipPanelExcludingNeed(tok, r)}
+                            disabled={!titleProvide}
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] transition-colors md:text-[9px] ${chipCls} disabled:cursor-default`}
                             title={
-                              supplier
-                                ? `${nameById.get(supplier) ?? supplier}이(가) 산출`
-                                : isDangling
-                                  ? "공급원 없음 — 유사칩에서 탐색"
-                                  : undefined
+                              titleProvide
+                                ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
+                                : "산출 토큰이 없어 대체 탐색 불가"
                             }
                           >
-                            <span className="mr-1 opacity-60">←</span>
                             {tok}
-                          </span>
+                          </button>
                         );
                       })}
+                    </div>
+                  )}
+                  {r.provides.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                        산출
+                      </span>
                       {r.provides.map((tok) => (
                         <span
                           key={`p-${tok}`}
-                          className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-100 md:text-[9px]"
+                          className="inline-flex items-center rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-100 md:text-[9px]"
                         >
-                          <span className="mr-1 opacity-70">→</span>
                           {tok}
                         </span>
                       ))}
@@ -2536,7 +2567,7 @@ function VerifyReportCard({
       ))}
       {report.danglingNeeds.length > 0 && (
         <div className={`${widthCls} flex flex-col gap-1`}>
-          <span className="inline-flex w-fit items-center rounded-full border border-rose-400/60 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
+          <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
             공급원 탐색
           </span>
           <ul className="flex flex-col gap-1">
@@ -2550,7 +2581,7 @@ function VerifyReportCard({
                     onClick={() =>
                       openChipPanelForOutput(d.token, d.requirementId)
                     }
-                    className="w-full rounded-md border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-left text-[12px] text-rose-100 transition-colors hover:bg-rose-500/20 md:text-[11px]"
+                    className="w-full rounded-md bg-rose-500/10 px-3 py-1.5 text-left text-[12px] text-rose-100 transition-colors hover:bg-rose-500/20 md:text-[11px]"
                     title={`"${d.token}"을 산출하는 부품을 유사칩 패널에서 찾기`}
                   >
                     <div className="flex items-center justify-between gap-2">

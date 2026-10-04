@@ -58,6 +58,8 @@ export default function ChipSidePanel() {
     runRecommendChips,
     chipFocusTargetOutput,
     setChipFocusTargetOutput,
+    chipFocusExcludeNeed,
+    setChipFocusExcludeNeed,
     chipDecompositions,
     chipDecompStatus,
     runDecomposeChip,
@@ -92,8 +94,9 @@ export default function ChipSidePanel() {
     if (!hasPrinciple && tab === "similar") setTab("search");
   }, [selectedPrinciple, hasPrinciple, tab]);
 
-  // When focus (verify dangling input) is set, jump to the similar tab and
-  // ensure recs are fetched for the (principle, focus) pair.
+  // When focus (verify dangling need / need-exclusion) is set, jump to
+  // the similar tab and ensure recs are fetched for the current (principle,
+  // focus, exclude) triple.
   useEffect(() => {
     if (!chipFocusTargetOutput || !selectedPrinciple) return;
     setTab("similar");
@@ -102,11 +105,18 @@ export default function ChipSidePanel() {
       selectedPrinciple.name,
       selectedPrinciple.text,
     );
-  }, [chipFocusTargetOutput, selectedPrinciple, runRecommendChips]);
+  }, [
+    chipFocusTargetOutput,
+    chipFocusExcludeNeed,
+    selectedPrinciple,
+    runRecommendChips,
+  ]);
 
   const pk = selectedPrinciple
     ? chipFocusTargetOutput
-      ? `${principleKey(selectedPrinciple.axis, selectedPrinciple.name)}::out::${chipFocusTargetOutput}`
+      ? chipFocusExcludeNeed
+        ? `${principleKey(selectedPrinciple.axis, selectedPrinciple.name)}::out::${chipFocusTargetOutput}::ex::${chipFocusExcludeNeed}`
+        : `${principleKey(selectedPrinciple.axis, selectedPrinciple.name)}::out::${chipFocusTargetOutput}`
       : principleKey(selectedPrinciple.axis, selectedPrinciple.name)
     : null;
   const recs = pk ? chipRecommendations[pk] : undefined;
@@ -177,26 +187,55 @@ export default function ChipSidePanel() {
               </div>
             </>
           )}
-          {chipFocusTargetOutput && (
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-rose-400/60 bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-100 md:text-[10px]">
-              <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                공급원 탐색 ·
-              </span>
-              <span className="font-semibold">{chipFocusTargetOutput}</span>
-              <button
-                onClick={() => setChipFocusTargetOutput(null)}
-                aria-label="공급원 탐색 해제"
-                className="ml-0.5 rounded text-rose-200/80 hover:text-white"
-              >
-                <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
-                  <path
-                    d="M6 6l12 12M18 6L6 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
+          {(chipFocusTargetOutput || chipFocusExcludeNeed) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {chipFocusTargetOutput && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/20 px-2 py-0.5 text-[11px] text-sky-100 md:text-[10px]">
+                  <span className="text-[9px] uppercase tracking-wider text-sky-200/80">
+                    산출
+                  </span>
+                  <span className="font-semibold">{chipFocusTargetOutput}</span>
+                  <button
+                    onClick={() => {
+                      setChipFocusTargetOutput(null);
+                      setChipFocusExcludeNeed(null);
+                    }}
+                    aria-label="산출 공급원 탐색 해제"
+                    className="rounded text-sky-200/80 hover:text-white"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                      <path
+                        d="M6 6l12 12M18 6L6 18"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              )}
+              {chipFocusExcludeNeed && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[11px] text-rose-100 md:text-[10px]">
+                  <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                    제외
+                  </span>
+                  <span className="font-semibold">{chipFocusExcludeNeed}</span>
+                  <button
+                    onClick={() => setChipFocusExcludeNeed(null)}
+                    aria-label="제외 조건 해제"
+                    className="rounded text-rose-200/80 hover:text-white"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                      <path
+                        d="M6 6l12 12M18 6L6 18"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -459,16 +498,6 @@ export default function ChipSidePanel() {
 
         {tab === "similar" && hasPrinciple && (
           <div className="flex flex-col gap-3">
-            {chipFocusTargetOutput && (
-              <div className="rounded-md border border-rose-400/30 bg-rose-500/5 px-3 py-2 text-[11px] leading-5 text-rose-100 md:text-[10px] md:leading-4">
-                <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                  모드 ·{" "}
-                </span>
-                <span className="font-semibold">{chipFocusTargetOutput}</span>
-                을(를) <span className="font-semibold">출력으로 산출</span>하는
-                부품을 탐색합니다. 추천 reason에 그 산출 메커니즘이 담깁니다.
-              </div>
-            )}
             {recStatus === "loading" && (
               <p className="text-[14px] text-text-muted md:text-[11px]">유사칩 생성 중...</p>
             )}

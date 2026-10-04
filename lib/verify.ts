@@ -46,24 +46,24 @@ export const feasibilityIcon: Record<Feasibility, string> = {
   unknown: "?",
 };
 
+// Palette: match 사고확장 axis card style — background tint only, no
+// outline border. Feasibility is still conveyed via the inner `chip`
+// badge in each requirement card.
 export const feasibilityPalette: Record<
   Feasibility,
-  { border: string; bg: string; text: string; chip: string }
+  { bg: string; text: string; chip: string }
 > = {
   feasible: {
-    border: "border-emerald-400/60",
     bg: "bg-emerald-500/10",
     text: "text-emerald-100",
     chip: "bg-emerald-500/30 text-emerald-100",
   },
   infeasible: {
-    border: "border-rose-400/60",
     bg: "bg-rose-500/10",
     text: "text-rose-100",
     chip: "bg-rose-500/30 text-rose-100",
   },
   unknown: {
-    border: "border-slate-400/50",
     bg: "bg-slate-500/10",
     text: "text-slate-100",
     chip: "bg-slate-500/30 text-slate-100",
@@ -85,9 +85,9 @@ export const tierDescription: Record<RequirementTier, string> = {
 };
 
 export const tierBadgePalette: Record<RequirementTier, string> = {
-  기반: "border-sky-400/60 bg-sky-500/15 text-sky-100",
-  결합: "border-violet-400/60 bg-violet-500/15 text-violet-100",
-  완성: "border-amber-400/60 bg-amber-500/15 text-amber-100",
+  기반: "bg-sky-500/15 text-sky-100",
+  결합: "bg-violet-500/15 text-violet-100",
+  완성: "bg-amber-500/15 text-amber-100",
 };
 
 export type RequirementPart = {
@@ -172,6 +172,22 @@ export const verifySystemPrompt = (): string =>
 각 항목: { requirementId, token }
 - 이것들이 **"아직 발명되지 않은 부품"**이다.
 
+## ⚠️ 거버넌스/외부 승인 요건 배제 (매우 중요)
+결과물의 **도메인 자체를 구성·작동시키는 부품만** requirements에 포함하라.
+다음 범주는 **절대 요건 리스트에 넣지 마라** — 이들은 제품의 실현 가능성과 별개 레이어의 문제다:
+- 임상데이터 / 임상시험
+- 규제승인 / 인증 / 허가 / 규제기준 / 가이드라인 준수
+- 사용자 테스트 / 소비자 조사
+- 품질관리 체계 / ISO 류
+- 법적 책임 / 보험
+- 마케팅 / 유통 / 가격 정책
+- 지식재산 / 특허
+
+예: "노출된 회전부 없는 선풍기"의 요건은 **공기 흐름·안전 외형·저소음·사용감** 같은 **물리/작동 부품**이다. 안전인증·소비자승인·광고 같은 거버넌스는 요건이 아니다.
+예: "생리대"의 요건은 **흡수력·역류방지·측면누수방지·착용감** 같은 **물리/구조 부품**이다. 임상데이터·MFDS/FDA 승인은 요건이 아니다.
+
+needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기준" 같은 거버넌스 입력은 쓰지 마라. 물리/화학/구조/인터페이스 입력만.
+
 규칙 요약:
 - requirements는 정확히 4~6개.
 - tier는 세 값 중 하나. "완성" 최소 1개.
@@ -179,6 +195,7 @@ export const verifySystemPrompt = (): string =>
 - infeasible이면 substituteDirections 필수. feasible/unknown이면 생략.
 - edges의 token은 반드시 양쪽 요건의 needs/provides에 글자 단위 일치.
 - danglingNeeds는 edges로 연결되지 않은 need만 포함.
+- 거버넌스 요건·needs 금지.
 
 반드시 다음 JSON 스키마로 응답:
 {

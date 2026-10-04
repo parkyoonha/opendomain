@@ -12,8 +12,12 @@ type Body = {
   categories?: string[];
   perCategory?: number;
   // When set, switches the prompt into "find chips whose mechanism
-  // outputs this token" mode (verify dangling-input substitution).
+  // outputs this token" mode (verify dangling-need substitution).
   targetOutput?: string;
+  // When set alongside targetOutput, adds a lateral-move exclusion:
+  // "find chips that produce targetOutput WITHOUT depending on this
+  // need" (the wingless-fan pattern).
+  excludeNeed?: string;
 };
 
 export async function POST(req: Request) {
@@ -47,13 +51,15 @@ export async function POST(req: Request) {
       ? body.categories
       : [...kSimilarCategories];
   const targetOutput = body.targetOutput?.trim() || undefined;
+  const excludeNeed = body.excludeNeed?.trim() || undefined;
   const system = chipRecommendationSystemPrompt(
     categories,
     perCategory,
     targetOutput,
+    excludeNeed,
   );
   const user = targetOutput
-    ? `찾고 있는 출력(output): ${targetOutput}\n맥락 주제: ${topicText}\n맥락 축: ${axis}\n맥락 원리: ${principle}`
+    ? `찾고 있는 산출(output): ${targetOutput}${excludeNeed ? `\n배제 입력(need): ${excludeNeed}` : ""}\n맥락 주제: ${topicText}\n맥락 축: ${axis}\n맥락 원리: ${principle}`
     : `주제: ${topicText}\n축: ${axis}\n원리: ${principle}`;
 
   try {

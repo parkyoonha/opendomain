@@ -284,9 +284,15 @@ type Ctx = {
 
   // When set, the chip panel's 유사칩 tab switches to feasibility-reduction
   // mode: it fetches chips whose mechanism *outputs* this token (used when
-  // the user clicks a verify dangling input or substitute direction).
+  // the user clicks a verify dangling need or substitute direction).
   chipFocusTargetOutput: string | null;
   setChipFocusTargetOutput: (token: string | null) => void;
+  // Paired with chipFocusTargetOutput: when set, the chip search is
+  // further constrained to "produces targetOutput WITHOUT depending on
+  // this need" (wingless-fan lateral move, triggered by clicking a
+  // need pill in a verify requirement).
+  chipFocusExcludeNeed: string | null;
+  setChipFocusExcludeNeed: (token: string | null) => void;
 
   selectedChip: SelectedChip | null;
   selectChip: (c: SelectedChip | null) => void;
@@ -1196,6 +1202,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [chipFocusTargetOutput, setChipFocusTargetOutput] = useState<
     string | null
   >(null);
+  const [chipFocusExcludeNeed, setChipFocusExcludeNeed] = useState<
+    string | null
+  >(null);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [focusedCombinedIdeaId, setFocusedCombinedIdeaId] = useState<
     string | null
@@ -2051,12 +2060,17 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       // (before any decomposition exists), so fall back to pendingTopic.
       const topicText = decomposition?.topicText ?? pendingTopic ?? "";
       if (!topicText) return;
-      // Cache key separates normal recs from focused (verify dangling-input)
-      // recs so switching focus doesn't overwrite the base recommendations.
+      // Cache key separates normal recs from focused recs. When
+      // excludeNeed is also set (wingless-fan lateral move), include it
+      // in the key so a different exclusion fetches fresh.
       const focus = chipFocusTargetOutput;
+      const exclude = chipFocusExcludeNeed;
+      const base = principleKey(axis, name);
       const key = focus
-        ? `${principleKey(axis, name)}::out::${focus}`
-        : principleKey(axis, name);
+        ? exclude
+          ? `${base}::out::${focus}::ex::${exclude}`
+          : `${base}::out::${focus}`
+        : base;
       if (chipRecommendations[key]) return;
 
       setChipStatus((s) => ({ ...s, [key]: "loading" }));
@@ -2069,6 +2083,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             axis,
             principle: text,
             targetOutput: focus ?? undefined,
+            excludeNeed: exclude ?? undefined,
           }),
         });
         const data = (await res.json()) as {
@@ -2085,7 +2100,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [decomposition, pendingTopic, chipRecommendations, chipFocusTargetOutput],
+    [
+      decomposition,
+      pendingTopic,
+      chipRecommendations,
+      chipFocusTargetOutput,
+      chipFocusExcludeNeed,
+    ],
   );
 
   const selectChip = useCallback((c: SelectedChip | null) => {
@@ -2369,6 +2390,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       runRecommendChips,
       chipFocusTargetOutput,
       setChipFocusTargetOutput,
+      chipFocusExcludeNeed,
+      setChipFocusExcludeNeed,
       selectedChip,
       selectChip,
       chipDecompositions,
@@ -2537,6 +2560,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       runRecommendChips,
       chipFocusTargetOutput,
       setChipFocusTargetOutput,
+      chipFocusExcludeNeed,
+      setChipFocusExcludeNeed,
       selectedChip,
       selectChip,
       chipDecompositions,

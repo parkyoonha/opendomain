@@ -557,14 +557,24 @@ export const chipRecommendationSystemPrompt = (
   categories: readonly string[],
   perCategory: number = 2,
   targetOutput?: string,
+  excludeNeed?: string,
 ): string => {
   // When targetOutput is set, the panel is in **feasibility-reduction mode**
-  // (triggered from a verify dangling input): we want chips whose mechanism
-  // actually *produces* the requested output token, so the user can plug one
-  // of them into the idea as a substitute part.
+  // (triggered from a verify dangling need or a verify need-exclusion
+  // click): we want chips whose mechanism actually *produces* the requested
+  // output token, so the user can plug one of them into the idea as a
+  // substitute part. When excludeNeed is also set, the user is asking
+  // "find a part that produces X without depending on Y" — the classic
+  // "wingless fan" lateral move.
   const focusHeader = targetOutput
     ? `당신은 사용자가 **실현 가능성 축소(feasibility reduction)**을 하도록 소재(칩)를 추천하는 큐레이터다.
-합성생물학에서 특정 output을 내는 부품을 라이브러리에서 찾아 끼우듯이, 사용자는 지금 **"${targetOutput}"**을 출력으로 제공하는 부품을 찾고 있다.
+합성생물학에서 특정 output을 내는 부품을 라이브러리에서 찾아 끼우듯이, 사용자는 지금 **"${targetOutput}"**을 출력으로 제공하는 부품을 찾고 있다.${
+        excludeNeed
+          ? `
+
+⚠️ **배제 조건**: 사용자는 **"${excludeNeed}"에 의존하지 않는** 대안을 찾는다. "${excludeNeed}"를 입력/구성요소/작동 전제로 쓰는 사례는 **반드시 제외**하라. 이건 "날개 없는 선풍기" 식의 측면 사고 ― "${targetOutput}"을 산출하되 다른 메커니즘을 쓰는 사례를 찾아야 한다.`
+          : ""
+      }
 
 핵심 원리:
 - 좋은 chip = 그 자체의 작동 메커니즘이 **"${targetOutput}"**을 실제로 산출하는 사물·현상·구조.
@@ -579,8 +589,15 @@ export const chipRecommendationSystemPrompt = (
 - chip에는 훔칠 수 있는 해결 메커니즘이 반드시 담겨 있어야 한다.
 `;
   const reasonLine = targetOutput
-    ? `- reason: 이 chip이 **"${targetOutput}"을 어떻게 산출**하는지 1문장(구체 메커니즘 포함)`
+    ? excludeNeed
+      ? `- reason: 이 chip이 **"${excludeNeed}" 없이 "${targetOutput}"을 어떻게 산출**하는지 1문장(구체 메커니즘)`
+      : `- reason: 이 chip이 **"${targetOutput}"을 어떻게 산출**하는지 1문장(구체 메커니즘 포함)`
     : `- reason: 이 chip이 원리의 문제 구조를 어떻게 해결·극복하는지 1문장(구체 메커니즘 포함)`;
+  const reasonSchema = targetOutput
+    ? excludeNeed
+      ? `${excludeNeed} 없이 ${targetOutput} 산출 메커니즘`
+      : `${targetOutput} 산출 메커니즘`
+    : "해결 메커니즘";
   return `${focusHeader}
 발명 대상 카테고리 (반드시 이 안에서만, 각 카테고리에 ${perCategory}개씩):
 ${categories.map((c) => `- ${c}`).join("\n")}
@@ -594,7 +611,7 @@ ${reasonLine}
 반드시 다음 JSON 스키마로 응답 (모든 카테고리 키 포함):
 {
   "recommendations": {
-${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "${targetOutput ? `${targetOutput} 산출 메커니즘` : "해결 메커니즘"}"}]`).join(",\n")}
+${categories.map((c) => `    "${c}": [{"chipText": "칩 이름", "reason": "${reasonSchema}"}]`).join(",\n")}
   }
 }`;
 };
