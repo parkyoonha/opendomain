@@ -2393,16 +2393,6 @@ function VerifyReportCard({
     needs: r.needs,
     provides: r.provides,
   }));
-  // Index edges by consuming requirement, by token, so each need pill
-  // can show "supplied by X" when a matching edge exists.
-  const supplyByNeed = new Map<string, string>(); // key = `${toId}::${token}`
-  for (const e of report.edges) {
-    supplyByNeed.set(`${e.toId}::${e.token}`, e.fromId);
-  }
-  const danglingSet = new Set(
-    report.danglingNeeds.map((d) => `${d.requirementId}::${d.token}`),
-  );
-  const nameById = new Map(report.requirements.map((r) => [r.id, r.name]));
   const groups = kRequirementTiers
     .map((t) => ({
       tier: t,
@@ -2473,116 +2463,128 @@ function VerifyReportCard({
         </div>
       )}
       {groups.map(({ tier, items }) => (
-        <div key={tier} className="flex flex-col gap-1.5">
+        <div key={tier} className="flex flex-col gap-1">
           <span
             className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wider ${tierBadgePalette[tier]}`}
           >
             {tier}
           </span>
-          <ul className="flex flex-col gap-1.5">
+          <ul className={`${widthCls} flex flex-col`}>
             {items.map((r) => {
               const pal = feasibilityPalette[r.feasibility];
               return (
                 <li
                   key={r.id}
-                  className={`${widthCls} rounded-md px-3 py-2 ${pal.bg}`}
+                  className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div
-                      className={`text-[13px] font-semibold ${pal.text} md:text-[11px]`}
-                    >
-                      {feasibilityIcon[r.feasibility]} {r.name}
-                    </div>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                    >
-                      {feasibilityLabel[r.feasibility]}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                    {r.description}
-                  </div>
-                  {r.rationale && (
-                    <div className="mt-1 text-[11px] leading-5 text-text-muted md:text-[10px] md:leading-4">
-                      {r.rationale}
-                    </div>
-                  )}
-                  {r.needs.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1">
-                      <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                        필요
+                  <div
+                    className={`text-[13px] font-semibold md:text-[11px] ${pal.text}`}
+                  >
+                    {feasibilityIcon[r.feasibility]} {r.name}
+                    {r.description && (
+                      <span
+                        className={`ml-1.5 text-[11px] font-normal md:text-[10px] ${
+                          r.feasibility === "infeasible"
+                            ? "text-rose-200/80"
+                            : "text-text-muted"
+                        }`}
+                      >
+                        · {r.description}
                       </span>
-                      {r.needs.map((tok) => {
-                        const key = `${r.id}::${tok}`;
-                        const supplier = supplyByNeed.get(key);
-                        const isDangling = danglingSet.has(key);
-                        const chipCls = isDangling
-                          ? "bg-rose-500/15 text-rose-100 hover:bg-rose-500/25"
-                          : supplier
-                            ? "bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
-                            : "bg-white/[0.08] text-text-secondary hover:bg-white/[0.14]";
-                        const titleProvide = r.provides[0];
-                        const disabled = !isDangling && !titleProvide;
-                        return (
-                          <button
-                            key={`n-${tok}`}
-                            onClick={() =>
-                              isDangling
-                                ? openChipPanelForOutput(tok, r.id)
-                                : openChipPanelExcludingNeed(tok, r)
-                            }
-                            disabled={disabled}
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] transition-colors md:text-[9px] ${chipCls} disabled:cursor-default`}
-                            title={
-                              isDangling
-                                ? `"${tok}"을 산출하는 부품을 전체 요건과 매칭 검사`
-                                : titleProvide
-                                  ? `"${tok}" 없이 "${titleProvide}"을 산출하는 부품 찾기${supplier ? ` (현재는 ${nameById.get(supplier) ?? supplier}이 공급)` : ""}`
-                                  : "산출 토큰이 없어 대체 탐색 불가"
-                            }
-                          >
-                            {tok}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {r.provides.length > 0 && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1">
-                      <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                        산출
-                      </span>
-                      {r.provides.map((tok) => (
-                        <span
-                          key={`p-${tok}`}
-                          className="inline-flex items-center rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-100 md:text-[9px]"
-                        >
-                          {tok}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {r.feasibility === "infeasible" &&
-                    r.substituteDirections &&
-                    r.substituteDirections.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {r.substituteDirections.map((sv) => (
-                          <FacetNode
-                            key={sv}
-                            rootAxis={parentAxis}
-                            pathName={sv}
-                            facetName={sv}
-                            facetText={`${r.name} 요건의 대체 방향 — 같은 산출(${r.provides.join(", ")})을 다른 필요로 구현`}
-                          />
-                        ))}
-                      </div>
                     )}
+                  </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                  >
+                    {feasibilityLabel[r.feasibility]}
+                  </span>
                 </li>
               );
             })}
           </ul>
         </div>
       ))}
+      {/* 충돌·실패 요약 + 해결 버튼 */}
+      {(() => {
+        const infeasibleReqs = report.requirements.filter(
+          (r) => r.feasibility === "infeasible",
+        );
+        if (
+          infeasibleReqs.length === 0 &&
+          report.danglingNeeds.length === 0
+        )
+          return null;
+        return (
+          <div className={`${widthCls} mt-1 flex flex-col gap-1.5`}>
+            <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
+              충돌·실패
+            </span>
+            <ul className="flex flex-col gap-1.5">
+              {infeasibleReqs.map((r) => {
+                const target = r.provides[0];
+                const exclude =
+                  r.conflictingNeed ?? r.needs[0] ?? undefined;
+                return (
+                  <li
+                    key={`inf-${r.id}`}
+                    className="flex flex-col gap-1 rounded-md bg-rose-500/10 px-3 py-2"
+                  >
+                    <div className="text-[12px] text-rose-100 md:text-[11px]">
+                      <span className="font-semibold">{r.name}</span>
+                      {r.rationale && (
+                        <span className="ml-1 text-rose-200/80">
+                          · {r.rationale}
+                        </span>
+                      )}
+                    </div>
+                    {target && (
+                      <button
+                        onClick={() => {
+                          if (exclude) {
+                            openChipPanelExcludingNeed(exclude, r);
+                          } else {
+                            openChipPanelForOutput(target, r.id);
+                          }
+                        }}
+                        className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
+                      >
+                        해결 → 매트릭스
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+              {report.danglingNeeds.map((d) => {
+                const owner = report.requirements.find(
+                  (r) => r.id === d.requirementId,
+                );
+                return (
+                  <li
+                    key={`dn-${d.requirementId}-${d.token}`}
+                    className="flex flex-col gap-1 rounded-md bg-rose-500/10 px-3 py-2"
+                  >
+                    <div className="text-[12px] text-rose-100 md:text-[11px]">
+                      <span className="font-semibold">{d.token}</span>
+                      <span className="ml-1 text-rose-200/80">
+                        · 공급원 없음
+                        {owner && ` (${owner.name}가 필요)`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() =>
+                        openChipPanelForOutput(d.token, d.requirementId)
+                      }
+                      className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
+                    >
+                      해결 → 매트릭스
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })()}
     </div>
   );
 }

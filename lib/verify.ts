@@ -100,6 +100,10 @@ export type RequirementPart = {
   feasibility: Feasibility;
   rationale: string;
   substituteDirections?: string[];
+  // When feasibility === "infeasible", the LLM identifies which of the
+  // needs is actually the blocker (so the resolve button can seed the
+  // matrix with that as excludeNeed). Empty/absent → no specific exclude.
+  conflictingNeed?: string;
 };
 
 export type RequirementEdge = {
@@ -164,30 +168,29 @@ export const verifySystemPrompt = (): string =>
 - 부모 facet을 한 줄 목표문으로 다시 쓴다 ("~를 ~한다" 형태).
 - 사용자가 추가 조건을 넣었으면 반영.
 
-## 2. 필수 요건 (requirements) — **정확히 4~6개**
-목표가 성립하려면 모두 참이어야 하는 **독립적 부품(요건)**. 각 요건:
+## 2. 필수 요건 (requirements) — **정확히 3~4개**
+목표가 성립하려면 모두 참이어야 하는 **독립적 부품(요건)**. **반드시 3~4개로 압축**하라 — 5개 이상 금지. 사용자는 적은 수의 요건을 집중해서 보는 것을 선호한다.
+
+각 요건:
 
 - **id**: 안정 식별자 "A", "B", "C"... (사용자에겐 보이지 않지만 edges/누락매칭 참조에 필요)
 - **tier**: 조립 흐름 상의 위치. **반드시 세 값 중 하나**:
   - "기반" — 다른 요건의 산출을 소비하지 않음. needs가 전부 외부(기술/자재/맥락).
   - "결합" — 다른 요건의 산출을 소비해 변환 후 또 다른 산출을 만든다.
   - "완성" — 산출이 목표문을 **직접** 만족한다 (최종 결과).
-  최소 1개 이상의 "완성" 요건이 있어야 한다. 가능하면 세 tier가 모두 나타나게.
-- **name**: 요건 이름 6~16자. 공학/구조/시스템 축을 선호.
-- **description**: 왜 필수인지 1~2문장 (40~140자).
+  최소 1개 이상의 "완성" 요건이 있어야 한다.
+- **name**: 요건 이름 **6~14자**. 명사형, 공학/구조/기능 축.
+- **description**: **최대 24자의 한 줄 서술**. "~한다" 또는 "~이 필요" 식의 짧은 동사구. 예: "전력으로 공기를 밀어낸다", "노출된 회전부가 없다", "일반 가정에서 쓸 수 있다". ⚠️ 두 문장 금지, 40자 넘기면 안 됨.
 - **needs**: 이 요건이 **필요로 하는 것들**. 짧은 토큰 리스트 (각 2~10자).
-  예: ["전력", "공간", "회전부"], ["자본", "거래처"].
   ⚠️ **다른 요건의 provides로 공급받을 수 있는 수준**으로 추상화하라.
 - **provides**: 이 요건이 **산출하는 것들**. 짧은 토큰 리스트.
-  예: ["공기 흐름"], ["안전성"], ["수익"].
 - **feasibility**: 세 값 중 하나.
   - "feasible": 현존 기술·물리·사례로 그대로 구현 가능
-  - "infeasible": 명확한 제약·모순 때문에 그대로는 구현 불가
+  - "infeasible": 명확한 제약·모순 때문에 그대로는 구현 불가 (**다른 요건의 needs와 충돌**하거나, 물리/시장 한계)
   - "unknown": 현재 정보로는 판정 불가
-- **rationale**: 1문장(40~120자). feasibility 판정 근거.
-- **substituteDirections**: infeasible일 때만. 3~5개 짧은 명제(6~16자).
-  **같은 provides를 유지하되 needs 구성이 다른 "대체 부품 방향"**.
-  feasible/unknown에는 넣지 마라.
+- **rationale**: **최대 40자 한 줄**. 왜 그 feasibility인지. infeasible이면 **어느 요건·토큰과 충돌하는지** 반드시 명시.
+- **substituteDirections**: infeasible일 때만. 3~5개 짧은 명제(6~16자). 같은 provides를 유지하되 needs 구성이 다른 대체 부품 방향.
+- **conflictingNeed**: **infeasible일 때만**. 이 요건의 needs 중 **다른 요건과 모순을 일으키는 토큰** 하나를 그대로 적는다. 예: 이 요건이 "회전 날개"를 needs로 가지는데 다른 요건이 "회전부 노출 없음"을 needs로 요구하면 conflictingNeed 값은 "회전 날개". 사용자가 "해결" 버튼을 눌렀을 때 매칭 매트릭스에서 이 토큰을 제외하기 위함. feasible/unknown에는 넣지 마라.
 
 ## 3. 조립 간선 (edges)
 요건들 사이의 provides↔needs 매칭.
@@ -238,12 +241,13 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
       "id": "A",
       "tier": "기반" | "결합" | "완성",
       "name": "요건 이름",
-      "description": "왜 필수인지 1~2문장",
+      "description": "최대 24자 한 줄 서술",
       "needs": ["토큰1", "토큰2"],
       "provides": ["토큰3"],
       "feasibility": "feasible" | "infeasible" | "unknown",
-      "rationale": "판정 근거 1문장",
-      "substituteDirections": ["대체 방향 1", "..."]
+      "rationale": "최대 40자 한 줄 근거",
+      "substituteDirections": ["대체 방향 1", "..."],
+      "conflictingNeed": "충돌 토큰 (infeasible만)"
     }
   ],
   "edges": [
@@ -253,7 +257,7 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
     { "requirementId": "D", "token": "고객" }
   ]
 }
-requirements는 정확히 4~6개.`;
+requirements는 정확히 3~4개.`;
 
 export const verifyUserPrompt = (
   parentAxis: string,
