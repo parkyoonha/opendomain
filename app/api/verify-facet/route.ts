@@ -31,6 +31,8 @@ const asStringArray = (v: unknown): string[] =>
 function parseVerifyReport(content: string): VerifyReport {
   const parsed = JSON.parse(content) as {
     target?: string;
+    baselineProduct?: string;
+    baselineLimitation?: string;
     requirements?: Array<{
       id?: string;
       tier?: string;
@@ -116,8 +118,13 @@ function parseVerifyReport(content: string): VerifyReport {
     .filter((d) => d.requirementId && d.token)
     .filter((d) => validIds.has(d.requirementId));
 
+  const baselineProduct = (parsed.baselineProduct ?? "").trim();
+  const baselineLimitation = (parsed.baselineLimitation ?? "").trim();
+
   return {
     target: (parsed.target ?? "").trim(),
+    baselineProduct: baselineProduct || undefined,
+    baselineLimitation: baselineLimitation || undefined,
     requirements,
     edges,
     danglingNeeds,

@@ -249,6 +249,29 @@ export default function PendingTopicCard() {
                   </div>
                 </div>
               )}
+              {(v.report.baselineProduct ||
+                v.report.baselineLimitation) && (
+                <div className="rounded-md bg-white/[0.04] px-3 py-2 text-[11px] leading-5 md:text-[10px] md:leading-4">
+                  {v.report.baselineProduct && (
+                    <div className="text-text-secondary">
+                      <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                        지금의 제품 ·{" "}
+                      </span>
+                      <span className="font-semibold text-text-primary">
+                        {v.report.baselineProduct}
+                      </span>
+                    </div>
+                  )}
+                  {v.report.baselineLimitation && (
+                    <div className="mt-0.5 text-text-secondary">
+                      <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                        한계 ·{" "}
+                      </span>
+                      {v.report.baselineLimitation}
+                    </div>
+                  )}
+                </div>
+              )}
               {v.report.requirements.length > 0 && (() => {
                 const tierOrder: Record<string, number> = {
                   기반: 0,

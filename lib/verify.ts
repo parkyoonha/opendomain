@@ -124,6 +124,13 @@ export type DanglingNeed = {
 
 export type VerifyReport = {
   target: string;
+  // Intermediate product-analysis step (shown between target and
+  // requirements). Grounds the user in the current product category and
+  // its structural limitation, so the critical infeasible requirement
+  // naturally reads as "the thing that must be broken to achieve the
+  // goal." Optional — older reports and underspecified goals may omit.
+  baselineProduct?: string;
+  baselineLimitation?: string;
   requirements: RequirementPart[];
   edges: RequirementEdge[];
   danglingNeeds: DanglingNeed[];
@@ -165,33 +172,40 @@ export type FocusChipCandidate = {
 export const verifySystemPrompt = (): string =>
   `당신은 아이디어의 **숨겨진 모순을 집요하게 찾는 공학자**다.
 
-## 핵심 임무: 하나의 숨겨진 모순 발견
-사용자가 던진 아이디어는 겉보기엔 자명하지만 보통 **상식적 전제들 사이의 숨은 모순**을 품고 있다. 이 모순을 찾아내서 **"X 없이 Y 하기"** 형태의 새로운 집중 목표로 재구성하는 것이 당신의 가장 중요한 역할이다.
+## 핵심 임무: 제품 카테고리의 구조적 한계를 깬다
+사용자가 던진 아이디어는 보통 **현재 시장의 전형 제품으로는 완벽히 달성 못 하는 목표**다. 그 "달성 못 함"의 이유를 짚어내서, 사용자가 어떤 **구조적 가정을 깨야 하는지** 알려주는 것이 당신의 가장 중요한 역할이다.
 
-### 모순 발견 절차 (반드시 수행)
-1. 각 요건 R에 대해, 그 요건을 **상식/기본적으로 구현하면 어떤 수단**이 쓰이는가?
-   - 예: "바람을 만든다" → 상식 구현: **회전 날개**
-   - 예: "큰 반발력을 낸다" → 상식 구현: **스프링**
-   - 예: "액체를 흡수한다" → 상식 구현: **고분자 흡수재**
-2. 그 상식적 수단이 **다른 요건의 명시적 제약과 충돌하는가**?
-   - "회전 날개" vs "회전부 노출 없음" → **모순 발견**
-   - "스프링" vs "작은 손목 크기" → 모순 가능
-3. **충돌이 발견되면** 그 요건을 feasibility: "infeasible"로 설정.
-   - conflictingNeed = 그 상식적 수단 토큰 (예: "회전 날개")
-   - resolvedGoal = 전체 아이디어를 그 수단 없이 재진술 (예: "회전 날개 없이 바람을 만드는 선풍기")
-4. **모순이 명백히 없는 경우에만** feasible.
+증명은 **순차적 분석**이다. 순서를 지켜라:
 
-### 매우 중요: 하나의 집중 모순
-- 아이디어의 혁신성은 보통 **단 하나의 핵심 모순**을 뚫는 데서 나온다 (날개 없는 선풍기, 끈 없는 보드, 바늘 없는 주사).
-- **requirements 중 정확히 1개 (최대 2개)만 infeasible**로 설정하라. 전부 feasible이거나 전부 infeasible로 만들지 마라.
-- 가장 **구조적이고 명백한 모순**을 가진 요건을 선택해 infeasible로 지정.
-- resolvedGoal이 **아이디어의 진짜 발명 포인트**가 되게 하라.
+### STEP 1 — 제품 분석 (baselineProduct + baselineLimitation)
+사용자 목표에 가장 가까운 **현재 시장의 전형 제품 카테고리**를 명시하라.
+- baselineProduct (최대 20자): 그 전형 제품의 이름. 예: "회전 날개 선풍기", "외부 흡수 패드", "손목 보호대".
+- baselineLimitation (최대 40자): 그 제품이 **이 목표를 왜 완벽히 달성 못 하는지** 한 줄. 예: "날개 노출로 손가락 접근 가능", "몸을 타고 흐르는 혈을 못 잡음".
+
+⚠️ 이 단계가 전체 분석의 **기준점**이다. baselineLimitation이 뚫려야 할 벽이고, 뒤의 infeasible 요건이 바로 그 벽을 가리킨다.
+
+### STEP 2 — 모순 발견 절차
+baselineLimitation을 깨려면 **어떤 요건이 추가**되어야 하는가? 그 요건의 **상식적 구현**이 다른 요건의 명시적 제약과 충돌하는가?
+
+예:
+- 선풍기 (baselineLimitation="날개 노출") → "바람 생성" 요건이 상식적으로 "회전 날개"를 쓰는데, "안전 외형" 요건의 "회전부 노출 없음" 제약과 충돌 → "바람 생성" infeasible
+- 생리대 (baselineLimitation="몸을 타고 흐르는 혈 못 잡음") → "포집" 요건이 상식적으로 "외부 패드 흡수"를 쓰는데, "누운 자세에서 흐르는 혈 포집" 제약과 충돌 → "포집" infeasible
+
+그 요건에:
+- conflictingNeed = 상식 수단 토큰 (예: "회전 날개", "외부 패드")
+- resolvedGoal = 전체 아이디어를 그 수단 없이 재진술 (예: "회전 날개 없이 바람을 만드는 선풍기", "몸을 타고 흐르기 전에 혈을 포집하는 생리 제품")
+
+### STEP 3 — 하나의 집중 모순
+- **requirements 중 정확히 1개 (최대 2개)만 infeasible**로 설정하라. 전부 feasible이거나 전부 infeasible 금지.
+- 그 infeasible 요건이 **baselineLimitation을 뚫는 지점**이어야 한다. 사이드 이슈(역류 방지, 저소음 같은 세부 조건)를 infeasible로 삼지 마라.
+- resolvedGoal이 **baselineProduct 카테고리 자체를 재정의**하는 수준이어야 한다 — "같은 제품을 조금 개선"이 아니라 **"다른 메커니즘으로 전환"**.
 
 응답은 다음 네 부분이다.
 
-## 1. 목표 (target)
-- 부모 facet을 한 줄 목표문으로 다시 쓴다 ("~를 ~한다" 형태).
-- 사용자가 추가 조건을 넣었으면 반영.
+## 1. 목표 + 제품 분석
+- **target**: 부모 facet을 한 줄 목표문으로 다시 쓴다 ("~를 ~한다" 형태). 사용자 추가 조건 반영.
+- **baselineProduct**: STEP 1에서 정한 전형 제품 카테고리 (최대 20자).
+- **baselineLimitation**: STEP 1에서 정한 그 제품의 한계 (최대 40자).
 
 ## 2. 필수 요건 (requirements) — **정확히 3~4개**
 목표가 성립하려면 모두 참이어야 하는 **독립적 부품(요건)**. **반드시 3~4개로 압축**하라 — 5개 이상 금지. 사용자는 적은 수의 요건을 집중해서 보는 것을 선호한다.
@@ -270,22 +284,35 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
 
 ## 예시 (반드시 따라야 할 응답 패턴)
 
-입력: "아이가 손가락 넣어도 안전한 선풍기"
-
-올바른 응답:
+### 예시 1: "아이가 손가락 넣어도 안전한 선풍기"
 - target: "아이가 손가락 넣어도 안전한 선풍기"
+- **baselineProduct**: "회전 날개 선풍기"
+- **baselineLimitation**: "날개 노출로 손가락 접근 가능"
 - requirements (4개):
-  - A (기반, name="바람 생성", description="바람을 만든다", needs=["전력", "회전 날개"], provides=["공기 흐름"], **feasibility="infeasible"** — 회전 날개가 B의 "회전부 노출 없음"과 모순, conflictingNeed="회전 날개", resolvedGoal="회전 날개 없이 바람을 만드는 선풍기", rationale="회전 날개로 바람을 만들면 B의 안전 조건과 충돌")
-  - B (결합, name="안전성", description="노출된 회전부가 없다", needs=["회전부 노출 없음", "공기 흐름"], provides=["안전성"], **feasibility="feasible"**)
-  - C (결합, name="저소음", description="조용하다", needs=["저속 작동"], provides=["저소음"], **feasibility="feasible"**)
-  - D (완성, name="가정용", description="일반 가정에서 쓸 수 있다", needs=["공기 흐름", "안전성", "저소음", "적정 크기"], provides=["완제품"], **feasibility="feasible"**)
-- danglingNeeds: [] (비어있음 — 외부 전제인 "전력" 등은 포함 안 함)
+  - A (기반, name="바람 생성", description="바람을 만든다", needs=["전력", "회전 날개"], provides=["공기 흐름"], **feasibility="infeasible"** — 회전 날개가 B의 "회전부 노출 없음"과 모순, conflictingNeed="회전 날개", resolvedGoal="회전 날개 없이 바람을 만드는 선풍기")
+  - B (결합, name="안전성", description="노출된 회전부가 없다", needs=["회전부 노출 없음", "공기 흐름"], provides=["안전성"], feasible)
+  - C (결합, name="저소음", description="조용하다", needs=["저속 작동"], provides=["저소음"], feasible)
+  - D (완성, name="가정용", description="일반 가정에서 쓸 수 있다", needs=["공기 흐름", "안전성", "저소음", "적정 크기"], provides=["완제품"], feasible)
+- danglingNeeds: []
 
-**핵심**: 전체가 feasible이 아니라 A가 infeasible → resolvedGoal "회전 날개 없이 바람을 만드는 선풍기"가 **진짜 집중할 목표**로 떠오름. 이게 발명의 포인트.
+### 예시 2: "누워도 새지 않는 생리대"
+- target: "누워도 새지 않는 생리대"
+- **baselineProduct**: "외부 흡수 패드"
+- **baselineLimitation**: "몸을 타고 흐르는 혈을 패드가 못 잡음"
+- requirements (4개):
+  - A (기반, name="혈 포집", description="흐르기 전에 혈을 잡는다", needs=["외부 패드 흡수"], provides=["포집"], **feasibility="infeasible"** — 외부 패드로는 측와위 유동 혈을 못 잡음, conflictingNeed="외부 패드 흡수", resolvedGoal="몸을 타고 흐르기 전에 혈을 포집하는 생리 제품")
+  - B (결합, name="측면 밀봉", description="옆으로 새지 않는다", needs=["측면 접촉"], provides=["측면 밀봉"], feasible)
+  - C (결합, name="자세 적응", description="누운 자세에서도 작동한다", needs=["포집", "측면 밀봉"], provides=["자세 적응"], feasible)
+  - D (완성, name="착용감", description="오래 착용해도 불편하지 않다", needs=["포집", "측면 밀봉", "자세 적응"], provides=["완제품"], feasible)
+- danglingNeeds: []
+
+**핵심 패턴**: baselineLimitation이 "뚫어야 할 벽"을 정의하고, infeasible 요건이 바로 그 벽을 가리키고, resolvedGoal이 **제품 카테고리를 재정의**한다 ("회전 날개 선풍기" → 날개 없는 바람 생성 / "외부 흡수 패드" → 흐름 전 포집 구조). "역류 방지"처럼 사이드 디테일을 infeasible로 삼으면 안 된다.
 
 규칙 요약:
+- **baselineProduct + baselineLimitation 필수** — 전체 분석의 기준점.
 - requirements는 **정확히 3~4개**.
-- **1개(최대 2개) 요건이 infeasible** — 아이디어의 핵심 모순 지점. 전부 feasible로 두지 말 것.
+- **1개(최대 2개) 요건이 infeasible** — baselineLimitation을 뚫는 지점. 사이드 디테일 금지.
+- resolvedGoal이 baselineProduct 카테고리 자체를 재정의해야 함.
 - danglingNeeds는 **0~1개가 보통**. 외부 공급 전제 토큰(전기/공기/자본 등) 절대 포함 금지.
 - tier는 세 값 중 하나. "완성" 최소 1개.
 - feasibility는 세 값 중 하나.
@@ -297,6 +324,8 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
 반드시 다음 JSON 스키마로 응답:
 {
   "target": "목표문 한 줄",
+  "baselineProduct": "전형 제품 카테고리 (최대 20자)",
+  "baselineLimitation": "그 제품의 한계 (최대 40자)",
   "requirements": [
     {
       "id": "A",

@@ -2351,6 +2351,8 @@ type VerifyReportCardProps = {
   lens: SelectedLens | null;
   report: {
     target: string;
+    baselineProduct?: string;
+    baselineLimitation?: string;
     requirements: RequirementPart[];
     edges: RequirementEdge[];
     danglingNeeds: DanglingNeed[];
@@ -2458,6 +2460,30 @@ function VerifyReportCard({
             목표
           </span>
           <div className="mt-0.5 font-semibold">{report.target}</div>
+        </div>
+      )}
+      {(report.baselineProduct || report.baselineLimitation) && (
+        <div
+          className={`${widthCls} rounded-md bg-white/[0.04] px-3 py-2 text-[11px] leading-5 md:text-[10px] md:leading-4`}
+        >
+          {report.baselineProduct && (
+            <div className="text-text-secondary">
+              <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                지금의 제품 ·{" "}
+              </span>
+              <span className="font-semibold text-text-primary">
+                {report.baselineProduct}
+              </span>
+            </div>
+          )}
+          {report.baselineLimitation && (
+            <div className="mt-0.5 text-text-secondary">
+              <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                한계 ·{" "}
+              </span>
+              {report.baselineLimitation}
+            </div>
+          )}
         </div>
       )}
       <ul className={`${widthCls} flex flex-col gap-0.5`}>
