@@ -9,8 +9,6 @@ import {
   feasibilityIcon,
   feasibilityLabel,
   feasibilityPalette,
-  kRequirementTiers,
-  tierBadgePalette,
 } from "@/lib/verify";
 import { lensLabel } from "@/lib/lenses";
 
@@ -252,12 +250,15 @@ export default function PendingTopicCard() {
                 </div>
               )}
               {v.report.requirements.length > 0 && (() => {
-                const groups = kRequirementTiers
-                  .map((t) => ({
-                    tier: t,
-                    items: v.report.requirements.filter((r) => r.tier === t),
-                  }))
-                  .filter((g) => g.items.length > 0);
+                const tierOrder: Record<string, number> = {
+                  기반: 0,
+                  결합: 1,
+                  완성: 2,
+                };
+                const orderedReqs = [...v.report.requirements].sort(
+                  (a, b) =>
+                    (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9),
+                );
                 const matrixReqs = v.report.requirements.map((r) => ({
                   id: r.id,
                   name: r.name,
@@ -308,48 +309,44 @@ export default function PendingTopicCard() {
                 );
                 return (
                   <div className="flex flex-col gap-2">
-                    {groups.map(({ tier, items }) => (
-                      <div key={tier} className="flex flex-col gap-1">
-                        <span
-                          className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wider ${tierBadgePalette[tier]}`}
-                        >
-                          {tier}
-                        </span>
-                        <ul className="flex flex-col">
-                          {items.map((r) => {
-                            const pal = feasibilityPalette[r.feasibility];
-                            return (
-                              <li
-                                key={r.id}
-                                className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
-                              >
-                                <div
-                                  className={`text-[13px] font-semibold md:text-[11px] ${pal.text}`}
-                                >
-                                  {feasibilityIcon[r.feasibility]} {r.name}
-                                  {r.description && (
-                                    <span
-                                      className={`ml-1.5 text-[11px] font-normal md:text-[10px] ${
-                                        r.feasibility === "infeasible"
-                                          ? "text-rose-200/80"
-                                          : "text-text-muted"
-                                      }`}
-                                    >
-                                      · {r.description}
-                                    </span>
-                                  )}
-                                </div>
-                                <span
-                                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                                >
-                                  {feasibilityLabel[r.feasibility]}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    ))}
+                    <ul className="flex flex-col gap-0.5">
+                      {orderedReqs.map((r) => {
+                        const pal = feasibilityPalette[r.feasibility];
+                        return (
+                          <li
+                            key={r.id}
+                            className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
+                          >
+                            <div
+                              className={`text-[13px] md:text-[11px] ${pal.text}`}
+                            >
+                              <span className="font-semibold">
+                                {r.id} {feasibilityIcon[r.feasibility]}{" "}
+                                {r.description || r.name}
+                              </span>
+                              {r.description &&
+                                r.name &&
+                                r.description !== r.name && (
+                                  <span
+                                    className={`ml-1 text-[11px] font-normal md:text-[10px] ${
+                                      r.feasibility === "infeasible"
+                                        ? "text-rose-200/80"
+                                        : "text-text-muted"
+                                    }`}
+                                  >
+                                    ({r.name})
+                                  </span>
+                                )}
+                            </div>
+                            <span
+                              className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                            >
+                              {feasibilityLabel[r.feasibility]}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                     {(infeasibleReqs.length > 0 ||
                       v.report.danglingNeeds.length > 0) && (
                       <div className="mt-1 flex flex-col gap-1.5">

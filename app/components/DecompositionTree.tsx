@@ -29,8 +29,6 @@ import {
   feasibilityIcon,
   feasibilityLabel,
   feasibilityPalette,
-  kRequirementTiers,
-  tierBadgePalette,
   type RequirementPart,
   type RequirementEdge,
   type DanglingNeed,
@@ -2393,12 +2391,12 @@ function VerifyReportCard({
     needs: r.needs,
     provides: r.provides,
   }));
-  const groups = kRequirementTiers
-    .map((t) => ({
-      tier: t,
-      items: report.requirements.filter((r) => r.tier === t),
-    }))
-    .filter((g) => g.items.length > 0);
+  // Sort by tier (기반 → 결합 → 완성) but render as a flat A/B/C/D list.
+  // The tier headers were adding noise for only 3~4 requirements.
+  const tierOrder: Record<string, number> = { 기반: 0, 결합: 1, 완성: 2 };
+  const orderedReqs = [...report.requirements].sort(
+    (a, b) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9),
+  );
 
   // Click a dangling need pill: find chips that *provide* that token.
   const openChipPanelForOutput = (token: string, requirementId: string) => {
@@ -2462,48 +2460,41 @@ function VerifyReportCard({
           <div className="mt-0.5 font-semibold">{report.target}</div>
         </div>
       )}
-      {groups.map(({ tier, items }) => (
-        <div key={tier} className="flex flex-col gap-1">
-          <span
-            className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wider ${tierBadgePalette[tier]}`}
-          >
-            {tier}
-          </span>
-          <ul className={`${widthCls} flex flex-col`}>
-            {items.map((r) => {
-              const pal = feasibilityPalette[r.feasibility];
-              return (
-                <li
-                  key={r.id}
-                  className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
-                >
-                  <div
-                    className={`text-[13px] font-semibold md:text-[11px] ${pal.text}`}
-                  >
-                    {feasibilityIcon[r.feasibility]} {r.name}
-                    {r.description && (
-                      <span
-                        className={`ml-1.5 text-[11px] font-normal md:text-[10px] ${
-                          r.feasibility === "infeasible"
-                            ? "text-rose-200/80"
-                            : "text-text-muted"
-                        }`}
-                      >
-                        · {r.description}
-                      </span>
-                    )}
-                  </div>
+      <ul className={`${widthCls} flex flex-col gap-0.5`}>
+        {orderedReqs.map((r) => {
+          const pal = feasibilityPalette[r.feasibility];
+          return (
+            <li
+              key={r.id}
+              className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
+            >
+              <div
+                className={`text-[13px] md:text-[11px] ${pal.text}`}
+              >
+                <span className="font-semibold">
+                  {r.id} {feasibilityIcon[r.feasibility]} {r.description || r.name}
+                </span>
+                {r.description && r.name && r.description !== r.name && (
                   <span
-                    className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                    className={`ml-1 text-[11px] font-normal md:text-[10px] ${
+                      r.feasibility === "infeasible"
+                        ? "text-rose-200/80"
+                        : "text-text-muted"
+                    }`}
                   >
-                    {feasibilityLabel[r.feasibility]}
+                    ({r.name})
                   </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+                )}
+              </div>
+              <span
+                className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+              >
+                {feasibilityLabel[r.feasibility]}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       {/* 충돌·실패를 "하위 목표"로 재서술한 블록 */}
       {(() => {
         const infeasibleReqs = report.requirements.filter(
