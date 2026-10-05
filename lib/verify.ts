@@ -170,17 +170,26 @@ export type FocusChipCandidate = {
 };
 
 export const verifySystemPrompt = (): string =>
-  `당신은 아이디어의 **숨겨진 모순을 집요하게 찾는 공학자**다.
+  `당신은 **지금 전달받은 facet의 작동 조건과 숨겨진 약점을 집요하게 분석하는 공학자**다.
 
-## 핵심 임무: 제품 카테고리의 구조적 한계를 깬다
-사용자가 던진 아이디어는 보통 **현재 시장의 전형 제품으로는 완벽히 달성 못 하는 목표**다. 그 "달성 못 함"의 이유를 짚어내서, 사용자가 어떤 **구조적 가정을 깨야 하는지** 알려주는 것이 당신의 가장 중요한 역할이다.
+## 핵심 임무: facet 자체를 검증한다 (매우 중요)
+
+증명의 입력은 **"지금 검증할 facet"**이다. 이 facet은 두 가지 레벨 중 하나다:
+
+**레벨 A — root 아이디어 자체** (예: "누워도 새지 않는 생리대")
+→ 전체 제품을 검증. baselineProduct = 그 목표를 추구하는 현재 시장의 전형 제품. 기존 제품 카테고리를 깨는 쪽으로 분석.
+
+**레벨 B — root의 하위 facet / 구체적 메커니즘** (예: "거품공극 층별 설계로 방향성 흡수")
+→ 그 **메커니즘 자체**의 작동 조건을 검증. **root로 돌아가지 마라.** baselineProduct = **이 facet 없이** 같은 root를 시도하는 기존 접근. requirements = **그 메커니즘이 작동하기 위한 구체적 조건들** (제조 정밀도, 유체 역학, 재료 특성 등). infeasible = 그 메커니즘의 가장 **비자명·검증 안 된** 지점.
+
+⚠️ facet이 구체 메커니즘(레벨 B)이면 **root 수준의 요건**(예: "흡수력", "측면 밀봉")을 끌어오지 마라. 반드시 **그 facet의 작동 성립 조건**만 다룬다.
 
 증명은 **순차적 분석**이다. 순서를 지켜라:
 
-### STEP 1 — 제품 분석 (baselineProduct + baselineLimitation)
-사용자 목표에 가장 가까운 **현재 시장의 전형 제품 카테고리**를 명시하라.
-- baselineProduct (최대 20자): 그 전형 제품의 이름. 예: "회전 날개 선풍기", "외부 흡수 패드", "손목 보호대".
-- baselineLimitation (최대 40자): 그 제품이 **이 목표를 왜 완벽히 달성 못 하는지** 한 줄. 예: "날개 노출로 손가락 접근 가능", "몸을 타고 흐르는 혈을 못 잡음".
+### STEP 1 — 비교 기준 (baselineProduct + baselineLimitation)
+- **레벨 A** (root 수준 facet): baselineProduct = 지금 시장의 전형 제품 카테고리. baselineLimitation = 그 제품이 이 목표를 완벽히 달성 못 하는 이유.
+- **레벨 B** (구체 메커니즘 facet): baselineProduct = **이 facet의 메커니즘 없이** 같은 root를 시도하는 기존 접근 (예: facet="거품공극 층별 설계" → baseline="균일 공극 흡수층"). baselineLimitation = 그 기존 접근이 못 하는 것 (= 이 facet이 뚫으려는 벽).
+- 둘 다: baselineProduct 최대 20자, baselineLimitation 최대 40자.
 
 ⚠️ 이 단계가 전체 분석의 **기준점**이다. baselineLimitation이 뚫려야 할 벽이고, 뒤의 infeasible 요건이 바로 그 벽을 가리킨다.
 
@@ -306,7 +315,23 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
   - D (완성, name="착용감", description="오래 착용해도 불편하지 않다", needs=["포집", "측면 밀봉", "자세 적응"], provides=["완제품"], feasible)
 - danglingNeeds: []
 
-**핵심 패턴**: baselineLimitation이 "뚫어야 할 벽"을 정의하고, infeasible 요건이 바로 그 벽을 가리키고, resolvedGoal이 **제품 카테고리를 재정의**한다 ("회전 날개 선풍기" → 날개 없는 바람 생성 / "외부 흡수 패드" → 흐름 전 포집 구조). "역류 방지"처럼 사이드 디테일을 infeasible로 삼으면 안 된다.
+**예시 1·2는 레벨 A (root 수준) 패턴**이다. baselineLimitation이 "뚫어야 할 벽"을 정의하고, infeasible 요건이 바로 그 벽을 가리키고, resolvedGoal이 **제품 카테고리를 재정의**한다. "역류 방지"처럼 사이드 디테일을 infeasible로 삼으면 안 된다.
+
+### 예시 3: 레벨 B (구체 메커니즘 facet) — 중요
+입력: root="누워도 새지 않는 생리대", facet="거품공극 크기를 층별로 설계해 액체는 아래로 흐르지만 역류는 거품이 막는 방향성 흡수"
+
+올바른 응답:
+- target: "층별 거품공극 구조로 방향성 흡수를 구현한다"
+- **baselineProduct**: "균일 공극 흡수층 생리대" (이 facet 없이 같은 root를 시도하는 접근)
+- **baselineLimitation**: "액체가 양방향으로 흐를 수 있어 역류 위험"
+- requirements (4개) — **이 메커니즘의 작동 조건**이지 생리대 전체 조건이 아님:
+  - A (기반, name="층별 제조", description="공극 크기를 층마다 정밀하게 다르게 만든다", needs=["다층 공정"], provides=["층별 공극 구조"], feasible, rationale="다층 성형 기술로 가능")
+  - B (결합, name="중력 흐름", description="액체가 중력으로 아래 층으로 간다", needs=["층별 공극 구조", "중력"], provides=["아래 방향 흐름"], feasible)
+  - C (결합, name="역류 차단", description="역류 시 큰 공극이 흐름을 물리적으로 막는다", needs=["아래 방향 흐름", "큰 공극의 차단력"], provides=["방향성"], **feasibility="infeasible"** — 큰 공극이 역류를 어떻게 선택적으로 막는지 비자명. 유체는 공극 크기만으로는 방향 선택 못 함. conflictingNeed="큰 공극의 차단력", resolvedGoal="역류를 물리적으로 선택 차단하는 구조", rationale="공극 크기만으로 방향성이 성립하지 않음")
+  - D (완성, name="착용 두께", description="전체 구조가 착용 가능한 두께에 들어간다", needs=["층별 공극 구조", "방향성"], provides=["완제품"], feasible)
+- danglingNeeds: []
+
+**핵심 패턴 (레벨 B)**: facet 자체의 작동 조건을 분해하고, 그 메커니즘의 **가장 비자명한 지점**(여기서는 "방향성 흐름"의 성립)을 infeasible로 지정. **"흡수력", "측면 밀봉"처럼 root 생리대 수준 요건은 끌어오지 않았음**에 주목.
 
 규칙 요약:
 - **baselineProduct + baselineLimitation 필수** — 전체 분석의 기준점.
@@ -356,12 +381,16 @@ export const verifyUserPrompt = (
   rootTopic?: string,
   userContext?: string,
 ): string => {
-  const rootLine = rootTopic
-    ? `\n**핵심 주제 (anchor): ${rootTopic}** — 판정은 이 주제 맥락 안에서.`
+  const rootLine = rootTopic && rootTopic.trim() !== parentPrinciple.trim()
+    ? `\n(root 아이디어 맥락: ${rootTopic})`
     : "";
   const ctxLine = userContext?.trim()
     ? `\n\n**사용자 추가 조건 (판정과 목표문에 반영)**: ${userContext.trim()}`
     : "";
-  return `부모 축: ${parentAxis}
-부모 facet: ${parentPrinciple}${rootLine}${ctxLine}`;
+  return `**지금 검증할 facet** (이것이 분석 대상이다):
+"${parentPrinciple}"
+
+속한 축: ${parentAxis}${rootLine}${ctxLine}
+
+⚠️ **반드시 facet 자체를 검증하라.** parentPrinciple이 구체적인 메커니즘·구조·접근이면, 그 메커니즘의 작동 조건을 분해하고 가장 비자명한 지점을 찾아라. root 아이디어 수준(예: "생리대 전체")으로 올라가서 재분석하지 마라. baselineProduct는 "이 facet 없이 같은 root를 시도하는 기존 접근"이다.`;
 };

@@ -44,6 +44,9 @@ export default function PendingTopicCard() {
     setChipPanelOpen,
     runRecommendChips,
     runChipFocusMatrix,
+    combinedIdeas,
+    combineStatus,
+    clearCombined,
   } = useIdea();
   const [collapsedDir, setCollapsedDir] = useState(false);
   const [collapsedLens, setCollapsedLens] = useState(true);
@@ -335,115 +338,110 @@ export default function PendingTopicCard() {
                     <ul className="flex flex-col gap-0.5">
                       {orderedReqs.map((r) => {
                         const pal = feasibilityPalette[r.feasibility];
+                        const hasIO =
+                          r.needs.length > 0 || r.provides.length > 0;
                         return (
                           <li
                             key={r.id}
-                            className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
+                            className={`flex flex-col gap-0.5 rounded-md px-3 py-1.5 ${pal.bg}`}
                           >
-                            <div
-                              className={`text-[13px] md:text-[11px] ${pal.text}`}
-                            >
-                              <span className="font-semibold">
-                                {r.id} {feasibilityIcon[r.feasibility]}{" "}
-                                {r.description || r.name}
+                            <div className="flex items-center justify-between gap-2">
+                              <div
+                                className={`text-[13px] md:text-[11px] ${pal.text}`}
+                              >
+                                <span className="font-semibold">
+                                  {r.id} {feasibilityIcon[r.feasibility]}{" "}
+                                  {r.description || r.name}
+                                </span>
+                                {r.description &&
+                                  r.name &&
+                                  r.description !== r.name && (
+                                    <span
+                                      className={`ml-1 text-[11px] font-normal md:text-[10px] ${
+                                        r.feasibility === "infeasible"
+                                          ? "text-rose-200/80"
+                                          : "text-text-muted"
+                                      }`}
+                                    >
+                                      ({r.name})
+                                    </span>
+                                  )}
+                              </div>
+                              <span
+                                className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                              >
+                                {feasibilityLabel[r.feasibility]}
                               </span>
-                              {r.description &&
-                                r.name &&
-                                r.description !== r.name && (
-                                  <span
-                                    className={`ml-1 text-[11px] font-normal md:text-[10px] ${
-                                      r.feasibility === "infeasible"
-                                        ? "text-rose-200/80"
-                                        : "text-text-muted"
-                                    }`}
-                                  >
-                                    ({r.name})
-                                  </span>
-                                )}
                             </div>
-                            <span
-                              className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                            >
-                              {feasibilityLabel[r.feasibility]}
-                            </span>
+                            {hasIO && (
+                              <div
+                                className={`text-[10px] leading-4 md:text-[9px] ${
+                                  r.feasibility === "infeasible"
+                                    ? "text-rose-200/80"
+                                    : "text-text-muted"
+                                }`}
+                              >
+                                {r.needs.length > 0 && r.needs.join(" + ")}
+                                {r.needs.length > 0 &&
+                                  r.provides.length > 0 &&
+                                  " → "}
+                                {r.provides.length > 0 &&
+                                  r.provides.join(" + ")}
+                              </div>
+                            )}
                           </li>
                         );
                       })}
                     </ul>
-                    {(infeasibleReqs.length > 0 ||
-                      v.report.danglingNeeds.length > 0) && (
-                      <div className="mt-1 flex flex-col gap-1.5">
-                        <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
-                          충돌·실패 → 새 목표
-                        </span>
-                        <ul className="flex flex-col gap-2">
-                          {infeasibleReqs.map((r) => {
-                            const target = r.provides[0];
-                            const exclude =
-                              r.conflictingNeed ?? r.needs[0] ?? undefined;
-                            const subGoal =
-                              r.resolvedGoal ||
-                              (exclude && target
-                                ? `${exclude} 없이 ${target}을 만드는 방법`
-                                : r.name);
-                            return (
-                              <li
-                                key={`inf-${r.id}`}
-                                className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
-                              >
-                                <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                                  목표
-                                </div>
-                                <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
-                                  {subGoal}
-                                </div>
-                                {target && (
-                                  <button
-                                    onClick={() => {
-                                      if (exclude) {
-                                        openPanelExcluding(exclude, r);
-                                      } else {
-                                        openPanelForOutput(target, r.id);
-                                      }
-                                    }}
-                                    className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
-                                  >
-                                    해결 → 매트릭스
-                                  </button>
-                                )}
-                              </li>
-                            );
-                          })}
-                          {v.report.danglingNeeds.map((d) => {
-                            const subGoal = `${d.token}을(를) 공급할 메커니즘`;
-                            return (
-                              <li
-                                key={`dn-${d.requirementId}-${d.token}`}
-                                className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
-                              >
-                                <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                                  목표
-                                </div>
-                                <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
-                                  {subGoal}
-                                </div>
-                                <button
-                                  onClick={() =>
-                                    openPanelForOutput(
-                                      d.token,
-                                      d.requirementId,
-                                    )
-                                  }
-                                  className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
-                                >
-                                  해결 → 매트릭스
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    )}
+                    {(() => {
+                      const infeasible = infeasibleReqs[0];
+                      const dangling = v.report.danglingNeeds[0];
+                      if (!infeasible && !dangling) return null;
+
+                      let subGoal: string;
+                      let onResolve: () => void;
+                      if (infeasible) {
+                        const target = infeasible.provides[0];
+                        const exclude =
+                          infeasible.conflictingNeed ??
+                          infeasible.needs[0] ??
+                          undefined;
+                        subGoal =
+                          infeasible.resolvedGoal ||
+                          (exclude && target
+                            ? `${exclude} 없이 ${target}을 만드는 방법`
+                            : infeasible.name);
+                        onResolve = () => {
+                          if (exclude) openPanelExcluding(exclude, infeasible);
+                          else if (target)
+                            openPanelForOutput(target, infeasible.id);
+                        };
+                      } else {
+                        subGoal = `${dangling!.token}을(를) 공급할 메커니즘`;
+                        onResolve = () =>
+                          openPanelForOutput(
+                            dangling!.token,
+                            dangling!.requirementId,
+                          );
+                      }
+
+                      return (
+                        <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2">
+                          <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                            충돌·실패 → 새 목표
+                          </div>
+                          <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
+                            {subGoal}
+                          </div>
+                          <button
+                            onClick={onResolve}
+                            className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
+                          >
+                            해결 → 매트릭스
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -452,6 +450,63 @@ export default function PendingTopicCard() {
         })}
       </div>
     )}
+
+    {/* 조합 결과 — 매트릭스에서 chip을 조합한 뒤 아이디어들이 렌더되는 컬럼.
+        pending 상태에서는 selectedPrinciple이 synthetic "주제::X 공급원" 모양이라
+        topicAxis === "주제"로 필터. */}
+    {mode === "verify" &&
+      (() => {
+        const ideas = combinedIdeas.filter(
+          (c) => c.topicAxis === "주제",
+        );
+        if (ideas.length === 0 && combineStatus !== "loading") return null;
+        return (
+          <div className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-2 md:w-[560px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-medium text-text-primary">
+                조합 결과
+              </span>
+              {ideas.length > 0 && (
+                <button
+                  onClick={clearCombined}
+                  title="조합 결과 초기화"
+                  className="text-[10px] text-text-muted hover:text-text-primary"
+                >
+                  × 지우기
+                </button>
+              )}
+            </div>
+            {combineStatus === "loading" && ideas.length === 0 && (
+              <p className="text-[11px] text-text-muted md:text-[10px]">
+                아이디어 생성 중...
+              </p>
+            )}
+            {combineStatus === "error" && (
+              <p className="text-[11px] text-red-400 md:text-[10px]">
+                조합 실패
+              </p>
+            )}
+            <ul className="flex flex-col gap-1.5">
+              {ideas.map((idea) => (
+                <li
+                  key={idea.id}
+                  className="rounded-md bg-white/[0.06] px-3 py-2"
+                >
+                  <div className="text-[13px] font-semibold text-text-primary md:text-[12px]">
+                    {idea.title}
+                  </div>
+                  <div className="mt-0.5 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
+                    {idea.summary}
+                  </div>
+                  <div className="mt-1 text-[9px] uppercase tracking-wider text-text-muted">
+                    {idea.chipLabel}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
     </div>
   );
 }

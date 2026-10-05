@@ -2283,7 +2283,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
 
   const runCombine = useCallback(
     async (input: CombineInput) => {
-      if (!decomposition) return;
+      // Verify can trigger combine from the PendingTopicCard (before any
+      // decomposition exists), so fall back to pendingTopic as topicText.
+      const topicText = decomposition?.topicText ?? pendingTopic ?? "";
+      if (!topicText) return;
       const topicFacets = input.topicFacet
         ? [input.topicFacet]
         : selectedPrinciple
@@ -2299,7 +2302,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify({
-            topicText: decomposition.topicText,
+            topicText,
             topicFacets,
             chipKind: input.chipKind ?? null,
             chipText: input.chipText,
@@ -2354,7 +2357,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [decomposition, selectedPrinciple, pushActivity, selectedLens],
+    [decomposition, pendingTopic, selectedPrinciple, pushActivity, selectedLens],
   );
 
   const memoAsChip = useCallback(

@@ -2489,116 +2489,100 @@ function VerifyReportCard({
       <ul className={`${widthCls} flex flex-col gap-0.5`}>
         {orderedReqs.map((r) => {
           const pal = feasibilityPalette[r.feasibility];
+          const hasIO = r.needs.length > 0 || r.provides.length > 0;
           return (
             <li
               key={r.id}
-              className={`flex items-center justify-between gap-2 rounded-md px-3 py-1.5 ${pal.bg}`}
+              className={`flex flex-col gap-0.5 rounded-md px-3 py-1.5 ${pal.bg}`}
             >
-              <div
-                className={`text-[13px] md:text-[11px] ${pal.text}`}
-              >
-                <span className="font-semibold">
-                  {r.id} {feasibilityIcon[r.feasibility]} {r.description || r.name}
-                </span>
-                {r.description && r.name && r.description !== r.name && (
-                  <span
-                    className={`ml-1 text-[11px] font-normal md:text-[10px] ${
-                      r.feasibility === "infeasible"
-                        ? "text-rose-200/80"
-                        : "text-text-muted"
-                    }`}
-                  >
-                    ({r.name})
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  className={`text-[13px] md:text-[11px] ${pal.text}`}
+                >
+                  <span className="font-semibold">
+                    {r.id} {feasibilityIcon[r.feasibility]} {r.description || r.name}
                   </span>
-                )}
+                  {r.description && r.name && r.description !== r.name && (
+                    <span
+                      className={`ml-1 text-[11px] font-normal md:text-[10px] ${
+                        r.feasibility === "infeasible"
+                          ? "text-rose-200/80"
+                          : "text-text-muted"
+                      }`}
+                    >
+                      ({r.name})
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                >
+                  {feasibilityLabel[r.feasibility]}
+                </span>
               </div>
-              <span
-                className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-              >
-                {feasibilityLabel[r.feasibility]}
-              </span>
+              {hasIO && (
+                <div
+                  className={`text-[10px] leading-4 md:text-[9px] ${
+                    r.feasibility === "infeasible"
+                      ? "text-rose-200/80"
+                      : "text-text-muted"
+                  }`}
+                >
+                  {r.needs.length > 0 && r.needs.join(" + ")}
+                  {r.needs.length > 0 && r.provides.length > 0 && " → "}
+                  {r.provides.length > 0 && r.provides.join(" + ")}
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
-      {/* 충돌·실패를 "하위 목표"로 재서술한 블록 */}
+      {/* 충돌·실패를 "하위 목표"로 재서술한 블록 — 가장 핵심적인 1개만 */}
       {(() => {
-        const infeasibleReqs = report.requirements.filter(
+        const infeasible = report.requirements.find(
           (r) => r.feasibility === "infeasible",
         );
-        if (
-          infeasibleReqs.length === 0 &&
-          report.danglingNeeds.length === 0
-        )
-          return null;
+        const dangling = report.danglingNeeds[0];
+        if (!infeasible && !dangling) return null;
+
+        let subGoal: string;
+        let onResolve: () => void;
+        if (infeasible) {
+          const target = infeasible.provides[0];
+          const exclude =
+            infeasible.conflictingNeed ?? infeasible.needs[0] ?? undefined;
+          subGoal =
+            infeasible.resolvedGoal ||
+            (exclude && target
+              ? `${exclude} 없이 ${target}을 만드는 방법`
+              : infeasible.name);
+          onResolve = () => {
+            if (exclude) openChipPanelExcludingNeed(exclude, infeasible);
+            else if (target)
+              openChipPanelForOutput(target, infeasible.id);
+          };
+        } else {
+          subGoal = `${dangling!.token}을(를) 공급할 메커니즘`;
+          onResolve = () =>
+            openChipPanelForOutput(dangling!.token, dangling!.requirementId);
+        }
+
         return (
-          <div className={`${widthCls} mt-1 flex flex-col gap-1.5`}>
-            <span className="inline-flex w-fit items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-rose-100">
+          <div
+            className={`${widthCls} mt-1 flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2`}
+          >
+            <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
               충돌·실패 → 새 목표
-            </span>
-            <ul className="flex flex-col gap-2">
-              {infeasibleReqs.map((r) => {
-                const target = r.provides[0];
-                const exclude =
-                  r.conflictingNeed ?? r.needs[0] ?? undefined;
-                const subGoal =
-                  r.resolvedGoal ||
-                  (exclude && target
-                    ? `${exclude} 없이 ${target}을 만드는 방법`
-                    : r.name);
-                return (
-                  <li
-                    key={`inf-${r.id}`}
-                    className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
-                  >
-                    <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                      목표
-                    </div>
-                    <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
-                      {subGoal}
-                    </div>
-                    {target && (
-                      <button
-                        onClick={() => {
-                          if (exclude) {
-                            openChipPanelExcludingNeed(exclude, r);
-                          } else {
-                            openChipPanelForOutput(target, r.id);
-                          }
-                        }}
-                        className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
-                      >
-                        해결 → 매트릭스
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-              {report.danglingNeeds.map((d) => {
-                const subGoal = `${d.token}을(를) 공급할 메커니즘`;
-                return (
-                  <li
-                    key={`dn-${d.requirementId}-${d.token}`}
-                    className="flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2"
-                  >
-                    <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                      목표
-                    </div>
-                    <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
-                      {subGoal}
-                    </div>
-                    <button
-                      onClick={() =>
-                        openChipPanelForOutput(d.token, d.requirementId)
-                      }
-                      className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
-                    >
-                      해결 → 매트릭스
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            </div>
+            <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
+              {subGoal}
+            </div>
+            <button
+              onClick={onResolve}
+              className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
+            >
+              해결 → 매트릭스
+            </button>
           </div>
         );
       })()}
