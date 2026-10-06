@@ -286,15 +286,10 @@ export default function DecompositionTree() {
   }
 
   if (!decomposition) {
-    return (
-      <div className="flex flex-1 flex-col overflow-hidden bg-black">
-        <div className="flex flex-1 items-center justify-center p-8">
-          <p className="text-sm text-text-muted">
-            위 입력바에 주제를 입력해 사고확장을 시작하세요
-          </p>
-        </div>
-      </div>
-    );
+    // Empty state: no decomposition and no pending topic. We render
+    // nothing here — the main layout now centers the InputBar + lens
+    // row vertically on mobile, which is both the prompt and the UI.
+    return null;
   }
 
   const axes = Object.entries(decomposition.axisToPrinciple);
