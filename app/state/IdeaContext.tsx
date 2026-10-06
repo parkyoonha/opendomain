@@ -90,6 +90,29 @@ export type Page = {
   title: string;
   createdAt: number;
   topicSnapshot?: TopicDecomposition;
+  // Extended session state so closing a page and reopening it later
+  // restores the full exploration (sub-facet decompositions, verify
+  // results, expanded cards). Written continuously via effect while
+  // the page is current.
+  subFacetSnapshot?: Record<
+    string,
+    Array<{
+      key: string;
+      directionId: string;
+      lens: SelectedLens | null;
+      resultType: BigCategory | null;
+      subFacets: Record<string, string>;
+    }>
+  >;
+  verifySnapshot?: Record<
+    string,
+    Array<{
+      key: string;
+      lens: SelectedLens | null;
+      report: VerifyReport;
+    }>
+  >;
+  expandedSnapshot?: string[];
   memoIds?: string[]; // memos belonging to this memo folder page
 };
 
@@ -562,6 +585,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (page.type === "topic") {
         setInputMode("topic");
         setDecomposition(page.topicSnapshot ?? null);
+        setSubFacetDerived(page.subFacetSnapshot ?? {});
+        setVerifyDerived(page.verifySnapshot ?? {});
+        setExpandedPrinciples(new Set(page.expandedSnapshot ?? []));
       } else {
         setInputMode("memo");
         setDecomposition(null);
@@ -1175,6 +1201,38 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Continuously mirror sub-facet / verify / expanded state into the
+  // currently open topic page. Without this, closing a session and
+  // reopening it from the history drawer restored only the top-level
+  // decomposition — all further exploration (sub-facet trees, verify
+  // results, which cards were open) was dropped on the floor.
+  useEffect(() => {
+    if (!currentPageId) return;
+    setPages((prev) => {
+      let changed = false;
+      const next = prev.map((p) => {
+        if (p.id !== currentPageId || p.type !== "topic") return p;
+        const expandedArr = Array.from(expandedPrinciples);
+        if (
+          p.subFacetSnapshot === subFacetDerived &&
+          p.verifySnapshot === verifyDerived &&
+          (p.expandedSnapshot?.length ?? 0) === expandedArr.length &&
+          (p.expandedSnapshot ?? []).every((k, i) => k === expandedArr[i])
+        ) {
+          return p;
+        }
+        changed = true;
+        return {
+          ...p,
+          subFacetSnapshot: subFacetDerived,
+          verifySnapshot: verifyDerived,
+          expandedSnapshot: expandedArr,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [currentPageId, subFacetDerived, verifyDerived, expandedPrinciples]);
 
   const [blockerPrinciples, setBlockerPrinciples] = useState<Set<string>>(
     new Set(),

@@ -100,6 +100,32 @@ function PageInner() {
           />
         </svg>
       </button>
+      {/* Desktop session-history button — sits directly below the chip
+          button on the left rail so the user can jump between topic
+          sessions without reaching for the mobile-only hamburger. */}
+      <button
+        onClick={() => setHistoryDrawerOpen(true)}
+        aria-label="세션 히스토리 열기"
+        title="세션 히스토리"
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 3.25rem)",
+          ...(showChipPanel ? { left: "calc(20rem + 0.75rem)" } : {}),
+        }}
+        className={`absolute z-30 hidden h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:text-text-primary md:flex ${
+          showChipPanel
+            ? "bg-white/[0.16] text-text-primary"
+            : "left-3 bg-white/[0.08] hover:bg-white/[0.16]"
+        }`}
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+          <path
+            d="M4 7h16M4 12h16M4 17h16"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
       <>
           {showChipPanel && (
             <div

@@ -35,13 +35,13 @@ export default function SessionHistoryDrawer({ open, onClose }: Props) {
 
   return (
     <>
-      {/* Overlay stops above the mobile bottom-nav + home indicator so
-          the user can still tap the nav / their system home gesture
-          area without the drawer blocking it. */}
-      <div className="bottom-safe-14 fixed inset-x-0 top-0 z-50 bg-black/50" />
+      {/* On mobile the overlay + drawer stop above the bottom-nav /
+          home indicator so the user can still reach the nav. On
+          desktop they take full height — no bottom nav to clear. */}
+      <div className="bottom-safe-14 fixed inset-x-0 top-0 z-50 bg-black/50 md:bottom-0" />
       <div
         ref={drawerRef}
-        className="pt-safe-8 bottom-safe-14 fixed left-0 top-0 z-50 flex w-[80vw] max-w-[320px] flex-col bg-neutral-900 shadow-2xl"
+        className="pt-safe-8 bottom-safe-14 fixed left-0 top-0 z-50 flex w-[80vw] max-w-[320px] flex-col bg-neutral-900 shadow-2xl md:bottom-0 md:w-80"
       >
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
           <div className="text-[13px] font-semibold text-text-primary">
