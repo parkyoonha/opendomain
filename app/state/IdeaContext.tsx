@@ -396,7 +396,7 @@ type Ctx = {
   setCenterMode: (v: "chip" | "topic") => void;
 
   memoListMode: boolean;
-  lastMemoPageId: string | null;
+  lastMemoView: string | null;
   showMemoList: () => void;
 
   multiAxisResults: Record<string, string>;
@@ -508,12 +508,12 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   >("topic");
   const [centerMode, setCenterMode] = useState<"chip" | "topic">("topic");
   const [memoListMode, setMemoListMode] = useState(false);
-  // Remember the most recently opened memo room so switching to another
-  // tab and back lands the user in that same room (카톡 식) instead of
-  // dumping them on the folder list every time.
-  const [lastMemoPageId, setLastMemoPageIdState] = useState<string | null>(
-    null,
-  );
+  // Remember the user's last memo-tab UI state so switching to another
+  // bottom-nav tab and back lands on exactly that view (카톡 식). Values:
+  //   null → user has not visited the memo tab yet (first-use)
+  //   "list" → last on the folder list
+  //   <pageId> → last inside that specific memo room
+  const [lastMemoView, setLastMemoViewState] = useState<string | null>(null);
   const [multiAxisResultsByKey, setMultiAxisResultsByKey] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -537,6 +537,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setPendingTopic(null);
     setDecomposition(null);
     setSplitMemoPageId(null);
+    setLastMemoViewState("list");
   }, []);
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
@@ -598,7 +599,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       } else {
         setInputMode("memo");
         setDecomposition(null);
-        setLastMemoPageIdState(id);
+        setLastMemoViewState(id);
       }
     },
     [pages],
@@ -614,7 +615,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setDecomposition(null);
       }
       if (splitMemoPageId === id) setSplitMemoPageId(null);
-      setLastMemoPageIdState((cur) => (cur === id ? null : cur));
+      setLastMemoViewState((cur) => (cur === id ? "list" : cur));
     },
     [currentPageId, splitMemoPageId],
   );
@@ -1434,7 +1435,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         };
         setPages((prev) => [newPage, ...prev]);
         setCurrentPageId(pageId);
-        setLastMemoPageIdState(pageId);
+        setLastMemoViewState(pageId);
         setDraftType(null);
       }
 
@@ -1459,9 +1460,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           return { ...p, memoIds: remaining };
         })
         .filter((p) => p.type !== "memo" || (p.memoIds?.length ?? 0) > 0);
-      // If the last-opened memo room was dropped (became empty), forget it.
-      setLastMemoPageIdState((cur) =>
-        cur && !next.some((p) => p.id === cur) ? null : cur,
+      // If the last-opened memo room was dropped (became empty), fall
+      // back to the list view rather than null — preserves the user's
+      // memo-tab history.
+      setLastMemoViewState((cur) =>
+        cur && cur !== "list" && !next.some((p) => p.id === cur)
+          ? "list"
+          : cur,
       );
       return next;
     });
@@ -2583,7 +2588,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       centerMode,
       setCenterMode,
       memoListMode,
-      lastMemoPageId,
+      lastMemoView,
       showMemoList,
       multiAxisResults,
       multiAxisStatus,
@@ -2755,7 +2760,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       activeSplitView,
       centerMode,
       memoListMode,
-      lastMemoPageId,
+      lastMemoView,
       showMemoList,
       multiAxisResults,
       multiAxisStatus,

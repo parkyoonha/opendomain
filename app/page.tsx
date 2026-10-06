@@ -38,7 +38,7 @@ function PageInner() {
     pendingTopic,
     pages,
     openPage,
-    lastMemoPageId,
+    lastMemoView,
     currentPageId,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
@@ -99,21 +99,49 @@ function PageInner() {
         </svg>
       </button>
       <DesktopMenuButton onOpenBusinessInfo={() => setBusinessInfoOpen(true)} />
-      {/* Mobile hamburger — top-left, opens the session history drawer. */}
-      <button
-        onClick={() => setHistoryDrawerOpen(true)}
-        aria-label="세션 히스토리 열기"
-        className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-          <path
-            d="M4 7h16M4 12h16M4 17h16"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+      {/* Mobile hamburger — top-left, opens the session history drawer.
+          Hidden on the memo tab; a back button takes its slot there. */}
+      {inputMode !== "memo" && (
+        <button
+          onClick={() => setHistoryDrawerOpen(true)}
+          aria-label="세션 히스토리 열기"
+          className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
+      {/* Mobile memo-room back button — appears when the user is inside
+          a memo room on the memo tab. Taps it to pop back to the folder
+          list. */}
+      {inputMode === "memo" &&
+        !memoListMode &&
+        currentPageId !== null &&
+        pages.some(
+          (p) => p.id === currentPageId && p.type === "memo",
+        ) && (
+          <button
+            onClick={showMemoList}
+            aria-label="메모방 목록으로"
+            className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+              <path
+                d="M15 6l-6 6 6 6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       {/* Desktop session-history button — sits directly below the chip
           button on the left rail so the user can jump between topic
           sessions without reaching for the mobile-only hamburger. */}
@@ -157,7 +185,11 @@ function PageInner() {
             </div>
           )}
           <main
-            className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 ${
+            className={`min-w-0 flex-1 overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 ${
+              inputMode === "memo"
+                ? "flex-col-reverse md:flex-col"
+                : "flex-col"
+            } ${
               isEmptyTopicState ? "justify-center md:justify-start" : ""
             } ${
               inSplit
@@ -222,41 +254,25 @@ function PageInner() {
                       return;
                     }
                     if (showChipPanel) setChipPanelOpen(false);
-                    // Memo tab = chat-room list once at least one memo
-                    // room exists (카톡-식 UX). Preserve the last-opened
-                    // room across tab switches: coming back from
-                    // 사고확장 restores the room the user was in, not
-                    // the folder list. Re-tapping 메모 while already
-                    // inside a room pops out to the list; while already
-                    // on the list stays there. First-use (no rooms)
-                    // drops into the empty draft so the user can create
-                    // the first room by typing.
+                    // Memo tab landing (카톡-식): always restore the
+                    // user's last memo-tab view (`lastMemoView`). The
+                    // in-room back button is how the user explicitly
+                    // leaves a room, so tab clicks never force a jump
+                    // to the list. First-time entry (lastMemoView=null)
+                    // lands on the folder list regardless of whether
+                    // any room exists yet.
                     if (t.key === "memo") {
-                      const alreadyOnMemoTab = inputMode === "memo";
-                      const inMemoRoomNow =
-                        alreadyOnMemoTab &&
-                        currentPageId !== null &&
+                      if (
+                        typeof lastMemoView === "string" &&
+                        lastMemoView !== "list" &&
                         pages.some(
                           (p) =>
-                            p.id === currentPageId && p.type === "memo",
-                        );
-                      if (inMemoRoomNow) {
-                        // Re-tap from inside a room → go to list
-                        showMemoList();
-                      } else if (
-                        lastMemoPageId &&
-                        pages.some(
-                          (p) =>
-                            p.id === lastMemoPageId && p.type === "memo",
+                            p.id === lastMemoView && p.type === "memo",
                         )
                       ) {
-                        openPage(lastMemoPageId);
+                        openPage(lastMemoView);
                       } else {
-                        const hasMemoRoom = pages.some(
-                          (p) => p.type === "memo",
-                        );
-                        if (hasMemoRoom) showMemoList();
-                        else startMemoDraft();
+                        showMemoList();
                       }
                     } else if (t.key === "topic") {
                       startTopicDraft();

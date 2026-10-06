@@ -54,15 +54,18 @@ export default function MemoStack() {
   };
 
   return (
-    <div className="mb-3 flex w-full max-w-[860px] flex-col gap-2">
-      <div className="text-[10px] uppercase tracking-wider text-text-muted">
-        메모
-      </div>
-      {memosToShow.map((m) => {
+    <div className="flex w-full max-w-[860px] flex-col">
+      {memosToShow.map((m, idx) => {
         const busy = status === "loading" || combineStatus === "loading";
         const isOpen = openMemoId === m.id;
+        const isLast = idx === memosToShow.length - 1;
         return (
-          <div key={m.id} className="flex w-full flex-col gap-1.5">
+          <div
+            key={m.id}
+            className={`flex w-full flex-col gap-1.5 py-3 ${
+              isLast ? "" : "border-b border-white/10"
+            }`}
+          >
             <div
               onClick={() => {
                 if (typeof window !== "undefined") {
@@ -74,24 +77,20 @@ export default function MemoStack() {
                 }
                 setOpenMemoId(isOpen ? null : m.id);
               }}
-              className={`w-full cursor-pointer rounded-lg p-4 transition-colors ${
-                isOpen
-                  ? "bg-white/[0.1]"
-                  : "bg-white/[0.05] hover:bg-white/[0.08]"
-              }`}
+              className="w-full cursor-pointer"
             >
               <p
                 ref={(el) => {
                   if (el) textRefs.current.set(m.id, el);
                   else textRefs.current.delete(m.id);
                 }}
-                className="whitespace-pre-wrap break-words text-[11px] leading-4 text-text-primary selection:bg-white/30"
+                className="whitespace-pre-wrap break-words text-[13px] leading-5 text-text-primary selection:bg-white/30"
               >
                 {m.text}
               </p>
             </div>
             {isOpen && (
-              <div className="flex flex-wrap items-center gap-1 pl-2">
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   onClick={() => {
                     const sel = getSelectionInside(m.id);
@@ -131,9 +130,6 @@ export default function MemoStack() {
                 >
                   삭제
                 </button>
-                <span className="ml-1 text-[9px] text-text-muted">
-                  텍스트 일부를 드래그 선택하면 그 부분만 사용됩니다
-                </span>
               </div>
             )}
           </div>
