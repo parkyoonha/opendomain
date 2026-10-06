@@ -10,7 +10,6 @@ import BusinessInfoModal from "./components/BusinessInfoModal";
 import MemoSidebar from "./components/MemoSidebar";
 import LoginModal from "./components/LoginModal";
 import AuthMenu from "./components/AuthMenu";
-import BottomMenuSheet from "./components/BottomMenuSheet";
 import DesktopMenuButton from "./components/DesktopMenuButton";
 import SessionHistoryDrawer from "./components/SessionHistoryDrawer";
 import { IdeaProvider, useIdea } from "./state/IdeaContext";
@@ -44,7 +43,6 @@ function PageInner() {
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
   const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
-  const [bottomMenuOpen, setBottomMenuOpen] = useState(false);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const isEmptyTopicState =
@@ -58,7 +56,7 @@ function PageInner() {
   // The CSS selector below hides .mobile-decompose-fab while any of
   // them is open.
   const mobileOverlayOpen =
-    chipAsBottomSheet || bottomMenuOpen || historyDrawerOpen;
+    chipAsBottomSheet || historyDrawerOpen;
 
   return (
     <div
@@ -100,18 +98,19 @@ function PageInner() {
       </button>
       <DesktopMenuButton onOpenBusinessInfo={() => setBusinessInfoOpen(true)} />
       {/* Mobile hamburger — top-left, opens the session history drawer.
-          Hidden on the memo tab; a back button takes its slot there. */}
+          No bg, just the icon. Hidden on the memo tab; a back button
+          takes its slot there. */}
       {inputMode !== "memo" && (
         <button
           onClick={() => setHistoryDrawerOpen(true)}
           aria-label="세션 히스토리 열기"
-          className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
+          className="safe-top-offset absolute left-3 z-30 flex h-10 w-10 items-center justify-center text-text-secondary hover:text-text-primary md:hidden"
         >
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7">
             <path
               d="M4 7h16M4 12h16M4 17h16"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth="1.75"
               strokeLinecap="round"
             />
           </svg>
@@ -220,26 +219,18 @@ function PageInner() {
                 { key: "topic", label: "사고확장" },
                 { key: "memo", label: "메모" },
                 { key: "chip", label: "칩" },
-                { key: "menu", label: "메뉴" },
               ] as const
             ).map((t) => {
               const active =
-                t.key === "menu"
-                  ? bottomMenuOpen
-                  : inSplit
-                    ? activeSplitView === t.key
-                    : t.key === "chip"
-                      ? showChipPanel
-                      : !showChipPanel && inputMode === t.key;
+                inSplit
+                  ? activeSplitView === t.key
+                  : t.key === "chip"
+                    ? showChipPanel
+                    : !showChipPanel && inputMode === t.key;
               return (
                 <button
                   key={t.key}
                   onClick={() => {
-                    if (t.key === "menu") {
-                      setBottomMenuOpen((v) => !v);
-                      return;
-                    }
-                    if (bottomMenuOpen) setBottomMenuOpen(false);
                     if (t.key === "chip") {
                       if (showChipPanel && !inSplit) {
                         setChipPanelOpen(false);
@@ -294,10 +285,6 @@ function PageInner() {
       <SessionHistoryDrawer
         open={historyDrawerOpen}
         onClose={() => setHistoryDrawerOpen(false)}
-      />
-      <BottomMenuSheet
-        open={bottomMenuOpen}
-        onClose={() => setBottomMenuOpen(false)}
         onOpenBusinessInfo={() => setBusinessInfoOpen(true)}
       />
       <LoginModal
