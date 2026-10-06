@@ -7,7 +7,6 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import {
-  feasibilityIcon,
   feasibilityLabel,
   feasibilityPalette,
 } from "@/lib/verify";
@@ -365,7 +364,7 @@ export default function PendingTopicCard() {
                               <FacetNode
                                 rootAxis="주제"
                                 pathName={r.name}
-                                facetName={`${r.id} ${feasibilityIcon[r.feasibility]} ${r.description || r.name}`}
+                                facetName={`${r.id}. ${r.description || r.name}`}
                                 facetText={
                                   r.rationale ||
                                   (hasIO
@@ -388,8 +387,7 @@ export default function PendingTopicCard() {
                                   className={`text-[13px] md:text-[11px] ${pal.text}`}
                                 >
                                   <span className="font-semibold">
-                                    {r.id} {feasibilityIcon[r.feasibility]}{" "}
-                                    {r.description || r.name}
+                                    {r.id}. {r.description || r.name}
                                   </span>
                                   {r.description &&
                                     r.name &&
@@ -465,16 +463,16 @@ export default function PendingTopicCard() {
                       }
 
                       return (
-                        <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-rose-500/10 px-3 py-2">
-                          <div className="text-[9px] uppercase tracking-wider text-rose-200/80">
+                        <div className="mt-1 flex flex-col gap-2 rounded-md bg-white/[0.16] px-3 py-3">
+                          <div className="text-[10px] uppercase tracking-wider text-text-muted">
                             충돌·실패 → 새 목표
                           </div>
-                          <div className="text-[13px] font-bold leading-5 text-text-primary md:text-[12px] md:leading-4">
+                          <div className="text-[14px] font-bold leading-5 text-text-primary md:text-[13px] md:leading-5">
                             {subGoal}
                           </div>
                           <button
                             onClick={onResolve}
-                            className="inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:opacity-90 md:text-[10px]"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 md:text-[12px]"
                           >
                             해결 → 매트릭스
                           </button>

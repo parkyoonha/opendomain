@@ -46,26 +46,27 @@ export const feasibilityIcon: Record<Feasibility, string> = {
   unknown: "?",
 };
 
-// Palette: match 사고확장 axis card style — background tint only, no
-// outline border. Feasibility is still conveyed via the inner `chip`
-// badge in each requirement card.
+// Palette: match 사고확장 axis card bg (bg-white/[0.08]) for feasible +
+// unknown rows. Infeasible gets a brighter neutral tint (bg-white/[0.16])
+// so the critical row visually stands out without introducing a colored
+// background. Feasibility is still conveyed via the inner `chip` badge.
 export const feasibilityPalette: Record<
   Feasibility,
   { bg: string; text: string; chip: string }
 > = {
   feasible: {
-    bg: "bg-emerald-500/10",
-    text: "text-emerald-100",
+    bg: "bg-white/[0.08]",
+    text: "text-text-primary",
     chip: "bg-emerald-500/30 text-emerald-100",
   },
   infeasible: {
-    bg: "bg-rose-500/10",
-    text: "text-rose-100",
+    bg: "bg-white/[0.16]",
+    text: "text-text-primary",
     chip: "bg-rose-500/30 text-rose-100",
   },
   unknown: {
-    bg: "bg-slate-500/10",
-    text: "text-slate-100",
+    bg: "bg-white/[0.08]",
+    text: "text-text-primary",
     chip: "bg-slate-500/30 text-slate-100",
   },
 };
