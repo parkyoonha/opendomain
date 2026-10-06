@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { useIdea, principleKey } from "../state/IdeaContext";
-import { FacetNode } from "./DecompositionTree";
+import { FacetNode, CombinedIdeasBoardSection } from "./DecompositionTree";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
@@ -47,6 +47,8 @@ export default function PendingTopicCard() {
     combinedIdeas,
     combineStatus,
     clearCombined,
+    focusedCombinedIdeaId,
+    setFocusedCombinedIdeaId,
     expandedPrinciples,
     markPrincipleExpanded,
   } = useIdea();
@@ -56,6 +58,8 @@ export default function PendingTopicCard() {
   const [verifyBusy, setVerifyBusy] = useState(false);
   const verifyColRef = useRef<HTMLDivElement>(null);
   const prevGenCountRef = useRef(0);
+  const combineColRef = useRef<HTMLDivElement>(null);
+  const prevCombineCountRef = useRef(0);
 
   if (!pendingTopic) return null;
 
@@ -66,6 +70,46 @@ export default function PendingTopicCard() {
   const customContext = principleCustomContext[pk] ?? "";
   const vLens = principleVerifyLens[pk] ?? null;
   const vGens = verifyDerived[pk] ?? [];
+
+  const pendingCombines = combinedIdeas.filter(
+    (c) => c.topicAxis === "주제",
+  );
+
+  // Scroll the combine column into view when a new combine arrives from
+  // the chip panel. The panel closes itself after triggering combine, so
+  // without this the user lands back on the verify view with no visible
+  // sign the combine actually produced results (they'd be off-screen to
+  // the right in the horizontal scroller).
+  useLayoutEffect(() => {
+    const prev = prevCombineCountRef.current;
+    prevCombineCountRef.current = pendingCombines.length;
+    if (pendingCombines.length <= prev) return;
+    const el = combineColRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      let scroller: HTMLElement | null = el.parentElement;
+      while (scroller) {
+        const s = getComputedStyle(scroller);
+        if (
+          s.overflowX === "auto" ||
+          s.overflowX === "scroll" ||
+          s.overflow === "auto" ||
+          s.overflow === "scroll"
+        )
+          break;
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
+        return;
+      }
+      const wRect = el.getBoundingClientRect();
+      const sRect = scroller.getBoundingClientRect();
+      const delta = wRect.right - sRect.right + 24;
+      scroller.scrollBy({ left: delta, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pendingCombines.length]);
 
   // Scroll the verify column into view the first time a new generation
   // appears, mirroring the explore board's horizontal auto-scroll.
@@ -489,61 +533,24 @@ export default function PendingTopicCard() {
     )}
 
     {/* 조합 결과 — 매트릭스에서 chip을 조합한 뒤 아이디어들이 렌더되는 컬럼.
-        pending 상태에서는 selectedPrinciple이 synthetic "주제::X 공급원" 모양이라
-        topicAxis === "주제"로 필터. */}
+        CombinedIdeasBoardSection을 재사용해서 explore 보드와 동일한
+        칩명 태그 / X 버튼 / FacetNode 사고확장 UX를 그대로 적용. */}
     {mode === "verify" &&
-      (() => {
-        const ideas = combinedIdeas.filter(
-          (c) => c.topicAxis === "주제",
-        );
-        if (ideas.length === 0 && combineStatus !== "loading") return null;
-        return (
-          <div className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-2 md:w-[560px]">
-            <div className="flex items-center justify-between gap-1">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-medium text-text-primary">
-                조합 결과
-              </span>
-              {ideas.length > 0 && (
-                <button
-                  onClick={clearCombined}
-                  title="조합 결과 초기화"
-                  className="text-[10px] text-text-muted hover:text-text-primary"
-                >
-                  × 지우기
-                </button>
-              )}
-            </div>
-            {combineStatus === "loading" && ideas.length === 0 && (
-              <p className="text-[11px] text-text-muted md:text-[10px]">
-                아이디어 생성 중...
-              </p>
-            )}
-            {combineStatus === "error" && (
-              <p className="text-[11px] text-red-400 md:text-[10px]">
-                조합 실패
-              </p>
-            )}
-            <ul className="flex flex-col gap-1.5">
-              {ideas.map((idea) => (
-                <li
-                  key={idea.id}
-                  className="rounded-md bg-white/[0.06] px-3 py-2"
-                >
-                  <div className="text-[13px] font-semibold text-text-primary md:text-[12px]">
-                    {idea.title}
-                  </div>
-                  <div className="mt-0.5 text-[12px] leading-5 text-text-secondary md:text-[10px] md:leading-4">
-                    {idea.summary}
-                  </div>
-                  <div className="mt-1 text-[9px] uppercase tracking-wider text-text-muted">
-                    {idea.chipLabel}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })()}
+      (pendingCombines.length > 0 || combineStatus === "loading") && (
+        <div
+          ref={combineColRef}
+          className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-2 md:w-[560px]"
+        >
+          <CombinedIdeasBoardSection
+            combinedIdeas={pendingCombines}
+            combineStatus={combineStatus === "loading" ? "loading" : "idle"}
+            clearCombined={clearCombined}
+            focusedCombinedIdeaId={focusedCombinedIdeaId}
+            setFocusedCombinedIdeaId={setFocusedCombinedIdeaId}
+            parentAxis="주제"
+          />
+        </div>
+      )}
     </div>
   );
 }

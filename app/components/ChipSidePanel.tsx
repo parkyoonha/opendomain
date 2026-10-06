@@ -594,10 +594,6 @@ export default function ChipSidePanel() {
 
         {tab === "similar" && hasPrinciple && matrixMode && (
           <div className="flex flex-col gap-2">
-            <div className="rounded-md bg-white/[0.04] px-2 py-1 text-[10px] text-text-muted md:text-[9px]">
-              각 후보가 전체 {chipFocusRequirements?.length ?? 0}개 요건에 대해
-              얼마나 매칭되는지 자동 검사 · 모두 ○이면 녹색
-            </div>
             {matrixStatus === "loading" && (
               <p className="text-[14px] text-text-muted md:text-[11px]">
                 후보 × 요건 매칭 검사 중...
@@ -666,8 +662,15 @@ export default function ChipSidePanel() {
                             const icon = m
                               ? focusMatchIcon[verdict]
                               : "·";
+                            // When the row is staged, swap the verdict
+                            // colour (emerald / amber / rose) for a dark
+                            // tone so the ○/△/✗ reads clearly against
+                            // the white staged background instead of
+                            // staying stuck in the pre-click green.
                             const iconCol = m
-                              ? focusMatchColor[verdict]
+                              ? isStaged
+                                ? "text-black"
+                                : focusMatchColor[verdict]
                               : "text-text-muted";
                             const pillBg = isStaged
                               ? "bg-black/10"

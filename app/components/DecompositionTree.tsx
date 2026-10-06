@@ -59,7 +59,7 @@ const TAG_PALETTE = [
   { border: "border-lime-400/70", bg: "bg-lime-500/40", text: "text-lime-100" },
 ];
 
-function chipTagPalette(seed: string) {
+export function chipTagPalette(seed: string) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
   return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length];
@@ -2236,7 +2236,7 @@ type CombinedIdeasBoardSectionProps = {
   parentAxis: string;
 };
 
-function CombinedIdeasBoardSection({
+export function CombinedIdeasBoardSection({
   combinedIdeas,
   combineStatus,
   clearCombined,
@@ -2302,7 +2302,7 @@ function CombinedIdeasBoardSection({
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${pal.border} ${pal.bg} ${pal.text}`}
               >
-                조합 · {chipLabel}
+                {chipLabel}
               </span>
               <button
                 onClick={clearCombined}
