@@ -37,6 +37,9 @@ function PageInner() {
     decomposition,
     pendingTopic,
     pages,
+    openPage,
+    lastMemoPageId,
+    currentPageId,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
@@ -220,20 +223,40 @@ function PageInner() {
                     }
                     if (showChipPanel) setChipPanelOpen(false);
                     // Memo tab = chat-room list once at least one memo
-                    // room exists (카톡-식 UX): default view is the
-                    // folder list, and re-tapping the tab from inside a
-                    // room pops back to the list. Only the very first
-                    // use (no rooms yet) drops the user straight into
-                    // the empty draft so they can create the first
-                    // room by typing.
+                    // room exists (카톡-식 UX). Preserve the last-opened
+                    // room across tab switches: coming back from
+                    // 사고확장 restores the room the user was in, not
+                    // the folder list. Re-tapping 메모 while already
+                    // inside a room pops out to the list; while already
+                    // on the list stays there. First-use (no rooms)
+                    // drops into the empty draft so the user can create
+                    // the first room by typing.
                     if (t.key === "memo") {
-                      const hasMemoRoom = pages.some(
-                        (p) => p.type === "memo",
-                      );
-                      if (hasMemoRoom) {
+                      const alreadyOnMemoTab = inputMode === "memo";
+                      const inMemoRoomNow =
+                        alreadyOnMemoTab &&
+                        currentPageId !== null &&
+                        pages.some(
+                          (p) =>
+                            p.id === currentPageId && p.type === "memo",
+                        );
+                      if (inMemoRoomNow) {
+                        // Re-tap from inside a room → go to list
                         showMemoList();
+                      } else if (
+                        lastMemoPageId &&
+                        pages.some(
+                          (p) =>
+                            p.id === lastMemoPageId && p.type === "memo",
+                        )
+                      ) {
+                        openPage(lastMemoPageId);
                       } else {
-                        startMemoDraft();
+                        const hasMemoRoom = pages.some(
+                          (p) => p.type === "memo",
+                        );
+                        if (hasMemoRoom) showMemoList();
+                        else startMemoDraft();
                       }
                     } else if (t.key === "topic") {
                       startTopicDraft();
