@@ -63,7 +63,7 @@ export default function BottomMenuSheet({
       // Sits just above the bottom nav (nav is bottom-0 with safe-bottom
       // padding); the sheet's bottom edge aligns with the nav's top.
       ref={sheetRef}
-      className="bottom-safe-14 absolute inset-x-0 z-40 mx-2 rounded-t-lg bg-neutral-900 p-2 shadow-2xl ring-1 ring-white/10 md:hidden"
+      className="bottom-safe-14 absolute inset-x-0 z-40 mx-2 rounded-t-lg border border-b-0 border-white/10 bg-neutral-900 p-2 shadow-2xl md:hidden"
     >
       {/* Auth section */}
       {authReady &&

@@ -142,7 +142,7 @@ function PageInner() {
               <MemoSidebar />
             </div>
           )}
-          <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex bg-neutral-900 md:hidden">
+          <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex border-t border-white/10 bg-neutral-900 md:hidden">
             {(
               [
                 { key: "topic", label: "사고확장" },
