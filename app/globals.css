@@ -50,3 +50,11 @@ body {
      padding; matching this puts overlay sheets flush with the nav. */
   bottom: calc(env(safe-area-inset-bottom, 0px) + 3rem);
 }
+
+/* Hide the mobile 분해 시작 / 증명 시작 FAB whenever a blocking
+   overlay is open (chip bottom-sheet, bottom menu sheet, or session
+   history drawer). Without this the rounded pill peeks out next to
+   the drawer and reads as a stray UI artifact at the bottom bar. */
+[data-mobile-overlay="true"] .mobile-decompose-fab {
+  display: none;
+}

@@ -49,8 +49,18 @@ function PageInner() {
   const chipAsBottomSheet =
     showChipPanel && !inSplit && inputMode === "topic";
 
+  // Any of these overlays sits above the mobile FAB and would otherwise
+  // reveal the pill peeking out on the uncovered side of the screen.
+  // The CSS selector below hides .mobile-decompose-fab while any of
+  // them is open.
+  const mobileOverlayOpen =
+    chipAsBottomSheet || bottomMenuOpen || historyDrawerOpen;
+
   return (
-    <div className="relative flex h-full w-full bg-black">
+    <div
+      data-mobile-overlay={mobileOverlayOpen ? "true" : undefined}
+      className="relative flex h-full w-full bg-black"
+    >
       <button
         onClick={() => setChipPanelOpen(!showChipPanel)}
         aria-label={showChipPanel ? "칩 패널 닫기" : "칩 패널 열기"}

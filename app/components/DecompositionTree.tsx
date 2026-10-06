@@ -627,7 +627,7 @@ function MobileDecomposeFab({
       onClick={handleClick}
       disabled={loading}
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
-      className={`absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden ${
+      className={`mobile-decompose-fab absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden ${
         isVerify ? "bg-amber-400" : "bg-white"
       }`}
     >
