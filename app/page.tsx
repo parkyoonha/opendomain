@@ -36,6 +36,7 @@ function PageInner() {
     setLoginModalOpen,
     decomposition,
     pendingTopic,
+    pages,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
@@ -218,15 +219,22 @@ function PageInner() {
                       return;
                     }
                     if (showChipPanel) setChipPanelOpen(false);
-                    // Mirror desktop InputBar: tapping the memo/topic tab
-                    // always starts a fresh draft unless the user is
-                    // already on an empty draft of that mode. Without
-                    // this the mobile user who is already inside a memo
-                    // group has no way to create a new group via the
-                    // bottom tab — typing just appends to the current
-                    // group.
+                    // Memo tab = chat-room list once at least one memo
+                    // room exists (카톡-식 UX): default view is the
+                    // folder list, and re-tapping the tab from inside a
+                    // room pops back to the list. Only the very first
+                    // use (no rooms yet) drops the user straight into
+                    // the empty draft so they can create the first
+                    // room by typing.
                     if (t.key === "memo") {
-                      startMemoDraft();
+                      const hasMemoRoom = pages.some(
+                        (p) => p.type === "memo",
+                      );
+                      if (hasMemoRoom) {
+                        showMemoList();
+                      } else {
+                        startMemoDraft();
+                      }
                     } else if (t.key === "topic") {
                       startTopicDraft();
                     }
