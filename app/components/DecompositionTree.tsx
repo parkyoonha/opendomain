@@ -1814,7 +1814,7 @@ function AttachedChipsRow({
   );
 }
 
-function FacetNode({
+export function FacetNode({
   rootAxis,
   pathName,
   facetName,
@@ -2386,6 +2386,8 @@ function VerifyReportCard({
     setChipPanelOpen,
     runRecommendChips,
     runChipFocusMatrix,
+    expandedPrinciples,
+    markPrincipleExpanded,
   } = useIdea();
   const matrixReqs = report.requirements.map((r) => ({
     id: r.id,
@@ -2490,49 +2492,83 @@ function VerifyReportCard({
         {orderedReqs.map((r) => {
           const pal = feasibilityPalette[r.feasibility];
           const hasIO = r.needs.length > 0 || r.provides.length > 0;
+          const pk = principleKey(parentAxis, r.name);
+          const isExpanded = expandedPrinciples.has(pk);
+          const expandReq = () => {
+            const sel = {
+              axis: parentAxis,
+              name: r.name,
+              text: r.description || r.name,
+            };
+            selectPrinciple(sel);
+            markPrincipleExpanded(pk);
+            void runRecommendChips(parentAxis, r.name, sel.text);
+          };
+          if (isExpanded) {
+            // Hand off to the standard FacetNode so the user gets the
+            // same decompose controller as any other facet in the tree.
+            return (
+              <li key={r.id}>
+                <FacetNode
+                  rootAxis={parentAxis}
+                  pathName={r.name}
+                  facetName={`${r.id} ${feasibilityIcon[r.feasibility]} ${r.description || r.name}`}
+                  facetText={
+                    r.rationale ||
+                    (hasIO
+                      ? `${r.needs.join(" + ")}${r.provides.length ? ` → ${r.provides.join(" + ")}` : ""}`
+                      : r.description)
+                  }
+                />
+              </li>
+            );
+          }
           return (
-            <li
-              key={r.id}
-              className={`flex flex-col gap-0.5 rounded-md px-3 py-1.5 ${pal.bg}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div
-                  className={`text-[13px] md:text-[11px] ${pal.text}`}
-                >
-                  <span className="font-semibold">
-                    {r.id} {feasibilityIcon[r.feasibility]} {r.description || r.name}
-                  </span>
-                  {r.description && r.name && r.description !== r.name && (
-                    <span
-                      className={`ml-1 text-[11px] font-normal md:text-[10px] ${
-                        r.feasibility === "infeasible"
-                          ? "text-rose-200/80"
-                          : "text-text-muted"
-                      }`}
-                    >
-                      ({r.name})
+            <li key={r.id}>
+              <button
+                onClick={expandReq}
+                title="클릭하여 이 요건을 다시 분해"
+                className={`flex w-full flex-col gap-0.5 rounded-md px-3 py-1.5 text-left transition-colors ${pal.bg} hover:brightness-110`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div
+                    className={`text-[13px] md:text-[11px] ${pal.text}`}
+                  >
+                    <span className="font-semibold">
+                      {r.id} {feasibilityIcon[r.feasibility]} {r.description || r.name}
                     </span>
-                  )}
+                    {r.description && r.name && r.description !== r.name && (
+                      <span
+                        className={`ml-1 text-[11px] font-normal md:text-[10px] ${
+                          r.feasibility === "infeasible"
+                            ? "text-rose-200/80"
+                            : "text-text-muted"
+                        }`}
+                      >
+                        ({r.name})
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                  >
+                    {feasibilityLabel[r.feasibility]}
+                  </span>
                 </div>
-                <span
-                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                >
-                  {feasibilityLabel[r.feasibility]}
-                </span>
-              </div>
-              {hasIO && (
-                <div
-                  className={`text-[10px] leading-4 md:text-[9px] ${
-                    r.feasibility === "infeasible"
-                      ? "text-rose-200/80"
-                      : "text-text-muted"
-                  }`}
-                >
-                  {r.needs.length > 0 && r.needs.join(" + ")}
-                  {r.needs.length > 0 && r.provides.length > 0 && " → "}
-                  {r.provides.length > 0 && r.provides.join(" + ")}
-                </div>
-              )}
+                {hasIO && (
+                  <div
+                    className={`text-[10px] leading-4 md:text-[9px] ${
+                      r.feasibility === "infeasible"
+                        ? "text-rose-200/80"
+                        : "text-text-muted"
+                    }`}
+                  >
+                    {r.needs.length > 0 && r.needs.join(" + ")}
+                    {r.needs.length > 0 && r.provides.length > 0 && " → "}
+                    {r.provides.length > 0 && r.provides.join(" + ")}
+                  </div>
+                )}
+              </button>
             </li>
           );
         })}

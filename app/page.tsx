@@ -12,6 +12,7 @@ import LoginModal from "./components/LoginModal";
 import AuthMenu from "./components/AuthMenu";
 import BottomMenuSheet from "./components/BottomMenuSheet";
 import DesktopMenuButton from "./components/DesktopMenuButton";
+import SessionHistoryDrawer from "./components/SessionHistoryDrawer";
 import { IdeaProvider, useIdea } from "./state/IdeaContext";
 
 function PageInner() {
@@ -33,12 +34,17 @@ function PageInner() {
     startTopicDraft,
     loginModalOpen,
     setLoginModalOpen,
+    decomposition,
+    pendingTopic,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
   const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
   const [bottomMenuOpen, setBottomMenuOpen] = useState(false);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
+  const isEmptyTopicState =
+    inputMode === "topic" && !decomposition && !pendingTopic;
   const canGoBack = inputMode === "memo" && !memoListMode;
   const chipAsBottomSheet =
     showChipPanel && !inSplit && inputMode === "topic";
@@ -79,6 +85,21 @@ function PageInner() {
         </svg>
       </button>
       <DesktopMenuButton onOpenBusinessInfo={() => setBusinessInfoOpen(true)} />
+      {/* Mobile hamburger — top-left, opens the session history drawer. */}
+      <button
+        onClick={() => setHistoryDrawerOpen(true)}
+        aria-label="세션 히스토리 열기"
+        className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <path
+            d="M4 7h16M4 12h16M4 17h16"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
       <>
           {showChipPanel && (
             <div
@@ -97,6 +118,8 @@ function PageInner() {
           )}
           <main
             className={`min-w-0 flex-1 flex-col overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 ${
+              isEmptyTopicState ? "justify-center md:justify-start" : ""
+            } ${
               inSplit
                 ? activeSplitView === "topic"
                   ? "flex"
@@ -185,6 +208,10 @@ function PageInner() {
           </nav>
         </>
       <AuthMenu />
+      <SessionHistoryDrawer
+        open={historyDrawerOpen}
+        onClose={() => setHistoryDrawerOpen(false)}
+      />
       <BottomMenuSheet
         open={bottomMenuOpen}
         onClose={() => setBottomMenuOpen(false)}

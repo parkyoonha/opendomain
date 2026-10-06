@@ -184,6 +184,10 @@ export default function ChipSidePanel() {
       chipReason: staged.source === "similar" ? staged.reason ?? null : null,
     });
     setStaged(null);
+    // Close the chip panel so the user actually sees the combined
+    // ideas rendered in the main view (otherwise on mobile the panel
+    // covers everything and the combine seems to do nothing).
+    setChipPanelOpen(false);
   };
 
   const decomposeStaged = () => {
