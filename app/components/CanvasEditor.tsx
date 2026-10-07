@@ -183,8 +183,8 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
   }, [textOverlay, onCancel]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black">
-      <div className="safe-top-offset flex shrink-0 items-center justify-between gap-2 px-3 pb-2">
+    <div className="pt-safe-8 safe-bottom fixed inset-0 z-[60] flex flex-col bg-black">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
         <button
           onClick={onCancel}
           className="rounded-md px-3 py-1.5 text-[13px] text-text-secondary hover:bg-white/10 hover:text-text-primary"
@@ -240,7 +240,7 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
       </div>
       <div
         ref={wrapperRef}
-        className="pb-safe-14 relative mx-3 mb-3 flex-1 overflow-hidden rounded-md border border-white/10 bg-white"
+        className="relative mx-3 mb-3 flex-1 overflow-hidden rounded-md border border-white/10 bg-white"
       >
         <canvas
           ref={canvasRef}

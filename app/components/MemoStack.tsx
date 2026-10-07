@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIdea } from "../state/IdeaContext";
 
 // Match an http(s) URL that ends in a common image extension OR looks
@@ -63,7 +63,20 @@ export default function MemoStack() {
     pages,
   } = useIdea();
   const [openMemoId, setOpenMemoId] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const textRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  // Esc closes the in-app image lightbox. Avoids the ImgBB redirect
+  // path which rendered the image through a 3rd-party viewer that
+  // looked dimmed on Capacitor's WebView.
+  useEffect(() => {
+    if (!lightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxUrl(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [lightboxUrl]);
 
   // If on a memo folder page, show only that page's memos in the recorded order
   const currentMemoPage = pages.find(
@@ -100,6 +113,7 @@ export default function MemoStack() {
   };
 
   return (
+    <>
     <div className="flex w-full max-w-[860px] flex-col">
       {memosToShow.map((m, idx) => {
         const busy = status === "loading" || combineStatus === "loading";
@@ -142,11 +156,13 @@ export default function MemoStack() {
                     >
                       <div className="flex gap-1.5 px-3">
                         {seg.urls.map((url, j) => (
-                          <a
+                          <button
                             key={j}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLightboxUrl(url);
+                            }}
                             style={{
                               flex: "0 0 44%",
                               scrollSnapAlign: "start",
@@ -161,7 +177,7 @@ export default function MemoStack() {
                               loading="lazy"
                               className="h-full w-full object-cover"
                             />
-                          </a>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -223,5 +239,37 @@ export default function MemoStack() {
         );
       })}
     </div>
+    {lightboxUrl && (
+      <div
+        onClick={() => setLightboxUrl(null)}
+        className="pt-safe-8 safe-bottom fixed inset-0 z-[70] flex items-center justify-center bg-black"
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setLightboxUrl(null);
+          }}
+          aria-label="닫기"
+          className="safe-top-offset absolute right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08] text-text-primary hover:bg-white/[0.16]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <path
+              d="M6 6l12 12M18 6L6 18"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={lightboxUrl}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-full max-w-full object-contain"
+        />
+      </div>
+    )}
+    </>
   );
 }

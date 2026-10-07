@@ -111,11 +111,11 @@ export default function InputBar() {
     setUploadingImage(true);
     try {
       // Upload all picked files in parallel so a 5-image pick doesn't
-      // serialize into 5 sequential waits.
+      // serialize into 5 sequential waits. Each pick posts immediately
+      // as its own memo (chat-style) — the user does NOT have to press
+      // Enter after. Their in-progress text draft is left untouched.
       const urls = await Promise.all(files.map((f) => uploadBlob(f)));
-      setMemoText((cur) =>
-        cur ? `${cur}\n${urls.join("\n")}` : urls.join("\n"),
-      );
+      addMemo(urls.join("\n"));
     } catch (err) {
       alert(
         "이미지 업로드 실패: " +
@@ -137,7 +137,9 @@ export default function InputBar() {
     setUploadingImage(true);
     try {
       const url = await uploadBlob(blob, `canvas-${Date.now()}.png`);
-      setMemoText((cur) => (cur ? `${cur}\n${url}` : url));
+      // Chat-style: canvas posts immediately as its own memo. Keep the
+      // user's text draft intact so they can keep composing.
+      addMemo(url);
     } catch (err) {
       alert(
         "캔버스 업로드 실패: " +
