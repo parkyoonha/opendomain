@@ -238,10 +238,16 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
           {saving ? "저장중…" : "저장"}
         </button>
       </div>
-      <div
-        ref={wrapperRef}
-        className="relative mx-3 mb-3 flex-1 overflow-hidden rounded-md border border-white/10 bg-white"
-      >
+      <div className="flex flex-1 items-center justify-center overflow-hidden px-3 pb-3">
+        <div
+          ref={wrapperRef}
+          style={{
+            aspectRatio: "2 / 3",
+            maxHeight: "100%",
+            maxWidth: "100%",
+          }}
+          className="relative overflow-hidden rounded-md border border-white/10 bg-white"
+        >
         <canvas
           ref={canvasRef}
           onPointerDown={onPointerDown}
@@ -297,6 +303,7 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

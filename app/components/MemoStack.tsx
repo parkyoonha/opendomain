@@ -164,9 +164,9 @@ export default function MemoStack() {
                               setLightboxUrl(url);
                             }}
                             style={{
-                              flex: "0 0 44%",
+                              flex: "0 0 66%",
                               scrollSnapAlign: "start",
-                              aspectRatio: "1 / 1",
+                              aspectRatio: "2 / 3",
                             }}
                             className="overflow-hidden rounded-md bg-white/[0.04]"
                           >
