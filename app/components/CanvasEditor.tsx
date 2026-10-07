@@ -9,7 +9,10 @@ import {
 } from "react";
 
 type Props = {
-  onSave: (blob: Blob) => void;
+  // `close=false` → "다음 캔버스": save as pending but keep the editor
+  //   open with a cleared canvas so the user can draw another page.
+  // `close=true` → "저장": save and close the editor.
+  onSave: (blob: Blob, close: boolean) => void;
   onCancel: () => void;
 };
 
@@ -145,7 +148,7 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
     setTextOverlay(null);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (close: boolean) => {
     if (saving) return;
     // If a text overlay is still open, commit it first.
     if (textOverlay) commitTextOverlay();
@@ -157,7 +160,28 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
         canvas.toBlob((b) => resolve(b), "image/png"),
       );
       if (!blob) throw new Error("캔버스를 이미지로 내보내지 못했습니다.");
-      onSave(blob);
+      onSave(blob, close);
+      // "다음 캔버스": wipe the drawing so the user starts a fresh page.
+      if (!close) {
+        const ctx = canvas.getContext("2d");
+        const wrapper = wrapperRef.current;
+        if (ctx && wrapper) {
+          const rect = wrapper.getBoundingClientRect();
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          // Re-apply drawing styles (reset by fill restore above).
+          ctx.strokeStyle = "#111";
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.fillStyle = "#111";
+          ctx.font = "20px sans-serif";
+          ctx.textBaseline = "top";
+        }
+      }
     } catch (err) {
       alert(
         "저장 실패: " + (err instanceof Error ? err.message : String(err)),
@@ -230,13 +254,31 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
             텍스트
           </button>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-white px-3 py-1.5 text-[13px] font-bold text-black hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "저장중…" : "저장"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => void handleSave(false)}
+            disabled={saving}
+            title="현재 캔버스를 저장하고 새 캔버스로 계속"
+            className="flex items-center gap-1 rounded-md bg-white/[0.08] px-3 py-1.5 text-[13px] text-text-primary hover:bg-white/[0.16] disabled:opacity-50"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+            다음
+          </button>
+          <button
+            onClick={() => void handleSave(true)}
+            disabled={saving}
+            className="rounded-md bg-white px-3 py-1.5 text-[13px] font-bold text-black hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "저장중…" : "저장"}
+          </button>
+        </div>
       </div>
       <div className="flex flex-1 items-center justify-center overflow-hidden px-3 pb-3">
         <div

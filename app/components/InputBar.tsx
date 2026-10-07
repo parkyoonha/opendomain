@@ -30,6 +30,10 @@ export default function InputBar() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [canvasOpen, setCanvasOpen] = useState(false);
+  // Image / canvas uploads stage here as thumbnails above the text
+  // row. On submit the memo wraps text (top) + attachments (bottom)
+  // into a single entry.
+  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -67,16 +71,30 @@ export default function InputBar() {
 
   const busy = inputMode === "topic" && status === "loading";
 
-  const canSubmit = value.trim().length > 0 && !busy;
+  const hasAttachments =
+    inputMode === "memo" && pendingAttachments.length > 0;
+  const canSubmit =
+    (value.trim().length > 0 || hasAttachments) && !busy;
   const showSearchIcon = inputMode === "topic";
 
   const submit = () => {
     if (!canSubmit) return;
     if (inputMode === "topic") void runDecompose();
     else {
-      addMemo(memoText);
+      const textPart = memoText.trim();
+      const attachmentPart = pendingAttachments.join("\n");
+      const combined =
+        textPart && attachmentPart
+          ? `${textPart}\n${attachmentPart}`
+          : textPart || attachmentPart;
+      addMemo(combined);
       setMemoText("");
+      setPendingAttachments([]);
     }
+  };
+
+  const removeAttachment = (idx: number) => {
+    setPendingAttachments((cur) => cur.filter((_, i) => i !== idx));
   };
 
   // Upload one blob (file OR canvas output) to ImgBB via Edge Function
@@ -110,12 +128,10 @@ export default function InputBar() {
     if (files.length === 0) return;
     setUploadingImage(true);
     try {
-      // Upload all picked files in parallel so a 5-image pick doesn't
-      // serialize into 5 sequential waits. Each pick posts immediately
-      // as its own memo (chat-style) — the user does NOT have to press
-      // Enter after. Their in-progress text draft is left untouched.
+      // Upload in parallel; stage URLs as pending attachments so the
+      // user can add text (+ more images) before posting a single memo.
       const urls = await Promise.all(files.map((f) => uploadBlob(f)));
-      addMemo(urls.join("\n"));
+      setPendingAttachments((cur) => [...cur, ...urls]);
     } catch (err) {
       alert(
         "이미지 업로드 실패: " +
@@ -132,14 +148,15 @@ export default function InputBar() {
     setAttachMenuOpen(false);
     setCanvasOpen(true);
   };
-  const onCanvasSave = async (blob: Blob) => {
-    setCanvasOpen(false);
+  // CanvasEditor save callback. `close=false` means "다음 캔버스" —
+  // save as pending attachment, keep the editor open with a cleared
+  // canvas. `close=true` means "저장" — save pending and close.
+  const onCanvasSave = async (blob: Blob, close: boolean) => {
+    if (close) setCanvasOpen(false);
     setUploadingImage(true);
     try {
       const url = await uploadBlob(blob, `canvas-${Date.now()}.png`);
-      // Chat-style: canvas posts immediately as its own memo. Keep the
-      // user's text draft intact so they can keep composing.
-      addMemo(url);
+      setPendingAttachments((cur) => [...cur, url]);
     } catch (err) {
       alert(
         "캔버스 업로드 실패: " +
@@ -190,6 +207,40 @@ export default function InputBar() {
           onSave={onCanvasSave}
           onCancel={() => setCanvasOpen(false)}
         />
+      )}
+      {hasAttachments && (
+        <div className="mx-auto mb-2 flex gap-1.5 overflow-x-auto md:max-w-[760px]">
+          {pendingAttachments.map((url, i) => (
+            <div
+              key={`${url}-${i}`}
+              className="relative shrink-0 overflow-hidden rounded-md bg-white/[0.06]"
+              style={{ aspectRatio: "3 / 4", height: "4.5rem" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt=""
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <button
+                type="button"
+                onClick={() => removeAttachment(i)}
+                aria-label="첨부 제거"
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
       )}
       <form
         onSubmit={(e) => {
