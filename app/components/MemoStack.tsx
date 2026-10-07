@@ -144,7 +144,7 @@ export default function MemoStack() {
                   if (el) textRefs.current.set(m.id, el);
                   else textRefs.current.delete(m.id);
                 }}
-                className="selection:bg-white/30"
+                className="flex flex-col gap-2 selection:bg-white/30"
               >
                 {segmentMemo(m.text).map((seg, i) => {
                   if (seg.kind === "images") {

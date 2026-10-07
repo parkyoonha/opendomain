@@ -233,10 +233,11 @@ export default function DecompositionTree() {
     }
     return (
       <div className="flex flex-1 flex-col overflow-hidden bg-black">
-        {/* pt-14 on mobile leaves room for the top-left back button
-            (safe-top-offset + h-10) so the first memo doesn't collide
-            with it. Desktop goes back to the uniform py-6. */}
-        <div className="flex-1 overflow-auto px-6 pb-6 pt-14 md:pt-6">
+        {/* pt-12 on mobile leaves just enough room for the top-left
+            back button (safe-top-offset + h-10) so the first memo
+            sits close to the button without overlapping. Desktop
+            keeps the uniform py-6. */}
+        <div className="flex-1 overflow-auto px-6 pb-6 pt-12 md:pt-6">
           <MemoStack />
         </div>
       </div>
