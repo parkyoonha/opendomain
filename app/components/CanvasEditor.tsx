@@ -242,7 +242,7 @@ export default function CanvasEditor({ onSave, onCancel }: Props) {
         <div
           ref={wrapperRef}
           style={{
-            aspectRatio: "2 / 3",
+            aspectRatio: "3 / 4",
             maxHeight: "100%",
             maxWidth: "100%",
           }}
