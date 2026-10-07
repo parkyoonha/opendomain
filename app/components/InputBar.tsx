@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIdea, type InputMode } from "../state/IdeaContext";
 import { apiPath } from "@/lib/apiPath";
+import CanvasEditor from "./CanvasEditor";
 
 const modes: { key: InputMode; label: string; placeholder: string }[] = [
   {
@@ -27,7 +28,23 @@ export default function InputBar() {
   } = useIdea();
   const [memoText, setMemoText] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close the + popup when the user taps outside it.
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!attachWrapperRef.current) return;
+      if (!attachWrapperRef.current.contains(e.target as Node)) {
+        setAttachMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [attachMenuOpen]);
 
   const handleTabClick = (key: InputMode) => {
     if (key === inputMode && !currentPageId) {
@@ -62,33 +79,68 @@ export default function InputBar() {
     }
   };
 
-  // Pick an image → upload to ImgBB via our Edge Function → append the
-  // returned URL to the memo draft on its own line. Rendered as <img>
-  // in MemoStack. Keeps server storage at zero.
-  const pickImage = () => {
+  // Upload one blob (file OR canvas output) to ImgBB via Edge Function
+  // and return the hosted URL. Caller is responsible for state updates.
+  const uploadBlob = async (blob: Blob, filename?: string): Promise<string> => {
+    const form = new FormData();
+    form.append(
+      "image",
+      filename ? new File([blob], filename, { type: blob.type }) : blob,
+    );
+    const res = await fetch(apiPath("/api/upload-image"), {
+      method: "POST",
+      body: form,
+    });
+    const data = (await res.json()) as { url?: string; error?: string };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error ?? `업로드 실패 (${res.status})`);
+    }
+    return data.url;
+  };
+
+  // "+" menu → "이미지" → native gallery (multi-select enabled).
+  const pickImages = () => {
     if (uploadingImage) return;
+    setAttachMenuOpen(false);
     fileInputRef.current?.click();
   };
   const onImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file later
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = ""; // allow re-picking the same file(s)
+    if (files.length === 0) return;
     setUploadingImage(true);
     try {
-      const form = new FormData();
-      form.append("image", file);
-      const res = await fetch(apiPath("/api/upload-image"), {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? `업로드 실패 (${res.status})`);
-      }
-      setMemoText((cur) => (cur ? `${cur}\n${data.url}` : data.url!));
+      // Upload all picked files in parallel so a 5-image pick doesn't
+      // serialize into 5 sequential waits.
+      const urls = await Promise.all(files.map((f) => uploadBlob(f)));
+      setMemoText((cur) =>
+        cur ? `${cur}\n${urls.join("\n")}` : urls.join("\n"),
+      );
     } catch (err) {
       alert(
         "이미지 업로드 실패: " +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // "+" menu → "캔버스" → opens the drawing editor. The editor returns
+  // a PNG blob on save; we upload it like any other image.
+  const openCanvas = () => {
+    setAttachMenuOpen(false);
+    setCanvasOpen(true);
+  };
+  const onCanvasSave = async (blob: Blob) => {
+    setCanvasOpen(false);
+    setUploadingImage(true);
+    try {
+      const url = await uploadBlob(blob, `canvas-${Date.now()}.png`);
+      setMemoText((cur) => (cur ? `${cur}\n${url}` : url));
+    } catch (err) {
+      alert(
+        "캔버스 업로드 실패: " +
           (err instanceof Error ? err.message : String(err)),
       );
     } finally {
@@ -121,13 +173,127 @@ export default function InputBar() {
           );
         })}
       </div>
+      {inputMode === "memo" && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onImageSelected}
+          className="hidden"
+        />
+      )}
+      {canvasOpen && (
+        <CanvasEditor
+          onSave={onCanvasSave}
+          onCancel={() => setCanvasOpen(false)}
+        />
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
-        className="mx-auto flex items-center gap-2 rounded-full bg-white/[0.12] py-1 pl-3 pr-1 md:max-w-[760px]"
+        className="mx-auto flex items-center gap-2 rounded-full bg-white/[0.12] py-1 pl-2 pr-1 md:max-w-[760px]"
       >
+        {inputMode === "memo" && (
+          <div
+            ref={attachWrapperRef}
+            className="relative flex items-center"
+          >
+            <button
+              type="button"
+              onClick={() => setAttachMenuOpen((v) => !v)}
+              disabled={uploadingImage}
+              aria-label="첨부 메뉴 열기"
+              title="이미지 / 캔버스 첨부"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-white/[0.08] hover:text-text-primary disabled:opacity-40 md:h-7 md:w-7"
+            >
+              {uploadingImage ? (
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-4 w-4 animate-spin"
+                  aria-label="업로드 중"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeOpacity="0.25"
+                  />
+                  <path
+                    d="M21 12a9 9 0 0 0-9-9"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 md:h-4 md:w-4">
+                  <path
+                    d="M12 5v14M5 12h14"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </button>
+            {attachMenuOpen && (
+              <div className="absolute bottom-full left-0 z-40 mb-2 w-32 overflow-hidden rounded-md border border-white/10 bg-neutral-900 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={pickImages}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-white/[0.08]"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                    <rect
+                      x="3"
+                      y="4"
+                      width="18"
+                      height="16"
+                      rx="2"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                    <circle
+                      cx="9"
+                      cy="10"
+                      r="2"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                    <path
+                      d="M3 17l5-4 4 3 4-5 5 6"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  이미지
+                </button>
+                <button
+                  type="button"
+                  onClick={openCanvas}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-white/[0.08]"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                    <path
+                      d="M4 20l4-1 11-11a2.5 2.5 0 0 0-3.5-3.5L4.5 15.5 4 20z"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  캔버스
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {showSearchIcon && (
           <svg
             viewBox="0 0 24 24"
@@ -155,74 +321,6 @@ export default function InputBar() {
           placeholder={current.placeholder}
           className="flex-1 bg-transparent px-1 py-1 text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[13px]"
         />
-        {inputMode === "memo" && (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={onImageSelected}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={pickImage}
-              disabled={uploadingImage}
-              aria-label="이미지 첨부"
-              title="이미지 첨부"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-white/[0.08] hover:text-text-primary disabled:opacity-40 md:h-7 md:w-7"
-            >
-              {uploadingImage ? (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4 w-4 animate-spin"
-                  aria-label="업로드 중"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeOpacity="0.25"
-                  />
-                  <path
-                    d="M21 12a9 9 0 0 0-9-9"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-                  <rect
-                    x="3"
-                    y="4"
-                    width="18"
-                    height="16"
-                    rx="2"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <circle
-                    cx="9"
-                    cy="10"
-                    r="2"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M3 17l5-4 4 3 4-5 5 6"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </button>
-          </>
-        )}
         <button
           type="submit"
           disabled={!canSubmit}

@@ -9,17 +9,19 @@ import { useIdea } from "../state/IdeaContext";
 const IMAGE_URL_RE =
   /^https?:\/\/(?:[^\s/]+\.)*(?:ibb\.co|imgur\.com|i\.imgur\.com)\/\S+$|^https?:\/\/\S+?\.(?:png|jpe?g|gif|webp|avif)(?:\?\S*)?$/i;
 
-// Split a memo into alternating text / image segments by looking at
-// each newline-separated line. A line that is JUST an image URL
-// renders as an <img>; everything else stays as a text paragraph.
+// Split a memo into alternating text / image-carousel segments. Any
+// run of consecutive image-URL lines is grouped into a single carousel
+// so multi-image uploads render as one horizontal scroller rather than
+// a vertical pile.
 type Segment =
   | { kind: "text"; text: string }
-  | { kind: "image"; url: string };
+  | { kind: "images"; urls: string[] };
 
 function segmentMemo(text: string): Segment[] {
   const lines = text.split(/\n/);
   const out: Segment[] = [];
   let textBuf: string[] = [];
+  let imageBuf: string[] = [];
   const flushText = () => {
     if (textBuf.length === 0) return;
     const joined = textBuf.join("\n");
@@ -27,16 +29,23 @@ function segmentMemo(text: string): Segment[] {
     if (joined.trim().length === 0) return;
     out.push({ kind: "text", text: joined });
   };
+  const flushImages = () => {
+    if (imageBuf.length === 0) return;
+    out.push({ kind: "images", urls: imageBuf });
+    imageBuf = [];
+  };
   for (const line of lines) {
     const trimmed = line.trim();
     if (IMAGE_URL_RE.test(trimmed)) {
       flushText();
-      out.push({ kind: "image", url: trimmed });
+      imageBuf.push(trimmed);
     } else {
+      flushImages();
       textBuf.push(line);
     }
   }
   flushText();
+  flushImages();
   return out;
 }
 
@@ -124,16 +133,38 @@ export default function MemoStack() {
                 className="selection:bg-white/30"
               >
                 {segmentMemo(m.text).map((seg, i) =>
-                  seg.kind === "image" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                  seg.kind === "images" ? (
+                    <div
                       key={i}
-                      src={seg.url}
-                      alt=""
-                      loading="lazy"
-                      className="mt-1 max-h-80 w-auto max-w-full rounded-md object-contain"
                       onClick={(e) => e.stopPropagation()}
-                    />
+                      className="-mx-3 overflow-x-auto"
+                      style={{ scrollSnapType: "x mandatory" }}
+                    >
+                      <div className="flex gap-1.5 px-3">
+                        {seg.urls.map((url, j) => (
+                          <a
+                            key={j}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flex: "0 0 44%",
+                              scrollSnapAlign: "start",
+                              aspectRatio: "1 / 1",
+                            }}
+                            className="overflow-hidden rounded-md bg-white/[0.04]"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt=""
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   ) : (
                     <p
                       key={i}
