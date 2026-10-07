@@ -116,37 +116,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ url } satisfies UnfurlResult);
     }
 
-    // Only read the first ~256KB — og tags live in <head>, no need to
-    // slurp the whole document.
-    const reader = res.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
+    // Vercel Edge streams unreliably across providers (YouTube's
+    // chunked response in particular often terminates the reader
+    // before any content lands). await the whole body and cap after;
+    // OG tags live in <head> so the first ~256KB is what we need.
+    const fullBuf = new Uint8Array(await res.arrayBuffer());
     const MAX = 256 * 1024;
-    if (reader) {
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          total += value.byteLength;
-          if (total >= MAX) {
-            try {
-              await reader.cancel();
-            } catch {
-              /* noop */
-            }
-            break;
-          }
-        }
-      }
-    }
-    const buf = new Uint8Array(total);
-    let offset = 0;
-    for (const c of chunks) {
-      buf.set(c, offset);
-      offset += c.byteLength;
-    }
+    const buf = fullBuf.byteLength > MAX ? fullBuf.slice(0, MAX) : fullBuf;
     // Content-Type header may lie or be missing. Use UTF-8 to peek at
     // the page's <meta charset>; if it's non-UTF-8 (e.g. EUC-KR on
     // some Korean sites), redecode with that charset.

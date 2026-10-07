@@ -82,7 +82,17 @@ function LinkPreviewCard({
   const state = cache[url];
 
   useEffect(() => {
-    if (state !== undefined) return;
+    // Treat an existing "failed" result (no preview fields) as retryable
+    // whenever the component remounts. This matters because the first
+    // visit after a Vercel deploy often lands on cold edge nodes and
+    // bounces through consent redirects, so a second attempt a moment
+    // later typically wins.
+    const existing = typeof state === "object" ? state : undefined;
+    const isLoading = state === "loading";
+    const hasUsablePreview = existing
+      ? Boolean(existing.title || existing.image || existing.description)
+      : false;
+    if (isLoading || hasUsablePreview) return;
     let cancelled = false;
     setCache((cur) => ({ ...cur, [url]: "loading" }));
     (async () => {
