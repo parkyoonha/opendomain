@@ -146,50 +146,60 @@ export default function MemoStack() {
                 }}
                 className="selection:bg-white/30"
               >
-                {segmentMemo(m.text).map((seg, i) =>
-                  seg.kind === "images" ? (
-                    <div
-                      key={i}
-                      onClick={(e) => e.stopPropagation()}
-                      className="-mx-3 overflow-x-auto"
-                      style={{ scrollSnapType: "x mandatory" }}
-                    >
-                      <div className="flex gap-1.5 px-3">
-                        {seg.urls.map((url, j) => (
-                          <button
-                            key={j}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLightboxUrl(url);
-                            }}
-                            style={{
-                              flex: "0 0 44%",
-                              scrollSnapAlign: "start",
-                              aspectRatio: "3 / 4",
-                            }}
-                            className="overflow-hidden rounded-md bg-white/[0.04]"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={url}
-                              alt=""
-                              loading="lazy"
-                              className="h-full w-full object-cover"
-                            />
-                          </button>
-                        ))}
+                {segmentMemo(m.text).map((seg, i) => {
+                  if (seg.kind === "images") {
+                    const single = seg.urls.length === 1;
+                    // Fixed height, auto width → each tile picks up the
+                    // image's natural aspect ratio instead of being
+                    // squeezed into a 3:4 crop. Single-image memos get
+                    // a noticeably larger tile.
+                    const tileH = single
+                      ? "h-[22rem] md:h-[26rem]"
+                      : "h-80 md:h-96";
+                    return (
+                      <div
+                        key={i}
+                        onClick={(e) => e.stopPropagation()}
+                        className="-mx-3 overflow-x-auto"
+                        style={{ scrollSnapType: "x mandatory" }}
+                      >
+                        <div className="flex gap-1.5 px-3">
+                          {seg.urls.map((url, j) => (
+                            <button
+                              key={j}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxUrl(url);
+                              }}
+                              style={{
+                                scrollSnapAlign: "start",
+                                maxWidth: "88vw",
+                              }}
+                              className={`flex-none overflow-hidden rounded-md bg-white/[0.04] ${tileH}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={url}
+                                alt=""
+                                loading="lazy"
+                                className="block h-full w-auto max-w-none"
+                              />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
+                    );
+                  }
+                  return (
                     <p
                       key={i}
                       className="whitespace-pre-wrap break-words text-[13px] leading-5 text-text-primary"
                     >
                       {seg.text}
                     </p>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </div>
             {isOpen && (
