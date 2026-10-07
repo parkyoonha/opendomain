@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useIdea } from "../state/IdeaContext";
+import { apiPath } from "@/lib/apiPath";
 
 // Match an http(s) URL that ends in a common image extension OR looks
 // like an ImgBB share URL (i.ibb.co, image.ibb.co). Covers the "paste
@@ -9,13 +10,17 @@ import { useIdea } from "../state/IdeaContext";
 const IMAGE_URL_RE =
   /^https?:\/\/(?:[^\s/]+\.)*(?:ibb\.co|imgur\.com|i\.imgur\.com)\/\S+$|^https?:\/\/\S+?\.(?:png|jpe?g|gif|webp|avif)(?:\?\S*)?$/i;
 
-// Split a memo into alternating text / image-carousel segments. Any
-// run of consecutive image-URL lines is grouped into a single carousel
-// so multi-image uploads render as one horizontal scroller rather than
-// a vertical pile.
+// Plain URL on its own line (not an image).
+const LINK_URL_RE = /^https?:\/\/\S+$/i;
+
+// Split a memo into alternating text / image-carousel / link segments.
+// Consecutive image-URL lines are grouped so multi-image uploads
+// render as one horizontal scroller. A standalone non-image URL line
+// becomes a link-preview card (metadata fetched from /api/unfurl-url).
 type Segment =
   | { kind: "text"; text: string }
-  | { kind: "images"; urls: string[] };
+  | { kind: "images"; urls: string[] }
+  | { kind: "link"; url: string };
 
 function segmentMemo(text: string): Segment[] {
   const lines = text.split(/\n/);
@@ -39,6 +44,10 @@ function segmentMemo(text: string): Segment[] {
     if (IMAGE_URL_RE.test(trimmed)) {
       flushText();
       imageBuf.push(trimmed);
+    } else if (LINK_URL_RE.test(trimmed)) {
+      flushText();
+      flushImages();
+      out.push({ kind: "link", url: trimmed });
     } else {
       flushImages();
       textBuf.push(line);
@@ -47,6 +56,111 @@ function segmentMemo(text: string): Segment[] {
   flushText();
   flushImages();
   return out;
+}
+
+type LinkMeta = {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+  error?: string;
+};
+
+// Shared across all memos in the stack — same URL fetched only once.
+type LinkMetaCache = Record<string, LinkMeta | "loading" | undefined>;
+
+function LinkPreviewCard({
+  url,
+  cache,
+  setCache,
+}: {
+  url: string;
+  cache: LinkMetaCache;
+  setCache: React.Dispatch<React.SetStateAction<LinkMetaCache>>;
+}) {
+  const state = cache[url];
+
+  useEffect(() => {
+    if (state !== undefined) return;
+    let cancelled = false;
+    setCache((cur) => ({ ...cur, [url]: "loading" }));
+    (async () => {
+      try {
+        const res = await fetch(apiPath("/api/unfurl-url"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = (await res.json()) as LinkMeta;
+        if (cancelled) return;
+        setCache((cur) => ({ ...cur, [url]: data }));
+      } catch (err) {
+        if (cancelled) return;
+        setCache((cur) => ({
+          ...cur,
+          [url]: { url, error: err instanceof Error ? err.message : String(err) },
+        }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url, state, setCache]);
+
+  // Fallback: no metadata at all → render just a clickable link so the
+  // user can still open it.
+  const meta = typeof state === "object" ? state : undefined;
+  const hasPreview = Boolean(meta && (meta.title || meta.image));
+
+  if (!hasPreview) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="break-all text-[13px] leading-5 text-sky-400 underline decoration-sky-400/40 underline-offset-2 hover:text-sky-300"
+      >
+        {url}
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="flex overflow-hidden rounded-md bg-white/[0.05] transition-colors hover:bg-white/[0.08]"
+    >
+      {meta!.image && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={meta!.image}
+          alt=""
+          loading="lazy"
+          className="h-24 w-24 shrink-0 object-cover"
+        />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3 py-2">
+        {meta!.siteName && (
+          <div className="truncate text-[10px] uppercase tracking-wider text-text-muted">
+            {meta!.siteName}
+          </div>
+        )}
+        <div className="line-clamp-2 text-[13px] font-semibold leading-5 text-text-primary">
+          {meta!.title ?? url}
+        </div>
+        {meta!.description && (
+          <div className="line-clamp-2 text-[11px] leading-4 text-text-secondary">
+            {meta!.description}
+          </div>
+        )}
+      </div>
+    </a>
+  );
 }
 
 export default function MemoStack() {
@@ -64,6 +178,7 @@ export default function MemoStack() {
   } = useIdea();
   const [openMemoId, setOpenMemoId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [linkMetaCache, setLinkMetaCache] = useState<LinkMetaCache>({});
   const textRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Esc closes the in-app image lightbox. Avoids the ImgBB redirect
@@ -189,6 +304,16 @@ export default function MemoStack() {
                           ))}
                         </div>
                       </div>
+                    );
+                  }
+                  if (seg.kind === "link") {
+                    return (
+                      <LinkPreviewCard
+                        key={i}
+                        url={seg.url}
+                        cache={linkMetaCache}
+                        setCache={setLinkMetaCache}
+                      />
                     );
                   }
                   return (
