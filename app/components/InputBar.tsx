@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useIdea, type InputMode } from "../state/IdeaContext";
+import { apiPath } from "@/lib/apiPath";
 
 const modes: { key: InputMode; label: string; placeholder: string }[] = [
   {
@@ -25,6 +26,8 @@ export default function InputBar() {
     startMemoDraft,
   } = useIdea();
   const [memoText, setMemoText] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleTabClick = (key: InputMode) => {
     if (key === inputMode && !currentPageId) {
@@ -56,6 +59,40 @@ export default function InputBar() {
     else {
       addMemo(memoText);
       setMemoText("");
+    }
+  };
+
+  // Pick an image → upload to ImgBB via our Edge Function → append the
+  // returned URL to the memo draft on its own line. Rendered as <img>
+  // in MemoStack. Keeps server storage at zero.
+  const pickImage = () => {
+    if (uploadingImage) return;
+    fileInputRef.current?.click();
+  };
+  const onImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch(apiPath("/api/upload-image"), {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? `업로드 실패 (${res.status})`);
+      }
+      setMemoText((cur) => (cur ? `${cur}\n${data.url}` : data.url!));
+    } catch (err) {
+      alert(
+        "이미지 업로드 실패: " +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -118,6 +155,74 @@ export default function InputBar() {
           placeholder={current.placeholder}
           className="flex-1 bg-transparent px-1 py-1 text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[13px]"
         />
+        {inputMode === "memo" && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onImageSelected}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={pickImage}
+              disabled={uploadingImage}
+              aria-label="이미지 첨부"
+              title="이미지 첨부"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-white/[0.08] hover:text-text-primary disabled:opacity-40 md:h-7 md:w-7"
+            >
+              {uploadingImage ? (
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-4 w-4 animate-spin"
+                  aria-label="업로드 중"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeOpacity="0.25"
+                  />
+                  <path
+                    d="M21 12a9 9 0 0 0-9-9"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                  <rect
+                    x="3"
+                    y="4"
+                    width="18"
+                    height="16"
+                    rx="2"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    cx="9"
+                    cy="10"
+                    r="2"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M3 17l5-4 4 3 4-5 5 6"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          </>
+        )}
         <button
           type="submit"
           disabled={!canSubmit}

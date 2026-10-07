@@ -3,6 +3,43 @@
 import { useRef, useState } from "react";
 import { useIdea } from "../state/IdeaContext";
 
+// Match an http(s) URL that ends in a common image extension OR looks
+// like an ImgBB share URL (i.ibb.co, image.ibb.co). Covers the "paste
+// a link" case and our own ImgBB uploads.
+const IMAGE_URL_RE =
+  /^https?:\/\/(?:[^\s/]+\.)*(?:ibb\.co|imgur\.com|i\.imgur\.com)\/\S+$|^https?:\/\/\S+?\.(?:png|jpe?g|gif|webp|avif)(?:\?\S*)?$/i;
+
+// Split a memo into alternating text / image segments by looking at
+// each newline-separated line. A line that is JUST an image URL
+// renders as an <img>; everything else stays as a text paragraph.
+type Segment =
+  | { kind: "text"; text: string }
+  | { kind: "image"; url: string };
+
+function segmentMemo(text: string): Segment[] {
+  const lines = text.split(/\n/);
+  const out: Segment[] = [];
+  let textBuf: string[] = [];
+  const flushText = () => {
+    if (textBuf.length === 0) return;
+    const joined = textBuf.join("\n");
+    textBuf = [];
+    if (joined.trim().length === 0) return;
+    out.push({ kind: "text", text: joined });
+  };
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (IMAGE_URL_RE.test(trimmed)) {
+      flushText();
+      out.push({ kind: "image", url: trimmed });
+    } else {
+      textBuf.push(line);
+    }
+  }
+  flushText();
+  return out;
+}
+
 export default function MemoStack() {
   const {
     memos,
@@ -77,17 +114,36 @@ export default function MemoStack() {
                 }
                 setOpenMemoId(isOpen ? null : m.id);
               }}
-              className="w-full cursor-pointer"
+              className="flex w-full cursor-pointer flex-col gap-2"
             >
-              <p
+              <div
                 ref={(el) => {
                   if (el) textRefs.current.set(m.id, el);
                   else textRefs.current.delete(m.id);
                 }}
-                className="whitespace-pre-wrap break-words text-[13px] leading-5 text-text-primary selection:bg-white/30"
+                className="selection:bg-white/30"
               >
-                {m.text}
-              </p>
+                {segmentMemo(m.text).map((seg, i) =>
+                  seg.kind === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={seg.url}
+                      alt=""
+                      loading="lazy"
+                      className="mt-1 max-h-80 w-auto max-w-full rounded-md object-contain"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <p
+                      key={i}
+                      className="whitespace-pre-wrap break-words text-[13px] leading-5 text-text-primary"
+                    >
+                      {seg.text}
+                    </p>
+                  ),
+                )}
+              </div>
             </div>
             {isOpen && (
               <div className="flex flex-wrap items-center gap-1">

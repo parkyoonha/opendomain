@@ -30,6 +30,22 @@ NEXT_PUBLIC_API_BASE=https://your-deployed-host.vercel.app
 
 웹 빌드에선 이 변수가 비어 있어도 됨 (상대 경로 `/api/...` 사용).
 
+### 메모 이미지 업로드 (ImgBB 중계)
+
+메모 입력바의 이미지 첨부 버튼은 `/api/upload-image` Edge Function을
+통해 [ImgBB](https://api.imgbb.com/)에 익명 업로드하고 반환된 URL을
+메모 본문에 삽입합니다. 서버 저장소 비용은 0.
+
+Vercel 프로젝트 환경변수에 추가 (앱/웹 빌드 공통, 서버 전용이므로
+`NEXT_PUBLIC_` 접두사 **없이**):
+
+```
+IMGBB_API_KEY=<imgbb에서 발급받은 key>
+```
+
+ImgBB 가입: https://api.imgbb.com/ → "Get API Key" (무료, 신용카드
+불필요). 이미지당 32MB, 영구 저장, 호출 제한 없음.
+
 ### 2. 앱 빌드 + 동기화
 
 ```bash
