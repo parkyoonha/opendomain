@@ -80,37 +80,54 @@ function LinkPreviewCard({
   setCache: React.Dispatch<React.SetStateAction<LinkMetaCache>>;
 }) {
   const state = cache[url];
+  // Latest cache reachable from the one-shot useEffect without having
+  // to list `cache` or `state` in deps (which would make the effect
+  // cancel its own in-flight fetch the moment it writes "loading").
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
 
   useEffect(() => {
-    // One-shot per URL per session. A result (success or failure) is
-    // cached and never refetched; the previous "retry when preview
-    // fields are empty" branch caused infinite re-fetches whenever a
-    // page simply had no OG tags.
-    if (state !== undefined) return;
-    let cancelled = false;
-    setCache((cur) => ({ ...cur, [url]: "loading" }));
-    (async () => {
-      try {
-        const res = await fetch(apiPath("/api/unfurl-url"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-        const data = (await res.json()) as LinkMeta;
-        if (cancelled) return;
+    // One-shot per URL per card lifetime. Deps are intentionally
+    // url + setCache only — adding `state` makes the effect's own
+    // "loading" write trigger its cleanup, which aborted the fetch
+    // and left the cache pinned at "loading" forever.
+    if (cacheRef.current[url] !== undefined) return;
+    const controller = new AbortController();
+    setCache((cur) =>
+      cur[url] === undefined ? { ...cur, [url]: "loading" } : cur,
+    );
+    fetch(apiPath("/api/unfurl-url"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    })
+      .then((res) => res.json() as Promise<LinkMeta>)
+      .then((data) => {
         setCache((cur) => ({ ...cur, [url]: data }));
-      } catch (err) {
-        if (cancelled) return;
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") {
+          // Unmount mid-flight → clear the "loading" sentinel so the
+          // next card that mounts for this URL can retry.
+          setCache((cur) => {
+            if (cur[url] !== "loading") return cur;
+            const next = { ...cur };
+            delete next[url];
+            return next;
+          });
+          return;
+        }
         setCache((cur) => ({
           ...cur,
-          [url]: { url, error: err instanceof Error ? err.message : String(err) },
+          [url]: {
+            url,
+            error: err instanceof Error ? err.message : String(err),
+          },
         }));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [url, state, setCache]);
+      });
+    return () => controller.abort();
+  }, [url, setCache]);
 
   // While the unfurl is in flight, render a plain clickable link so
   // the user can tap through immediately. After the fetch resolves,
