@@ -7,11 +7,18 @@ import { apiPath } from "@/lib/apiPath";
 // Match an http(s) URL that ends in a common image extension OR looks
 // like an ImgBB share URL (i.ibb.co, image.ibb.co). Covers the "paste
 // a link" case and our own ImgBB uploads.
-const IMAGE_URL_RE =
+export const IMAGE_URL_RE =
   /^https?:\/\/(?:[^\s/]+\.)*(?:ibb\.co|imgur\.com|i\.imgur\.com)\/\S+$|^https?:\/\/\S+?\.(?:png|jpe?g|gif|webp|avif)(?:\?\S*)?$/i;
 
 // Plain URL on its own line (not an image).
-const LINK_URL_RE = /^https?:\/\/\S+$/i;
+export const LINK_URL_RE = /^https?:\/\/\S+$/i;
+
+// Our CanvasEditor uploads use filenames of the form
+// "canvas-<timestamp>.png", and ImgBB preserves that filename in the
+// returned URL (/<hash>/canvas-<ts>.png). Use that as a hint to tag
+// canvas attachments distinctly from gallery images in folder-list
+// previews.
+export const CANVAS_URL_HINT = /\/canvas-\d+\.png(?:\?|$)/i;
 
 // Split a memo into alternating text / image-carousel / link segments.
 // Consecutive image-URL lines are grouped so multi-image uploads
@@ -67,78 +74,99 @@ type LinkMeta = {
   error?: string;
 };
 
-// Shared across all memos in the stack — same URL fetched only once.
-type LinkMetaCache = Record<string, LinkMeta | "loading" | undefined>;
+// Module-scoped cache + in-flight dedupe. Lives for the lifetime of
+// the JS runtime, so leaving and reopening a memo room (which
+// remounts MemoStack) does NOT force a re-unfurl — the preview card
+// renders instantly from the already-fetched result.
+const linkMetaStore = new Map<string, LinkMeta>();
+const linkMetaInFlight = new Map<string, Promise<LinkMeta>>();
 
-function LinkPreviewCard({
-  url,
-  cache,
-  setCache,
-}: {
-  url: string;
-  cache: LinkMetaCache;
-  setCache: React.Dispatch<React.SetStateAction<LinkMetaCache>>;
-}) {
-  const state = cache[url];
-  // Latest cache reachable from the one-shot useEffect without having
-  // to list `cache` or `state` in deps (which would make the effect
-  // cancel its own in-flight fetch the moment it writes "loading").
-  const cacheRef = useRef(cache);
-  cacheRef.current = cache;
+function fetchLinkMeta(url: string): Promise<LinkMeta> {
+  const existing = linkMetaInFlight.get(url);
+  if (existing) return existing;
+  const promise = fetch(apiPath("/api/unfurl-url"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  })
+    .then((res) => res.json() as Promise<LinkMeta>)
+    .catch((err): LinkMeta => ({
+      url,
+      error: err instanceof Error ? err.message : String(err),
+    }))
+    .then((data) => {
+      linkMetaStore.set(url, data);
+      linkMetaInFlight.delete(url);
+      return data;
+    });
+  linkMetaInFlight.set(url, promise);
+  return promise;
+}
 
+// Returns a cached LinkMeta for the given URL, triggering a one-shot
+// fetch when needed. `undefined` means "still loading"; a result (even
+// an error) means we've resolved. Null `url` disables the fetch.
+export function useLinkMeta(url: string | null): LinkMeta | undefined {
+  const [meta, setMeta] = useState<LinkMeta | undefined>(() =>
+    url ? linkMetaStore.get(url) : undefined,
+  );
   useEffect(() => {
-    // One-shot per URL per card lifetime. Deps are intentionally
-    // url + setCache only — adding `state` makes the effect's own
-    // "loading" write trigger its cleanup, which aborted the fetch
-    // and left the cache pinned at "loading" forever.
-    if (cacheRef.current[url] !== undefined) return;
-    const controller = new AbortController();
-    setCache((cur) =>
-      cur[url] === undefined ? { ...cur, [url]: "loading" } : cur,
-    );
-    fetch(apiPath("/api/unfurl-url"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      signal: controller.signal,
-    })
-      .then((res) => res.json() as Promise<LinkMeta>)
-      .then((data) => {
-        setCache((cur) => ({ ...cur, [url]: data }));
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") {
-          // Unmount mid-flight → clear the "loading" sentinel so the
-          // next card that mounts for this URL can retry.
-          setCache((cur) => {
-            if (cur[url] !== "loading") return cur;
-            const next = { ...cur };
-            delete next[url];
-            return next;
-          });
-          return;
-        }
-        setCache((cur) => ({
-          ...cur,
-          [url]: {
-            url,
-            error: err instanceof Error ? err.message : String(err),
-          },
-        }));
-      });
-    return () => controller.abort();
-  }, [url, setCache]);
+    if (!url) {
+      setMeta(undefined);
+      return;
+    }
+    const cached = linkMetaStore.get(url);
+    if (cached) {
+      setMeta(cached);
+      return;
+    }
+    setMeta(undefined);
+    let cancelled = false;
+    fetchLinkMeta(url).then((data) => {
+      if (cancelled) return;
+      setMeta(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+  return meta;
+}
 
-  // While the unfurl is in flight, render a plain clickable link so
-  // the user can tap through immediately. After the fetch resolves,
-  // the server always sends at least a hostname-synthesized title, so
-  // we always get a card when the request succeeded. Only a true
-  // network failure (no object at all, or an explicit `error`) falls
-  // back permanently to the link.
-  const meta = typeof state === "object" ? state : undefined;
-  const loading = state === "loading";
+function LinkPreviewCard({ url }: { url: string }) {
+  const meta = useLinkMeta(url);
+  const loading = meta === undefined;
+
   const hasPreview = Boolean(meta && (meta.title || meta.image));
 
+  // In-flight: show a compact three-dot bouncer. We hide the URL
+  // entirely so there's no sky-blue flash before the card lands.
+  if (loading) {
+    return (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center gap-1 py-2"
+        aria-label="미리보기 로드 중"
+      >
+        <span
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+    );
+  }
+
+  // Resolved but no useful metadata — plain clickable link so the
+  // user can still open it. (Server also tries a hostname fallback,
+  // so this really only kicks in when the fetch itself failed.)
   if (!hasPreview) {
     return (
       <a
@@ -148,7 +176,7 @@ function LinkPreviewCard({
         onClick={(e) => e.stopPropagation()}
         className="break-all text-[13px] leading-5 text-sky-400 underline decoration-sky-400/40 underline-offset-2 hover:text-sky-300"
       >
-        {loading ? `${url} · 미리보기 로드 중…` : url}
+        {url}
       </a>
     );
   }
@@ -204,7 +232,6 @@ export default function MemoStack() {
   } = useIdea();
   const [openMemoId, setOpenMemoId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [linkMetaCache, setLinkMetaCache] = useState<LinkMetaCache>({});
   const textRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Esc closes the in-app image lightbox. Avoids the ImgBB redirect
@@ -333,14 +360,7 @@ export default function MemoStack() {
                     );
                   }
                   if (seg.kind === "link") {
-                    return (
-                      <LinkPreviewCard
-                        key={i}
-                        url={seg.url}
-                        cache={linkMetaCache}
-                        setCache={setLinkMetaCache}
-                      />
-                    );
+                    return <LinkPreviewCard key={i} url={seg.url} />;
                   }
                   return (
                     <p
