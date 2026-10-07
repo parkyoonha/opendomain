@@ -14,36 +14,38 @@ type UnfurlResult = {
   error?: string;
 };
 
-// Pull a single tag like <meta property="og:title" content="…"> or any
-// of the common variations. Big sites (YouTube, NYT, …) format meta
-// tags across multiple lines and sometimes stuff extra attributes
-// between property and content, so we use [\s\S]* instead of . and
-// handle both attribute orders.
-function readMeta(html: string, prop: string): string | undefined {
-  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const patterns = [
-    new RegExp(
-      `<meta[^>]*?(?:property|name|itemprop)\\s*=\\s*["']${escaped}["'][\\s\\S]*?content\\s*=\\s*["']([^"']+)["']`,
-      "i",
-    ),
-    new RegExp(
-      `<meta[^>]*?content\\s*=\\s*["']([^"']+)["'][\\s\\S]*?(?:property|name|itemprop)\\s*=\\s*["']${escaped}["']`,
-      "i",
-    ),
-  ];
-  for (const re of patterns) {
-    const match = html.match(re);
-    if (match?.[1]) return decodeHtmlEntities(match[1].trim());
+// Walk every <meta> tag in the document once and index them by
+// their property / name / itemprop value. Reading subsequent lookups
+// out of this map is both faster and much more robust than running a
+// nested regex per attribute — big sites (YouTube, NYT, …) format
+// meta tags across multiple lines and the key/content attribute
+// order flips freely.
+function parseMetaTags(html: string): Record<string, string> {
+  const metas: Record<string, string> = {};
+  const tagRe = /<meta\b([^>]*)>/gi;
+  const propRe =
+    /\b(?:property|name|itemprop)\s*=\s*["']([^"']+)["']/i;
+  const contentRe = /\bcontent\s*=\s*["']([^"']*)["']/i;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(html)) !== null) {
+    const attrs = m[1];
+    const prop = propRe.exec(attrs)?.[1];
+    const content = contentRe.exec(attrs)?.[1];
+    if (!prop || content === undefined) continue;
+    const key = prop.trim().toLowerCase();
+    // Earlier entry wins — og:image sometimes appears multiple times
+    // for different sizes.
+    if (!(key in metas)) metas[key] = decodeHtmlEntities(content);
   }
-  return undefined;
+  return metas;
 }
 
-// Return the first meta value found across any of the given props. Lets
-// us try og:image, og:image:url, og:image:secure_url, twitter:image,
-// twitter:image:src in one go.
-function readFirstMeta(html: string, props: string[]): string | undefined {
+function readFirstMeta(
+  metas: Record<string, string>,
+  props: string[],
+): string | undefined {
   for (const p of props) {
-    const v = readMeta(html, p);
+    const v = metas[p.toLowerCase()];
     if (v) return v;
   }
   return undefined;
@@ -142,28 +144,29 @@ export async function POST(req: Request) {
       }
     }
 
+    const metas = parseMetaTags(html);
     const title =
-      readFirstMeta(html, [
+      readFirstMeta(metas, [
         "og:title",
         "twitter:title",
         "parsely-title",
         "title",
       ]) ??
       html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
-    const description = readFirstMeta(html, [
+    const description = readFirstMeta(metas, [
       "og:description",
       "twitter:description",
       "description",
     ]);
-    let image = readFirstMeta(html, [
+    let image = readFirstMeta(metas, [
       "og:image",
       "og:image:url",
       "og:image:secure_url",
       "twitter:image",
       "twitter:image:src",
-      "msapplication-TileImage",
+      "msapplication-tileimage",
     ]);
-    const siteName = readMeta(html, "og:site_name");
+    const siteName = metas["og:site_name"];
 
     // Resolve relative image URLs against the fetched URL.
     if (image && !/^https?:\/\//i.test(image)) {
@@ -174,13 +177,30 @@ export async function POST(req: Request) {
       }
     }
 
+    // Always surface SOMETHING readable so the UI can show a card
+    // rather than falling back to a raw link whenever one of og:title
+    // / og:image is present. If neither comes back, synthesize a
+    // title from the hostname so links to very minimal pages still
+    // render as "example.com" rather than the long raw URL.
+    const hostnameFallback = (() => {
+      try {
+        return new URL(res.url || url).hostname.replace(/^www\./, "");
+      } catch {
+        return undefined;
+      }
+    })();
     const result: UnfurlResult = {
       url,
-      title: title ? decodeHtmlEntities(title) : undefined,
+      title: title ? decodeHtmlEntities(title) : hostnameFallback,
       description,
       image,
-      siteName,
+      siteName: siteName ?? hostnameFallback,
     };
+    // Vercel Edge log — visible in the project's Function Logs tab.
+    // Helps diagnose "preview card doesn't show" without ssh.
+    console.log(
+      `[unfurl] ${url} → title=${Boolean(title)} image=${Boolean(image)} desc=${Boolean(description)} meta_count=${Object.keys(metas).length}`,
+    );
     return NextResponse.json(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

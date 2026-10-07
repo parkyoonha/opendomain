@@ -82,17 +82,11 @@ function LinkPreviewCard({
   const state = cache[url];
 
   useEffect(() => {
-    // Treat an existing "failed" result (no preview fields) as retryable
-    // whenever the component remounts. This matters because the first
-    // visit after a Vercel deploy often lands on cold edge nodes and
-    // bounces through consent redirects, so a second attempt a moment
-    // later typically wins.
-    const existing = typeof state === "object" ? state : undefined;
-    const isLoading = state === "loading";
-    const hasUsablePreview = existing
-      ? Boolean(existing.title || existing.image || existing.description)
-      : false;
-    if (isLoading || hasUsablePreview) return;
+    // One-shot per URL per session. A result (success or failure) is
+    // cached and never refetched; the previous "retry when preview
+    // fields are empty" branch caused infinite re-fetches whenever a
+    // page simply had no OG tags.
+    if (state !== undefined) return;
     let cancelled = false;
     setCache((cur) => ({ ...cur, [url]: "loading" }));
     (async () => {
@@ -118,9 +112,14 @@ function LinkPreviewCard({
     };
   }, [url, state, setCache]);
 
-  // Fallback: no metadata at all → render just a clickable link so the
-  // user can still open it.
+  // While the unfurl is in flight, render a plain clickable link so
+  // the user can tap through immediately. After the fetch resolves,
+  // the server always sends at least a hostname-synthesized title, so
+  // we always get a card when the request succeeded. Only a true
+  // network failure (no object at all, or an explicit `error`) falls
+  // back permanently to the link.
   const meta = typeof state === "object" ? state : undefined;
+  const loading = state === "loading";
   const hasPreview = Boolean(meta && (meta.title || meta.image));
 
   if (!hasPreview) {
@@ -132,7 +131,7 @@ function LinkPreviewCard({
         onClick={(e) => e.stopPropagation()}
         className="break-all text-[13px] leading-5 text-sky-400 underline decoration-sky-400/40 underline-offset-2 hover:text-sky-300"
       >
-        {url}
+        {loading ? `${url} · 미리보기 로드 중…` : url}
       </a>
     );
   }
