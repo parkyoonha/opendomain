@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import InputBar from "./components/InputBar";
 import TopicChipsBar from "./components/TopicChipsBar";
 import DecompositionTree from "./components/DecompositionTree";
@@ -39,6 +39,8 @@ function PageInner() {
     openPage,
     lastMemoView,
     currentPageId,
+    chipPanelFullScreen,
+    setChipPanelFullScreen,
   } = useIdea();
   const isFreeTier = Boolean(userGeminiKey) && useUserKey;
   const showChipPanel = chipPanelOpen;
@@ -47,9 +49,24 @@ function PageInner() {
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const isEmptyTopicState =
     inputMode === "topic" && !decomposition && !pendingTopic;
+  // Memo folder list already has a "+ 새 메모방" button that owns room
+  // creation, so once at least one room exists the input bar on the
+  // list view would just be noise. Keep it in the empty-state list
+  // (so the user can still type their very first memo without opening
+  // the dialog) and in every individual room view.
+  const hasMemoRooms = pages.some((p) => p.type === "memo");
+  const hideInputBarInMemoList =
+    inputMode === "memo" && memoListMode && hasMemoRooms;
   const canGoBack = inputMode === "memo" && !memoListMode;
+  // Bottom-sheet variant only applies to the "verify auto-opened the
+  // chip panel while the user is on a 사고확장 topic" flow. A manual
+  // bottom-nav 칩 tap sets chipPanelFullScreen=true, which forces the
+  // full-screen layout regardless of inputMode.
   const chipAsBottomSheet =
-    showChipPanel && !inSplit && inputMode === "topic";
+    showChipPanel &&
+    !inSplit &&
+    inputMode === "topic" &&
+    !chipPanelFullScreen;
 
   // Any of these overlays sits above the mobile FAB and would otherwise
   // reveal the pill peeking out on the uncovered side of the screen.
@@ -57,6 +74,14 @@ function PageInner() {
   // them is open.
   const mobileOverlayOpen =
     chipAsBottomSheet || historyDrawerOpen;
+
+  // Reset the "full-screen chip" flag whenever the panel is closed by
+  // any path (its own × button, verify flow, tab retap). Otherwise the
+  // flag could linger and force the next verify-triggered open into
+  // full-screen too.
+  useEffect(() => {
+    if (!chipPanelOpen && chipPanelFullScreen) setChipPanelFullScreen(false);
+  }, [chipPanelOpen, chipPanelFullScreen, setChipPanelFullScreen]);
 
   return (
     <div
@@ -200,7 +225,7 @@ function PageInner() {
                   : "flex"
             }`}
           >
-            <InputBar />
+            {!hideInputBarInMemoList && <InputBar />}
             {inputMode !== "memo" && <TopicChipsBar />}
             <DecompositionTree />
           </main>
@@ -234,8 +259,13 @@ function PageInner() {
                     if (t.key === "chip") {
                       if (showChipPanel && !inSplit) {
                         setChipPanelOpen(false);
+                        setChipPanelFullScreen(false);
                         return;
                       }
+                      // Deliberate tap on the 칩 tab → always full-
+                      // screen; the half-sheet layout is reserved for
+                      // the verify auto-trigger path.
+                      setChipPanelFullScreen(true);
                       setChipPanelOpen(true);
                       if (inSplit) setActiveSplitView("chip");
                       return;

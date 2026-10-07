@@ -397,6 +397,21 @@ type Ctx = {
 
   memoListMode: boolean;
   lastMemoView: string | null;
+  pinnedMemoPageIds: Set<string>;
+  togglePinMemoPage: (id: string) => void;
+  createEmptyMemoPage: (title: string) => string;
+  renameMemoPage: (id: string, title: string) => void;
+  // Monotonic counter — InputBar watches this to focus its text
+  // field whenever a flow (e.g. "+ 새 메모방" dialog) wants the
+  // keyboard up.
+  memoInputFocusTick: number;
+  requestMemoInputFocus: () => void;
+  // When true, the chip panel ignores the bottom-sheet layout and
+  // renders at full screen. Set by the bottom-nav 칩 tab click so a
+  // deliberate chip-tab navigation isn't boxed into the small
+  // "verify-triggered" sheet.
+  chipPanelFullScreen: boolean;
+  setChipPanelFullScreen: (v: boolean) => void;
   showMemoList: () => void;
 
   multiAxisResults: Record<string, string>;
@@ -514,6 +529,32 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   //   "list" → last on the folder list
   //   <pageId> → last inside that specific memo room
   const [lastMemoView, setLastMemoViewState] = useState<string | null>(null);
+  const [pinnedMemoPageIds, setPinnedMemoPageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [memoInputFocusTick, setMemoInputFocusTick] = useState(0);
+  const [chipPanelFullScreen, setChipPanelFullScreen] = useState(false);
+
+  const togglePinMemoPage = useCallback((id: string) => {
+    setPinnedMemoPageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const renameMemoPage = useCallback((id: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setPages((prev) =>
+      prev.map((p) => (p.id === id && p.type === "memo" ? { ...p, title: trimmed } : p)),
+    );
+  }, []);
+
+  const requestMemoInputFocus = useCallback(() => {
+    setMemoInputFocusTick((t) => t + 1);
+  }, []);
   const [multiAxisResultsByKey, setMultiAxisResultsByKey] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -538,6 +579,31 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setDecomposition(null);
     setSplitMemoPageId(null);
     setLastMemoViewState("list");
+  }, []);
+
+  // Create a memo folder with the given title but no memos yet, then
+  // drop the user straight into that folder. Powers the "+ 새 메모방"
+  // dialog flow: user names the room, then starts typing memos.
+  const createEmptyMemoPage = useCallback((title: string): string => {
+    const trimmed = title.trim() || "새 메모방";
+    const id = `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const page: Page = {
+      id,
+      type: "memo",
+      title: trimmed,
+      createdAt: Date.now(),
+      memoIds: [],
+    };
+    setPages((prev) => [page, ...prev]);
+    setCurrentPageId(id);
+    setMemoListMode(false);
+    setInputMode("memo");
+    setDraftType(null);
+    setPendingTopic(null);
+    setDecomposition(null);
+    setLastMemoViewState(id);
+    setMemoInputFocusTick((t) => t + 1);
+    return id;
   }, []);
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
@@ -616,6 +682,12 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       }
       if (splitMemoPageId === id) setSplitMemoPageId(null);
       setLastMemoViewState((cur) => (cur === id ? "list" : cur));
+      setPinnedMemoPageIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     },
     [currentPageId, splitMemoPageId],
   );
@@ -2589,6 +2661,14 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setCenterMode,
       memoListMode,
       lastMemoView,
+      pinnedMemoPageIds,
+      togglePinMemoPage,
+      createEmptyMemoPage,
+      renameMemoPage,
+      memoInputFocusTick,
+      requestMemoInputFocus,
+      chipPanelFullScreen,
+      setChipPanelFullScreen,
       showMemoList,
       multiAxisResults,
       multiAxisStatus,
@@ -2761,6 +2841,14 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       centerMode,
       memoListMode,
       lastMemoView,
+      pinnedMemoPageIds,
+      togglePinMemoPage,
+      createEmptyMemoPage,
+      renameMemoPage,
+      memoInputFocusTick,
+      requestMemoInputFocus,
+      chipPanelFullScreen,
+      setChipPanelFullScreen,
       showMemoList,
       multiAxisResults,
       multiAxisStatus,

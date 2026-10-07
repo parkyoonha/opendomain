@@ -256,7 +256,14 @@ export default function MemoStack() {
         .filter((m): m is NonNullable<typeof m> => Boolean(m))
     : memos;
 
-  if (memosToShow.length === 0) return null;
+  if (memosToShow.length === 0) {
+    return (
+      <div className="flex w-full max-w-[860px] flex-col items-center gap-1 py-10 text-center text-text-muted">
+        <p className="text-[13px]">아직 메모가 없습니다</p>
+        <p className="text-[11px]">하단 입력바에 첫 메모를 적어보세요</p>
+      </div>
+    );
+  }
 
   const chipDisabled = !selectedPrinciple;
 

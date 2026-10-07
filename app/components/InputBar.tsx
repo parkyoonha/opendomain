@@ -25,6 +25,7 @@ export default function InputBar() {
     currentPageId,
     startTopicDraft,
     startMemoDraft,
+    memoInputFocusTick,
   } = useIdea();
   const [memoText, setMemoText] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -36,6 +37,15 @@ export default function InputBar() {
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachWrapperRef = useRef<HTMLDivElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the text input whenever a flow (e.g. "+ 새 메모방" dialog)
+  // requests it via requestMemoInputFocus(). The tick increments, this
+  // effect fires, focus moves.
+  useEffect(() => {
+    if (memoInputFocusTick === 0) return;
+    textInputRef.current?.focus();
+  }, [memoInputFocusTick]);
 
   // Close the + popup when the user taps outside it.
   useEffect(() => {
@@ -369,6 +379,7 @@ export default function InputBar() {
           </svg>
         )}
         <input
+          ref={textInputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={current.placeholder}
