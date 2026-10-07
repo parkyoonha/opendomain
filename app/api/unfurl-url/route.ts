@@ -14,16 +14,20 @@ type UnfurlResult = {
   error?: string;
 };
 
-// Pull a single tag like <meta property="og:title" content="…"> or the
-// reversed attr order. Also supports <meta name="…">.
+// Pull a single tag like <meta property="og:title" content="…"> or any
+// of the common variations. Big sites (YouTube, NYT, …) format meta
+// tags across multiple lines and sometimes stuff extra attributes
+// between property and content, so we use [\s\S]* instead of . and
+// handle both attribute orders.
 function readMeta(html: string, prop: string): string | undefined {
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const patterns = [
     new RegExp(
-      `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`,
+      `<meta[^>]*?(?:property|name|itemprop)\\s*=\\s*["']${escaped}["'][\\s\\S]*?content\\s*=\\s*["']([^"']+)["']`,
       "i",
     ),
     new RegExp(
-      `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`,
+      `<meta[^>]*?content\\s*=\\s*["']([^"']+)["'][\\s\\S]*?(?:property|name|itemprop)\\s*=\\s*["']${escaped}["']`,
       "i",
     ),
   ];
@@ -32,6 +36,25 @@ function readMeta(html: string, prop: string): string | undefined {
     if (match?.[1]) return decodeHtmlEntities(match[1].trim());
   }
   return undefined;
+}
+
+// Return the first meta value found across any of the given props. Lets
+// us try og:image, og:image:url, og:image:secure_url, twitter:image,
+// twitter:image:src in one go.
+function readFirstMeta(html: string, props: string[]): string | undefined {
+  for (const p of props) {
+    const v = readMeta(html, p);
+    if (v) return v;
+  }
+  return undefined;
+}
+
+// Pull the HTML's <meta charset=…> so we can decode non-UTF-8 pages.
+function readCharset(html: string): string | undefined {
+  const m =
+    html.match(/<meta[^>]+charset\s*=\s*["']?([^"'\s/>]+)/i) ??
+    html.match(/<meta[^>]+content=["'][^"']*charset=([^"'\s;]+)/i);
+  return m?.[1]?.toLowerCase();
 }
 
 function decodeHtmlEntities(s: string): string {
@@ -61,13 +84,19 @@ export async function POST(req: Request) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    // Impersonate facebookexternalhit — the UA most widely whitelisted
+    // by news sites, YouTube, blog platforms, and corporate pages
+    // specifically for link-unfurling. Covers nearly all common cases
+    // without site-by-site rules.
     const res = await fetch(url, {
       method: "GET",
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; opendomain-link-preview/1.0)",
-        Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+          "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
       },
       redirect: "follow",
       signal: controller.signal,
@@ -118,18 +147,46 @@ export async function POST(req: Request) {
       buf.set(c, offset);
       offset += c.byteLength;
     }
-    const html = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    // Content-Type header may lie or be missing. Use UTF-8 to peek at
+    // the page's <meta charset>; if it's non-UTF-8 (e.g. EUC-KR on
+    // some Korean sites), redecode with that charset.
+    let html = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    const headerCharset = (
+      contentType.match(/charset=([^;]+)/i)?.[1] ?? ""
+    )
+      .trim()
+      .toLowerCase();
+    const metaCharset = readCharset(html);
+    const charset = headerCharset || metaCharset;
+    if (charset && charset !== "utf-8" && charset !== "utf8") {
+      try {
+        html = new TextDecoder(charset, { fatal: false }).decode(buf);
+      } catch {
+        /* unknown encoding → stick with UTF-8 decode */
+      }
+    }
 
     const title =
-      readMeta(html, "og:title") ??
-      readMeta(html, "twitter:title") ??
-      html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
-    const description =
-      readMeta(html, "og:description") ??
-      readMeta(html, "twitter:description") ??
-      readMeta(html, "description");
-    let image =
-      readMeta(html, "og:image") ?? readMeta(html, "twitter:image");
+      readFirstMeta(html, [
+        "og:title",
+        "twitter:title",
+        "parsely-title",
+        "title",
+      ]) ??
+      html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    const description = readFirstMeta(html, [
+      "og:description",
+      "twitter:description",
+      "description",
+    ]);
+    let image = readFirstMeta(html, [
+      "og:image",
+      "og:image:url",
+      "og:image:secure_url",
+      "twitter:image",
+      "twitter:image:src",
+      "msapplication-TileImage",
+    ]);
     const siteName = readMeta(html, "og:site_name");
 
     // Resolve relative image URLs against the fetched URL.
