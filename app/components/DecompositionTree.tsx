@@ -127,15 +127,24 @@ function findScrollAncestor(el: HTMLElement): HTMLElement | null {
 }
 
 // Compute target scroll position that brings `el` into view within `scroller`.
-// Horizontal: element left aligns 18% (mobile) / 8% (desktop) from viewport left.
-// Vertical: element TOP aligns just below viewport top (24px margin). This way
-// even tall controllers show their first section (사고 방향) rather than being
-// pushed up out of view.
+// Horizontal: aim to center the element in the scroller. For wide
+// elements (facets at `calc(100vw-3rem)` on mobile — basically full
+// width) centering collapses to left-aligning with a small margin so
+// the parent still peeks in; for narrower elements (desktop
+// controllers at ~560px) it genuinely centers. The previous fixed
+// 18%/8% alignment landed deep sub-facets consistently right of
+// center once nesting got past level 3.
+// Vertical: element TOP aligns just below viewport top (24px margin)
+// so tall controllers show their first section (사고 방향).
 function scrollElementIntoView(scroller: HTMLElement, el: HTMLElement) {
   const cRect = el.getBoundingClientRect();
   const sRect = scroller.getBoundingClientRect();
-  const isMobile = sRect.width <= 768;
-  const desiredLeftFrac = isMobile ? 0.18 : 0.08;
+  // (viewportWidth - elementWidth) / 2 is where the element's left
+  // edge needs to sit for the element to be centered. Expressed as a
+  // fraction of viewport width and clamped so an element wider than
+  // the viewport still shows a bit of parent on its left.
+  const centerFrac = (sRect.width - cRect.width) / 2 / sRect.width;
+  const desiredLeftFrac = Math.max(0.05, Math.min(0.5, centerFrac));
   const desiredLeft = sRect.left + sRect.width * desiredLeftFrac;
   const deltaX = cRect.left - desiredLeft;
 
