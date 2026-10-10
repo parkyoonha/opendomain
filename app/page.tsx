@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import InputBar from "./components/InputBar";
-import TopicChipsBar from "./components/TopicChipsBar";
 import DecompositionTree from "./components/DecompositionTree";
 import ChipSidePanel from "./components/ChipSidePanel";
 import SettingsModal from "./components/SettingsModal";
@@ -226,7 +225,6 @@ function PageInner() {
             }`}
           >
             {!hideInputBarInMemoList && <InputBar />}
-            {inputMode !== "memo" && <TopicChipsBar />}
             <DecompositionTree />
           </main>
           {inSplit && (

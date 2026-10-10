@@ -58,3 +58,19 @@ body {
 [data-mobile-overlay="true"] .mobile-decompose-fab {
   display: none;
 }
+
+/* While the InputBar text field is focused, freeze every scrollable
+   content region inside <main> so a stray touch / wheel / keyboard
+   resize can't shift the view out from under the cursor. The input
+   element itself and any explicit overflow-x-only carousels keep
+   their own gesture handling via the specific class exceptions
+   below. */
+body.inputbar-focused main {
+  overflow: hidden !important;
+  touch-action: none;
+}
+body.inputbar-focused main .overflow-auto,
+body.inputbar-focused main .overflow-y-auto {
+  overflow: hidden !important;
+  touch-action: none;
+}

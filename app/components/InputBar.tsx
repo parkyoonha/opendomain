@@ -257,7 +257,7 @@ export default function InputBar() {
           e.preventDefault();
           submit();
         }}
-        className="mx-auto flex items-center gap-2 rounded-full bg-white/[0.12] py-1 pl-2 pr-1 md:max-w-[760px]"
+        className="mx-auto flex items-center gap-2 rounded-full bg-white/[0.12] py-3 pl-3 pr-2 md:max-w-[760px]"
       >
         {inputMode === "memo" && (
           <div
@@ -270,7 +270,7 @@ export default function InputBar() {
               disabled={uploadingImage}
               aria-label="첨부 메뉴 열기"
               title="이미지 / 캔버스 첨부"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-white/[0.08] hover:text-text-primary disabled:opacity-40 md:h-7 md:w-7"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-white/[0.08] hover:text-text-primary disabled:opacity-40 md:h-9 md:w-9"
             >
               {uploadingImage ? (
                 <svg
@@ -382,14 +382,20 @@ export default function InputBar() {
           ref={textInputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onFocus={() => {
+            document.body.classList.add("inputbar-focused");
+          }}
+          onBlur={() => {
+            document.body.classList.remove("inputbar-focused");
+          }}
           placeholder={current.placeholder}
-          className="flex-1 bg-transparent px-1 py-1 text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[13px]"
+          className="flex-1 bg-transparent px-1 py-2 text-[16px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[14px]"
         />
         <button
           type="submit"
           disabled={!canSubmit}
           aria-label="제출"
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-7 md:w-7 ${
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-9 md:w-9 ${
             busy
               ? "bg-white/[0.15] text-white"
               : "bg-white text-black"
