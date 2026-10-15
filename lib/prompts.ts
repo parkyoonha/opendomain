@@ -262,7 +262,7 @@ export const topicDecompositionSystemPrompt = (
 };
 
 const resultTypeIdeaSpec = (
-  rt: BigCategory,
+  rt: BigCategory | string,
 ): { label: string; body: string; example: string } => {
   switch (rt) {
     case "제품":
@@ -334,6 +334,15 @@ const resultTypeIdeaSpec = (
         body: "변수·측정 방식·관찰 대상이 있는 실험 또는 프로토타입 설계.",
         example:
           "감각 차단 A/B 테스트: 특정 감각을 24시간 차단했을 때 판단 속도 변화 측정.",
+      };
+    default:
+      // 사용자가 ResultTypeChipRow에서 직접 추가한 커스텀 실행 결과.
+      // 특화된 스펙이 없으므로 입력 문자열을 그대로 label로 쓰고,
+      // 일반적인 "실행 가능한 산출물" 틀을 적용한다.
+      return {
+        label: `${rt} 아이디어`,
+        body: `사용자가 지정한 '${rt}' 형태의 산출물. 그 형태의 핵심 특성·작동 방식·사용자 접점이 드러날 것.`,
+        example: `'${rt}' 형태로 구현된 실행 가능한 아이디어 하나.`,
       };
   }
 };

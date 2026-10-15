@@ -86,6 +86,7 @@ export default function ChipSidePanel() {
     setChipPanelOpen,
     userChips,
     removeUserChip,
+    addUserChip,
     decompositionHistory,
     clearDecompositionHistory,
     removeDecompositionHistoryItem,
@@ -1024,7 +1025,30 @@ export default function ChipSidePanel() {
         )}
       </div>
 
-      <div className="flex gap-2 px-3 py-3">
+      <div className="flex gap-2 px-3 pb-1 pt-2">
+        <button
+          type="button"
+          onClick={() => {
+            const name = window.prompt("새 칩 이름 (예: 자기복제, 압력)")?.trim();
+            if (!name) return;
+            const definition =
+              window.prompt("칩 정의/설명 (선택)")?.trim() ?? "";
+            addUserChip({ kind: "memo", name, definition });
+          }}
+          aria-label="칩 추가"
+          title="새 칩을 라이브러리에 추가"
+          className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/[0.08] px-4 text-[15px] text-white transition-opacity hover:bg-white/[0.16] md:h-9 md:px-3 md:text-[12px]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+            <path
+              d="M12 5v14M5 12h14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span>칩 추가</span>
+        </button>
         <button
           onClick={decomposeStaged}
           disabled={!canDecompose || stagedDStatus === "loading"}
@@ -1111,7 +1135,7 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex-1 rounded-md px-2 py-1 transition-colors ${
+      className={`flex-1 rounded-md px-2 py-2.5 transition-colors ${
         active
           ? "bg-white/10 text-text-primary"
           : "text-text-muted hover:text-text-secondary"

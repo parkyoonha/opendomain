@@ -63,7 +63,7 @@ export default function MemoFolderList() {
       {sortedPages.length === 0 ? (
         <div className="mt-12 flex flex-col items-center gap-2 text-center text-text-muted">
           <p className="text-[13px]">저장된 메모방이 없습니다</p>
-          <p className="text-[11px]">위 입력바에 메모를 기록하거나 "새 메모방"으로 시작하세요</p>
+          <p className="text-[11px]">상단 "새 메모방" 버튼으로 시작하세요</p>
         </div>
       ) : (
         <div className="flex flex-wrap gap-3">

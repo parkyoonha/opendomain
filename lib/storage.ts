@@ -27,10 +27,14 @@ export function loadTopicDecomposition(
   purposeId?: string,
   lensKey?: string,
   providerTag?: string,
+  directionId?: string,
+  resultType?: BigCategory | null,
 ): TopicDecomposition | null {
   const map = readMap<TopicDecomposition>(TOPIC_KEY);
   return (
-    map[topicKey(text, cat, purposeId, lensKey, providerTag)] ?? null
+    map[
+      topicKey(text, cat, purposeId, lensKey, providerTag, directionId, resultType)
+    ] ?? null
   );
 }
 
@@ -43,6 +47,8 @@ export function saveTopicDecomposition(td: TopicDecomposition) {
       td.purposeId,
       td.lensKey,
       td.providerTag,
+      td.directionId,
+      td.resultType,
     )
   ] = td;
   writeMap(TOPIC_KEY, map);

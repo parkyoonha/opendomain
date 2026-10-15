@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -37,11 +38,17 @@ import PendingTopicCard from "./PendingTopicCard";
 import ChipifyCard from "./ChipifyCard";
 import MemoFolderList from "./MemoFolderList";
 
-// Shared controller container style — every controller (axis, multi-axis,
-// sub-facet) uses the same visual card so users see one consistent pattern
-// regardless of decomposition depth.
+// Shared controller container — layout only. The visible panel background
+// moved onto each inner section (추가 조건 / 축 조합 / 사고 방향 / 렌즈 /
+// 실행 결과) so the controller reads as a stack of distinct cards rather
+// than one giant pill wrapping everything.
 const CONTROL_PANEL_CLASSES =
-  "decomp-controller relative flex shrink-0 snap-start flex-col rounded-lg bg-white/[0.05] p-4 gap-3 w-[calc(100vw-3rem)] md:w-[560px]";
+  "decomp-controller relative flex shrink-0 snap-start flex-col gap-3 w-[calc(100vw-3rem)] md:w-[560px]";
+
+// Per-section panel style — every inner section (chip row, custom-context
+// input, action button block) wraps itself in this.
+const CONTROL_SECTION_CLASSES =
+  "rounded-lg bg-white/[0.05] p-3";
 
 // Random-but-stable border+bg color for the "latest attached chip" tag on
 // facet cards. Hashes the chip text so the same chip always gets the same
@@ -972,27 +979,33 @@ function MergedAxisBranch({
         <div className="text-[10px] uppercase tracking-wider text-text-muted">
           다축 결합 ({selectedAxes.length}개)
         </div>
-        <DirectionChipRow
-          currentDirection={currentDirection}
-          customDirections={customDirections}
-          onChangeDirection={onChangeDirection}
-          addCustomDirection={addCustomDirection}
-          removeCustomDirection={removeCustomDirection}
-          collapsed={chipsCollapsed}
-          onCollapseChange={setChipsCollapsed}
-        />
-        <FacetLensRow
-          currentLens={currentLens}
-          onChangeLens={onChangeLens}
-          collapsed={lensCollapsed}
-          onCollapseChange={setLensCollapsed}
-        />
-        <ResultTypeChipRow
-          value={currentResultType}
-          onChange={onChangeResultType}
-          collapsed={chipsCollapsed}
-          onCollapseChange={setChipsCollapsed}
-        />
+        <div className={CONTROL_SECTION_CLASSES}>
+          <DirectionChipRow
+            currentDirection={currentDirection}
+            customDirections={customDirections}
+            onChangeDirection={onChangeDirection}
+            addCustomDirection={addCustomDirection}
+            removeCustomDirection={removeCustomDirection}
+            collapsed={chipsCollapsed}
+            onCollapseChange={setChipsCollapsed}
+          />
+        </div>
+        <div className={CONTROL_SECTION_CLASSES}>
+          <FacetLensRow
+            currentLens={currentLens}
+            onChangeLens={onChangeLens}
+            collapsed={lensCollapsed}
+            onCollapseChange={setLensCollapsed}
+          />
+        </div>
+        <div className={CONTROL_SECTION_CLASSES}>
+          <ResultTypeChipRow
+            value={currentResultType}
+            onChange={onChangeResultType}
+            collapsed={chipsCollapsed}
+            onCollapseChange={setChipsCollapsed}
+          />
+        </div>
         <button
           onClick={onDecompose}
           disabled={status === "loading"}
@@ -1223,7 +1236,7 @@ function AxisRow({
             })}
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className={`${CONTROL_SECTION_CLASSES} flex flex-col gap-1`}>
             <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
               추가 조건 (선택)
             </span>
@@ -1239,34 +1252,42 @@ function AxisRow({
 
           {axisMode === "explore" ? (
             <>
-              <button
-                onClick={() => setChipPanelOpen(true)}
-                title="칩 라이브러리 열어 이 축과 조합하기"
-                className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-              >
-                + 축 조합
-              </button>
-              <DirectionChipRow
-                currentDirection={currentDirection}
-                customDirections={customDirections}
-                onChangeDirection={onChangeDirection}
-                addCustomDirection={addCustomDirection}
-                removeCustomDirection={removeCustomDirection}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
-              <FacetLensRow
-                currentLens={currentLens}
-                onChangeLens={onChangeLens}
-                collapsed={lensCollapsed}
-                onCollapseChange={setLensCollapsed}
-              />
-              <ResultTypeChipRow
-                value={currentResultType}
-                onChange={onChangeResultType}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
+              <div className={CONTROL_SECTION_CLASSES}>
+                <button
+                  onClick={() => setChipPanelOpen(true)}
+                  title="칩 라이브러리 열어 이 축과 조합하기"
+                  className="rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
+                >
+                  + 축 조합
+                </button>
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <DirectionChipRow
+                  currentDirection={currentDirection}
+                  customDirections={customDirections}
+                  onChangeDirection={onChangeDirection}
+                  addCustomDirection={addCustomDirection}
+                  removeCustomDirection={removeCustomDirection}
+                  collapsed={chipsCollapsed}
+                  onCollapseChange={setChipsCollapsed}
+                />
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <FacetLensRow
+                  currentLens={currentLens}
+                  onChangeLens={onChangeLens}
+                  collapsed={lensCollapsed}
+                  onCollapseChange={setLensCollapsed}
+                />
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <ResultTypeChipRow
+                  value={currentResultType}
+                  onChange={onChangeResultType}
+                  collapsed={chipsCollapsed}
+                  onCollapseChange={setChipsCollapsed}
+                />
+              </div>
               <button
                 onClick={() =>
                   onDecomposeFacet(
@@ -1288,12 +1309,14 @@ function AxisRow({
             </>
           ) : (
             <>
-              <FacetLensRow
-                currentLens={axisVerifyLens}
-                onChangeLens={(lens) => setPrincipleVerifyLens(axisPk, lens)}
-                collapsed={lensCollapsed}
-                onCollapseChange={setLensCollapsed}
-              />
+              <div className={CONTROL_SECTION_CLASSES}>
+                <FacetLensRow
+                  currentLens={axisVerifyLens}
+                  onChangeLens={(lens) => setPrincipleVerifyLens(axisPk, lens)}
+                  collapsed={lensCollapsed}
+                  onCollapseChange={setLensCollapsed}
+                />
+              </div>
               <button
                 onClick={async () => {
                   setAxisVerifyLoading(true);
@@ -2045,7 +2068,7 @@ export function FacetNode({
             })}
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className={`${CONTROL_SECTION_CLASSES} flex flex-col gap-1`}>
             <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
               추가 조건 (선택)
             </span>
@@ -2059,36 +2082,44 @@ export function FacetNode({
 
           {mode === "explore" ? (
             <>
-              <button
-                onClick={() => setChipPanelOpen(true)}
-                title="칩 라이브러리 열어 이 원리와 조합하기"
-                className="self-start rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-              >
-                + 축 조합
-              </button>
-              <DirectionChipRow
-                currentDirection={
-                  principleDirection[pk] ?? DEFAULT_DIRECTION_ID
-                }
-                customDirections={customDirections}
-                onChangeDirection={(id) => setPrincipleDirection(pk, id)}
-                addCustomDirection={addCustomDirection}
-                removeCustomDirection={removeCustomDirection}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
-              <FacetLensRow
-                currentLens={principleLens[pk] ?? selectedLens ?? null}
-                onChangeLens={(lens) => setPrincipleLens(pk, lens)}
-                collapsed={lensCollapsed}
-                onCollapseChange={setLensCollapsed}
-              />
-              <ResultTypeChipRow
-                value={principleResultType[pk] ?? null}
-                onChange={(rt) => setPrincipleResultType(pk, rt)}
-                collapsed={chipsCollapsed}
-                onCollapseChange={setChipsCollapsed}
-              />
+              <div className={CONTROL_SECTION_CLASSES}>
+                <button
+                  onClick={() => setChipPanelOpen(true)}
+                  title="칩 라이브러리 열어 이 원리와 조합하기"
+                  className="rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
+                >
+                  + 축 조합
+                </button>
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <DirectionChipRow
+                  currentDirection={
+                    principleDirection[pk] ?? DEFAULT_DIRECTION_ID
+                  }
+                  customDirections={customDirections}
+                  onChangeDirection={(id) => setPrincipleDirection(pk, id)}
+                  addCustomDirection={addCustomDirection}
+                  removeCustomDirection={removeCustomDirection}
+                  collapsed={chipsCollapsed}
+                  onCollapseChange={setChipsCollapsed}
+                />
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <FacetLensRow
+                  currentLens={principleLens[pk] ?? selectedLens ?? null}
+                  onChangeLens={(lens) => setPrincipleLens(pk, lens)}
+                  collapsed={lensCollapsed}
+                  onCollapseChange={setLensCollapsed}
+                />
+              </div>
+              <div className={CONTROL_SECTION_CLASSES}>
+                <ResultTypeChipRow
+                  value={principleResultType[pk] ?? null}
+                  onChange={(rt) => setPrincipleResultType(pk, rt)}
+                  collapsed={chipsCollapsed}
+                  onCollapseChange={setChipsCollapsed}
+                />
+              </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={async () => {
@@ -2120,12 +2151,14 @@ export function FacetNode({
             </>
           ) : (
             <>
-              <FacetLensRow
-                currentLens={currentVerifyLens}
-                onChangeLens={(lens) => setPrincipleVerifyLens(pk, lens)}
-                collapsed={lensCollapsed}
-                onCollapseChange={setLensCollapsed}
-              />
+              <div className={CONTROL_SECTION_CLASSES}>
+                <FacetLensRow
+                  currentLens={currentVerifyLens}
+                  onChangeLens={(lens) => setPrincipleVerifyLens(pk, lens)}
+                  collapsed={lensCollapsed}
+                  onCollapseChange={setLensCollapsed}
+                />
+              </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={async () => {
@@ -2402,12 +2435,53 @@ function VerifyReportCard({
     needs: r.needs,
     provides: r.provides,
   }));
-  // Sort by tier (기반 → 결합 → 완성) but render as a flat A/B/C/D list.
-  // The tier headers were adding noise for only 3~4 requirements.
+  // Topological sort by edges (provides→needs). This drives both the
+  // compact 실행 흐름 pipeline and the detailed requirement list below,
+  // so a user reads the chain of dependencies in one consistent order.
+  // Tier (기반 → 결합 → 완성) is used only as a tiebreaker when the DAG
+  // leaves siblings unordered.
   const tierOrder: Record<string, number> = { 기반: 0, 결합: 1, 완성: 2 };
-  const orderedReqs = [...report.requirements].sort(
-    (a, b) => (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9),
-  );
+  const orderedReqs = (() => {
+    const reqs = report.requirements;
+    const byId = new Map(reqs.map((r) => [r.id, r] as const));
+    const inDeg = new Map<string, number>();
+    const outAdj = new Map<string, string[]>();
+    for (const r of reqs) {
+      inDeg.set(r.id, 0);
+      outAdj.set(r.id, []);
+    }
+    for (const e of report.edges) {
+      if (!byId.has(e.fromId) || !byId.has(e.toId)) continue;
+      inDeg.set(e.toId, (inDeg.get(e.toId) ?? 0) + 1);
+      outAdj.get(e.fromId)!.push(e.toId);
+    }
+    const prio = (r: RequirementPart) =>
+      (tierOrder[r.tier] ?? 9) * 100 + r.id.charCodeAt(0);
+    const queue: RequirementPart[] = reqs
+      .filter((r) => (inDeg.get(r.id) ?? 0) === 0)
+      .sort((a, b) => prio(a) - prio(b));
+    const order: RequirementPart[] = [];
+    const seen = new Set<string>();
+    while (queue.length > 0) {
+      queue.sort((a, b) => prio(a) - prio(b));
+      const cur = queue.shift()!;
+      if (seen.has(cur.id)) continue;
+      seen.add(cur.id);
+      order.push(cur);
+      for (const toId of outAdj.get(cur.id) ?? []) {
+        inDeg.set(toId, (inDeg.get(toId) ?? 0) - 1);
+        if ((inDeg.get(toId) ?? 0) === 0 && !seen.has(toId)) {
+          const next = byId.get(toId);
+          if (next) queue.push(next);
+        }
+      }
+    }
+    // Safety net: append disconnected / cycle-stuck nodes in tier order.
+    for (const r of [...reqs].sort((a, b) => prio(a) - prio(b))) {
+      if (!seen.has(r.id)) order.push(r);
+    }
+    return order;
+  })();
 
   // Click a dangling need pill: find chips that *provide* that token.
   const openChipPanelForOutput = (token: string, requirementId: string) => {
@@ -2471,28 +2545,58 @@ function VerifyReportCard({
           <div className="mt-0.5 font-semibold">{report.target}</div>
         </div>
       )}
-      {(report.baselineProduct || report.baselineLimitation) && (
+      {report.baselineLimitation && (
         <div
           className={`${widthCls} rounded-md bg-white/[0.04] px-3 py-2 text-[11px] leading-5 md:text-[10px] md:leading-4`}
         >
-          {report.baselineProduct && (
-            <div className="text-text-secondary">
-              <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                지금의 제품 ·{" "}
-              </span>
-              <span className="font-semibold text-text-primary">
-                {report.baselineProduct}
-              </span>
-            </div>
-          )}
-          {report.baselineLimitation && (
-            <div className="mt-0.5 text-text-secondary">
-              <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
-                한계 ·{" "}
-              </span>
-              {report.baselineLimitation}
-            </div>
-          )}
+          <div className="text-text-secondary">
+            <span className="text-[9px] uppercase tracking-wider text-rose-200/80">
+              한계 ·{" "}
+            </span>
+            {report.baselineLimitation}
+          </div>
+        </div>
+      )}
+      {orderedReqs.length > 0 && (
+        <div
+          className={`${widthCls} rounded-md bg-white/[0.04] px-3 py-2`}
+        >
+          <div className="mb-1.5 text-[9px] uppercase tracking-wider text-text-muted">
+            실행 흐름
+          </div>
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+            {orderedReqs.map((r, i) => {
+              const pal = feasibilityPalette[r.feasibility];
+              const weak =
+                r.feasibility === "infeasible" || r.feasibility === "unknown";
+              return (
+                <Fragment key={r.id}>
+                  {i > 0 && (
+                    <span className="text-[11px] text-text-muted md:text-[10px]">
+                      →
+                    </span>
+                  )}
+                  <span
+                    className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] md:text-[10px] ${pal.bg} ${pal.text}`}
+                  >
+                    <span className="font-bold">{r.id}</span>
+                    <span>{r.name}</span>
+                    {weak && (
+                      <span
+                        className={
+                          r.feasibility === "infeasible"
+                            ? "text-rose-200"
+                            : "text-slate-200"
+                        }
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </span>
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
       )}
       <ul className={`${widthCls} flex flex-col gap-0.5`}>
@@ -2580,53 +2684,96 @@ function VerifyReportCard({
           );
         })}
       </ul>
-      {/* 충돌·실패를 "하위 목표"로 재서술한 블록 — 가장 핵심적인 1개만 */}
+      {/* 약점 → 새 목표 (여러 개 공존 가능). 각 약점이 자기 목표문과
+          자기 해결 매트릭스를 갖는다. 사용자가 어느 쪽부터 뚫을지 고름.
+          약점 종류:
+            · infeasible — conflictingNeed 혹은 첫 need를 제외하고 매칭
+            · unknown — 신뢰도 낮음, provides를 공급원 매칭
+            · dangling need — 아무도 공급 안 하는 토큰, 공급원 매칭 */}
       {(() => {
-        const infeasible = report.requirements.find(
-          (r) => r.feasibility === "infeasible",
-        );
-        const dangling = report.danglingNeeds[0];
-        if (!infeasible && !dangling) return null;
+        type WeakPoint = {
+          key: string;
+          label: string;
+          reason: string;
+          subGoal: string;
+          onResolve: () => void;
+        };
+        const weakPoints: WeakPoint[] = [];
 
-        let subGoal: string;
-        let onResolve: () => void;
-        if (infeasible) {
-          const target = infeasible.provides[0];
-          const exclude =
-            infeasible.conflictingNeed ?? infeasible.needs[0] ?? undefined;
-          subGoal =
-            infeasible.resolvedGoal ||
-            (exclude && target
-              ? `${exclude} 없이 ${target}을 만드는 방법`
-              : infeasible.name);
-          onResolve = () => {
-            if (exclude) openChipPanelExcludingNeed(exclude, infeasible);
-            else if (target)
-              openChipPanelForOutput(target, infeasible.id);
-          };
-        } else {
-          subGoal = `${dangling!.token}을(를) 공급할 메커니즘`;
-          onResolve = () =>
-            openChipPanelForOutput(dangling!.token, dangling!.requirementId);
+        for (const r of orderedReqs) {
+          if (r.feasibility === "infeasible") {
+            const target = r.provides[0];
+            const exclude =
+              r.conflictingNeed ?? r.needs[0] ?? undefined;
+            weakPoints.push({
+              key: `req-${r.id}`,
+              label: `${r.id}. ${r.name}`,
+              reason:
+                r.rationale ||
+                (exclude ? `"${exclude}"가 다른 요건과 모순` : "구현 불가"),
+              subGoal:
+                r.resolvedGoal ||
+                (exclude && target
+                  ? `${exclude} 없이 ${target}을 만드는 방법`
+                  : r.name),
+              onResolve: () => {
+                if (exclude) openChipPanelExcludingNeed(exclude, r);
+                else if (target) openChipPanelForOutput(target, r.id);
+              },
+            });
+          } else if (r.feasibility === "unknown") {
+            const target = r.provides[0];
+            weakPoints.push({
+              key: `req-${r.id}`,
+              label: `${r.id}. ${r.name}`,
+              reason: r.rationale || "현재 정보로는 성립 여부 판정 불가",
+              subGoal: target
+                ? `${target}을 안정적으로 만드는 방법`
+                : `${r.name}의 성립 조건`,
+              onResolve: () => {
+                if (target) openChipPanelForOutput(target, r.id);
+              },
+            });
+          }
         }
+        // dangling need(공급원 없음)는 약점으로 노출하지 않음.
+        // "구체적인 모순/판정불가"가 있는 요건만 사용자가 뚫을 가치가 있음.
+        if (weakPoints.length === 0) return null;
+
+        const circled = ["①", "②", "③", "④", "⑤", "⑥", "⑦"];
 
         return (
-          <div
-            className={`${widthCls} mt-1 flex flex-col gap-2 rounded-md bg-white/[0.16] px-3 py-3`}
-          >
-            <div className="text-[10px] uppercase tracking-wider text-text-muted">
-              충돌·실패 → 새 목표
-            </div>
-            <div className="text-[14px] font-bold leading-5 text-text-primary md:text-[13px] md:leading-5">
-              {subGoal}
-            </div>
-            <button
-              onClick={onResolve}
-              className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 md:text-[12px]"
+          <>
+            <div
+              className={`${widthCls} mt-1 text-[11px] text-text-muted md:text-[10px]`}
             >
-              해결 → 매트릭스
-            </button>
-          </div>
+              {weakPoints.length === 1
+                ? "약점 발견 — 새 목표"
+                : `약점 ${weakPoints.length}개 — 어느 쪽부터 뚫을까?`}
+            </div>
+            {weakPoints.map((wp, i) => (
+              <div
+                key={wp.key}
+                className={`${widthCls} flex flex-col gap-2 rounded-md bg-white/[0.16] px-3 py-3`}
+              >
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                  {circled[i] ?? `(${i + 1})`} {wp.label}
+                </div>
+                <div className="text-[11px] leading-4 text-rose-200/80 md:text-[10px]">
+                  {wp.reason}
+                </div>
+                <div className="text-[14px] font-bold leading-5 text-text-primary md:text-[13px] md:leading-5">
+                  {wp.subGoal}
+                </div>
+                <button
+                  onClick={wp.onResolve}
+                  className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 md:text-[12px]"
+                >
+                  해결 → 매트릭스
+                </button>
+              </div>
+            ))}
+          </>
         );
       })()}
     </div>

@@ -172,94 +172,11 @@ export default function PendingTopicCard() {
         </button>
       </div>
 
-      <div className="flex items-center gap-1 self-start rounded-full bg-white/[0.06] p-0.5">
-        {(["explore", "verify"] as const).map((m) => {
-          const active = mode === m;
-          return (
-            <button
-              key={m}
-              onClick={() => setPrincipleControllerMode(pk, m)}
-              className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
-                active
-                  ? "bg-white text-black"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {m === "explore" ? "사고확장" : "증명"}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-          추가 조건 (선택)
-        </span>
-        <input
-          value={customContext}
-          onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-          placeholder="주제를 조율할 추가 조건·관점·제약"
-          className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
-        />
-      </div>
-
-      {mode === "explore" ? (
-        <div className="flex flex-col gap-3 pt-1">
-          <DirectionChipRow
-            currentDirection={topicDirectionId}
-            customDirections={customDirections}
-            onChangeDirection={setTopicDirectionId}
-            addCustomDirection={addCustomDirection}
-            removeCustomDirection={removeCustomDirection}
-            collapsed={collapsedDir}
-            onCollapseChange={setCollapsedDir}
-          />
-          <FacetLensRow
-            currentLens={selectedLens}
-            onChangeLens={setSelectedLens}
-            collapsed={collapsedLens}
-            onCollapseChange={setCollapsedLens}
-          />
-          <ResultTypeChipRow
-            value={topicResultType}
-            onChange={setTopicResultType}
-            collapsed={collapsedResult}
-            onCollapseChange={setCollapsedResult}
-          />
-          <button
-            onClick={() => void commitPending(topicPurposeId)}
-            disabled={busy}
-            className="mt-2 hidden items-center justify-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity disabled:opacity-30 md:flex"
-          >
-            <span>분해 시작</span>
-            {busy ? <Spinner /> : <Arrow />}
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3 pt-1">
-          <FacetLensRow
-            currentLens={vLens}
-            onChangeLens={(l) => setPrincipleVerifyLens(pk, l)}
-            collapsed={collapsedLens}
-            onCollapseChange={setCollapsedLens}
-          />
-          <button
-            onClick={async () => {
-              setVerifyBusy(true);
-              try {
-                await runVerifyFacet("주제", pendingTopic, pendingTopic, vLens);
-              } finally {
-                setVerifyBusy(false);
-              }
-            }}
-            disabled={verifyBusy}
-            className="mt-2 hidden items-center justify-center gap-1.5 self-start rounded-full bg-amber-400 px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:bg-amber-300 disabled:opacity-30 md:flex"
-          >
-            <span>증명 시작</span>
-            {verifyBusy ? <Spinner /> : <Arrow />}
-          </button>
-        </div>
-      )}
+      {/* Controller UI (mode toggle, direction/lens/resultType pickers,
+          추가 조건, 분해/증명 시작 버튼) moved to the InputBar + popover.
+          Enter commits immediately now, so this card only shows the
+          topic header and — in verify mode — the verify report columns
+          to the right. */}
     </div>
 
     {/* Verify results render to the RIGHT of the pending card as a

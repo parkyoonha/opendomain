@@ -48,14 +48,11 @@ function PageInner() {
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
   const isEmptyTopicState =
     inputMode === "topic" && !decomposition && !pendingTopic;
-  // Memo folder list already has a "+ 새 메모방" button that owns room
-  // creation, so once at least one room exists the input bar on the
-  // list view would just be noise. Keep it in the empty-state list
-  // (so the user can still type their very first memo without opening
-  // the dialog) and in every individual room view.
-  const hasMemoRooms = pages.some((p) => p.type === "memo");
-  const hideInputBarInMemoList =
-    inputMode === "memo" && memoListMode && hasMemoRooms;
+  // Memo folder list has its own "+ 새 메모방" button for room creation,
+  // so the bottom input bar is just visual noise there — hide it on
+  // every list view (empty or not). The input bar still appears inside
+  // individual memo rooms where typing is the primary action.
+  const hideInputBarInMemoList = inputMode === "memo" && memoListMode;
   const canGoBack = inputMode === "memo" && !memoListMode;
   // Bottom-sheet variant only applies to the "verify auto-opened the
   // chip panel while the user is on a 사고확장 topic" flow. A manual
@@ -122,9 +119,11 @@ function PageInner() {
       </button>
       <DesktopMenuButton onOpenBusinessInfo={() => setBusinessInfoOpen(true)} />
       {/* Mobile hamburger — top-left, opens the session history drawer.
-          No bg, just the icon. Hidden on the memo tab; a back button
-          takes its slot there. */}
-      {inputMode !== "memo" && (
+          No bg, just the icon. Hidden on the memo tab (a back button
+          takes its slot) and when the chip panel is covering the main
+          area full-screen (main is hidden, so the hamburger has
+          nothing to anchor to). */}
+      {inputMode !== "memo" && !(showChipPanel && !chipAsBottomSheet) && (
         <button
           onClick={() => setHistoryDrawerOpen(true)}
           aria-label="세션 히스토리 열기"
@@ -132,7 +131,7 @@ function PageInner() {
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7">
             <path
-              d="M4 7h16M4 12h16M4 17h16"
+              d="M4 9h16M4 15h16"
               stroke="currentColor"
               strokeWidth="1.75"
               strokeLinecap="round"
@@ -184,7 +183,7 @@ function PageInner() {
       >
         <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
           <path
-            d="M4 7h16M4 12h16M4 17h16"
+            d="M4 9h16M4 15h16"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
@@ -201,7 +200,7 @@ function PageInner() {
                       inSplit && activeSplitView !== "chip"
                         ? "hidden md:flex"
                         : "flex"
-                    } h-full min-w-0 flex-1 pb-safe-14 md:flex-none md:pb-0`
+                    } h-full min-w-0 flex-1 pt-safe-8 pb-safe-14 md:flex-none md:pt-0 md:pb-0`
               }
             >
               <ChipSidePanel />
@@ -236,7 +235,7 @@ function PageInner() {
               <MemoSidebar />
             </div>
           )}
-          <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex border-t border-white/10 bg-neutral-900 md:hidden">
+          <nav className="safe-bottom absolute inset-x-0 bottom-0 z-30 flex border-t border-black bg-black md:hidden">
             {(
               [
                 { key: "topic", label: "사고확장" },

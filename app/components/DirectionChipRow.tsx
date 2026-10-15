@@ -36,6 +36,7 @@ export default function DirectionChipRow({
           사고 방향
         </span>
         <button
+          type="button"
           onClick={() => onCollapseChange?.(false)}
           className="rounded-full bg-white/[0.18] px-5 py-2 text-[14px] text-text-primary whitespace-nowrap md:px-3 md:py-1 md:text-[11px]"
         >
@@ -60,6 +61,7 @@ export default function DirectionChipRow({
           return (
             <span key={d.id} className="inline-flex items-center">
               <button
+                type="button"
                 onClick={() => pick(d.id)}
                 className={`rounded-full px-5 py-2 text-[14px] transition-colors whitespace-nowrap md:px-3 md:py-1 md:text-[11px] ${
                   active
@@ -71,6 +73,7 @@ export default function DirectionChipRow({
               </button>
               {d.isCustom && (
                 <button
+                  type="button"
                   onClick={() => removeCustomDirection(d.id)}
                   className="ml-0.5 text-[10px] text-text-muted hover:text-text-primary"
                   aria-label="방향 삭제"
@@ -82,27 +85,50 @@ export default function DirectionChipRow({
           );
         })}
         {adding ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newLabel.trim()) return;
-              addCustomDirection(newLabel);
-              setNewLabel("");
-              setAdding(false);
-            }}
-            className="inline-flex"
-          >
+          // Not a <form> on purpose: this row renders inside the
+          // InputBar's outer <form>, and nested forms are illegal in
+          // HTML — the inner form flattens and a type="submit" inside
+          // would fire the OUTER InputBar submit (runDecompose). Use a
+          // div + explicit button + enter-key handler instead.
+          <div className="inline-flex items-center gap-1">
             <input
               autoFocus
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!newLabel.trim()) return;
+                  addCustomDirection(newLabel);
+                  setNewLabel("");
+                  setAdding(false);
+                }
+              }}
               onBlur={() => setAdding(false)}
               placeholder="새 방향"
               className="w-32 rounded-full bg-white/[0.06] px-5 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none focus:bg-white/[0.12] md:w-24 md:px-3 md:py-1 md:text-[11px]"
             />
-          </form>
+            {/* mousedown preventDefault keeps the input focused while
+                the click registers — without it the input blurs first
+                and sets adding=false before the click handler fires. */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (!newLabel.trim()) return;
+                addCustomDirection(newLabel);
+                setNewLabel("");
+                setAdding(false);
+              }}
+              aria-label="추가"
+              className="rounded-full bg-white/[0.18] px-3 py-2 text-[14px] text-text-primary hover:bg-white/[0.26] md:px-2 md:py-1 md:text-[11px]"
+            >
+              ✓
+            </button>
+          </div>
         ) : (
           <button
+            type="button"
             onClick={() => setAdding(true)}
             className="rounded-full bg-white/[0.04] px-5 py-2 text-[14px] text-text-muted hover:bg-white/[0.1] hover:text-text-primary md:px-3 md:py-1 md:text-[11px]"
           >

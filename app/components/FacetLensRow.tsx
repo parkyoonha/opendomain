@@ -51,6 +51,7 @@ export default function FacetLensRow({
           {lensLabel(currentLens)}
         </span>
         <button
+          type="button"
           onClick={() => onCollapseChange?.(false)}
           className="rounded-full bg-white/[0.06] px-3 py-1 text-[12px] text-text-secondary hover:bg-white/[0.14] hover:text-text-primary md:text-[10px]"
         >
@@ -87,12 +88,14 @@ export default function FacetLensRow({
         {opened ? (
           <>
             <button
+              type="button"
               onClick={() => setOpenDiscipline(null)}
               className={`${CHIP_BASE} ${CHIP_ACTIVE}`}
             >
               {opened.discipline}
             </button>
             <button
+              type="button"
               onClick={() => {
                 pick({ discipline: opened.discipline, scholar: null });
                 setOpenDiscipline(null);
@@ -113,6 +116,7 @@ export default function FacetLensRow({
               return (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => {
                     pick({ discipline: opened.discipline, scholar: s });
                     setOpenDiscipline(null);
@@ -127,6 +131,7 @@ export default function FacetLensRow({
         ) : (
           <>
             <button
+              type="button"
               onClick={() => pick(AUTO_LENS)}
               className={`${CHIP_BASE} ${
                 isAutoLens(currentLens) ? CHIP_ACTIVE : CHIP_INACTIVE
@@ -140,6 +145,7 @@ export default function FacetLensRow({
               return (
                 <span key={l.discipline} className="inline-flex items-center">
                   <button
+                    type="button"
                     onClick={() => toggle(l.discipline)}
                     className={`${CHIP_BASE} ${active ? CHIP_ACTIVE : CHIP_INACTIVE}`}
                   >
@@ -150,6 +156,7 @@ export default function FacetLensRow({
                   </button>
                   {l.isCustom && (
                     <button
+                      type="button"
                       onClick={() => removeCustomLens(l.discipline)}
                       className="ml-0.5 text-[10px] text-text-muted hover:text-text-primary"
                       aria-label="렌즈 삭제"
@@ -161,27 +168,43 @@ export default function FacetLensRow({
               );
             })}
             {adding ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newLabel.trim()) return;
-                  addCustomLens(newLabel);
-                  setNewLabel("");
-                  setAdding(false);
-                }}
-                className="inline-flex"
-              >
+              // Not a <form>: see DirectionChipRow note.
+              <div className="inline-flex items-center gap-1">
                 <input
                   autoFocus
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!newLabel.trim()) return;
+                      addCustomLens(newLabel);
+                      setNewLabel("");
+                      setAdding(false);
+                    }
+                  }}
                   onBlur={() => setAdding(false)}
                   placeholder="새 렌즈"
                   className="w-32 rounded-full bg-white/[0.06] px-5 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none focus:bg-white/[0.12] md:w-24 md:px-3 md:py-1 md:text-[11px]"
                 />
-              </form>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (!newLabel.trim()) return;
+                    addCustomLens(newLabel);
+                    setNewLabel("");
+                    setAdding(false);
+                  }}
+                  aria-label="추가"
+                  className="rounded-full bg-white/[0.18] px-3 py-2 text-[14px] text-text-primary hover:bg-white/[0.26] md:px-2 md:py-1 md:text-[11px]"
+                >
+                  ✓
+                </button>
+              </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setAdding(true)}
                 className="rounded-full bg-white/[0.04] px-5 py-2 text-[14px] text-text-muted hover:bg-white/[0.1] hover:text-text-primary md:px-3 md:py-1 md:text-[11px]"
               >

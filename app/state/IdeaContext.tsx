@@ -122,6 +122,13 @@ export type ActivityPayload =
       topicText: string;
       bigCategory: BigCategory;
       purposeId: string;
+      // Direction / resultType / custom context picked on the pending card
+      // when the user kicked off the decompose. Replay uses them so the
+      // reopened decomposition matches what the user originally saw.
+      directionId?: string;
+      directionLabel?: string;
+      resultType?: BigCategory | null;
+      userContext?: string;
     }
   | { kind: "chip"; query: string; mode: ChipSearchMode }
   | { kind: "combine"; combinedIdeaId: string }
@@ -183,6 +190,15 @@ type Ctx = {
   setTopicDirectionId: (id: string) => void;
   topicResultType: BigCategory | null;
   setTopicResultType: (rt: BigCategory | null) => void;
+  // Topic-level draft state owned by the InputBar + popover. Picked
+  // BEFORE enter so the first submit already carries the user's choice —
+  // the historic "enter then pick on pending card" step is removed.
+  topicMode: "explore" | "verify";
+  setTopicMode: (m: "explore" | "verify") => void;
+  topicVerifyLens: SelectedLens | null;
+  setTopicVerifyLens: (lens: SelectedLens | null) => void;
+  topicDraftContext: string;
+  setTopicDraftContext: (text: string) => void;
 
   decomposition: TopicDecomposition | null;
   status: Status;
@@ -378,6 +394,11 @@ type Ctx = {
   userChips: UserChip[];
   chipifyMemo: (memoId: string, override?: string) => void;
   removeUserChip: (id: string) => void;
+  addUserChip: (input: {
+    kind: UserChipKind;
+    name: string;
+    definition: string;
+  }) => void;
 
   chipifyPending: { memoId: string | null; text: string } | null;
   startChipify: (memoId: string, override?: string) => void;
@@ -406,6 +427,12 @@ type Ctx = {
   // keyboard up.
   memoInputFocusTick: number;
   requestMemoInputFocus: () => void;
+  // Increments every time startTopicDraft is called. InputBar watches
+  // this to drop its "committedOnce → collapsed" flag so a fresh draft
+  // reopens the expanded layout. Needed because startTopicDraft and the
+  // in-flight runDecompose both touch topicText/currentPageId, so those
+  // state values alone can't distinguish a user-initiated reset.
+  topicDraftTick: number;
   // When true, the chip panel ignores the bottom-sheet layout and
   // renders at full screen. Set by the bottom-nav 칩 tab click so a
   // deliberate chip-tab navigation isn't boxed into the small
@@ -512,6 +539,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [topicText, setTopicText] = useState("");
   const [bigCategory, setBigCategory] = useState<BigCategory>("서비스");
   const [topicPurposeId, setTopicPurposeId] = useState<string>(DEFAULT_PURPOSE_ID);
+  // Draft state the InputBar + popover writes into before enter. These
+  // persist across popover opens so the user's last choice sticks.
+  const [topicMode, setTopicMode] = useState<"explore" | "verify">("explore");
+  const [topicVerifyLens, setTopicVerifyLens] = useState<SelectedLens | null>(
+    null,
+  );
+  const [topicDraftContext, setTopicDraftContext] = useState<string>("");
   const [pendingTopic, setPendingTopic] = useState<string | null>(null);
   const [userChips, setUserChips] = useState<UserChip[]>([]);
   const [chipifyPending, setChipifyPending] = useState<
@@ -533,6 +567,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     () => new Set(),
   );
   const [memoInputFocusTick, setMemoInputFocusTick] = useState(0);
+  const [topicDraftTick, setTopicDraftTick] = useState(0);
   const [chipPanelFullScreen, setChipPanelFullScreen] = useState(false);
 
   const togglePinMemoPage = useCallback((id: string) => {
@@ -637,6 +672,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setTopicText("");
     setDecomposition(null);
     setMemoListMode(false);
+    setTopicDraftTick((t) => t + 1);
   }, []);
 
   const startMemoDraft = useCallback(() => {
@@ -1732,11 +1768,27 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       trimmed: string,
       cat: BigCategory,
       purposeId: string,
-      opts: { pushActivity: boolean },
+      opts: {
+        pushActivity: boolean;
+        directionId?: string;
+        directionLabel?: string;
+        resultType?: BigCategory | null;
+        userContext?: string;
+      },
     ): Promise<TopicDecomposition | null> => {
       if (!trimmed) return null;
       const lk = lensKey(selectedLens);
-      const cached = loadTopicDecomposition(trimmed, cat, purposeId, lk, providerTag);
+      const effectiveDirectionId = opts.directionId;
+      const effectiveResultType = opts.resultType ?? null;
+      const cached = loadTopicDecomposition(
+        trimmed,
+        cat,
+        purposeId,
+        lk,
+        providerTag,
+        effectiveDirectionId,
+        effectiveResultType,
+      );
       const resetFacetState = () => {
         setSelectedAxes(new Set());
         setFacetDecompositionsByKey({});
@@ -1771,6 +1823,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             bigCategory: cat,
             lens: selectedLens,
             purposeId,
+            directionId: effectiveDirectionId,
+            directionLabel: opts.directionLabel,
+            resultType: effectiveResultType,
+            userContext: opts.userContext,
           }),
         });
         const data = (await res.json()) as {
@@ -1786,6 +1842,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
           purposeId,
           lensKey: lk,
           providerTag,
+          directionId: effectiveDirectionId,
+          resultType: effectiveResultType,
           axisToPrinciple: data.axes,
         };
         saveTopicDecomposition(td);
@@ -1796,7 +1854,16 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
             kind: "topic",
             title: trimmed,
             subtitle: cat,
-            payload: { kind: "topic", topicText: trimmed, bigCategory: cat, purposeId },
+            payload: {
+              kind: "topic",
+              topicText: trimmed,
+              bigCategory: cat,
+              purposeId,
+              directionId: effectiveDirectionId,
+              directionLabel: opts.directionLabel,
+              resultType: effectiveResultType,
+              userContext: opts.userContext,
+            },
           });
         }
         return td;
@@ -1809,12 +1876,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     [selectedLens, pushActivity, providerTag],
   );
 
+  // Enter on the InputBar used to just stage pendingTopic and wait for
+  // the user to pick direction/lens/mode on the pending card and press
+  // "분해 시작". That step is gone: enter now commits directly using
+  // whatever the user already picked in the + popover (or the defaults),
+  // and routes to explore vs verify based on topicMode.
   const runDecompose = useCallback(async () => {
     const trimmed = topicText.trim();
     if (!trimmed) return;
-    // Reset all prior topic state so the new topic's pending controller
-    // takes over (otherwise DecompositionTree stays on the old axes view).
-    setPendingTopic(trimmed);
+    // Common reset shared by both modes.
     setTopicText("");
     setDecomposition(null);
     setCurrentPageId(null);
@@ -1823,7 +1893,61 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setSelectedPrinciple(null);
     setSplitMemoPageId(null);
     setCenterMode("topic");
-  }, [topicText]);
+
+    if (topicMode === "verify") {
+      // Verify path: keep pendingTopic set so PendingTopicCard renders
+      // the verify report columns. Pre-wire the pending card's mode /
+      // verify-lens / custom-context from the popover draft state.
+      const pk = `주제::${trimmed}`;
+      setPendingTopic(trimmed);
+      setPrincipleControllerMode(pk, "verify");
+      setPrincipleVerifyLens(pk, topicVerifyLens);
+      if (topicDraftContext.trim()) {
+        setPrincipleCustomContext(pk, topicDraftContext.trim());
+      }
+      void runVerifyFacet("주제", trimmed, trimmed, topicVerifyLens);
+      return;
+    }
+
+    // Explore path: direct decompose using popover picks.
+    const directionMeta =
+      kBuiltinDirections.find((d) => d.id === topicDirectionId) ??
+      customDirections.find((d) => d.id === topicDirectionId);
+    const td = await runDecomposeFor(trimmed, bigCategory, topicPurposeId, {
+      pushActivity: true,
+      directionId: topicDirectionId,
+      directionLabel: directionMeta?.label,
+      resultType: topicResultType,
+      userContext: topicDraftContext.trim() || undefined,
+    });
+    if (td) {
+      const page: Page = {
+        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: "topic",
+        title: trimmed,
+        createdAt: Date.now(),
+        topicSnapshot: td,
+      };
+      setPages((prev) => [page, ...prev]);
+      setCurrentPageId(page.id);
+      setDraftType(null);
+    }
+  }, [
+    topicText,
+    topicMode,
+    topicVerifyLens,
+    topicDraftContext,
+    topicDirectionId,
+    customDirections,
+    topicResultType,
+    topicPurposeId,
+    bigCategory,
+    runDecomposeFor,
+    setPrincipleControllerMode,
+    setPrincipleVerifyLens,
+    setPrincipleCustomContext,
+    runVerifyFacet,
+  ]);
 
   const commitPending = useCallback(
     async (purposeId: string) => {
@@ -1831,8 +1955,18 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       if (!trimmed) return;
       setTopicPurposeId(purposeId);
       setPendingTopic(null);
+      // Pending-topic card picks live outside runDecomposeFor's own state,
+      // so forward them explicitly. pk mirrors PendingTopicCard's layout.
+      const directionMeta =
+        kBuiltinDirections.find((d) => d.id === topicDirectionId) ??
+        customDirections.find((d) => d.id === topicDirectionId);
+      const pk = `주제::${trimmed}`;
       const td = await runDecomposeFor(trimmed, bigCategory, purposeId, {
         pushActivity: true,
+        directionId: topicDirectionId,
+        directionLabel: directionMeta?.label,
+        resultType: topicResultType,
+        userContext: principleCustomContext[pk],
       });
       if (td) {
         const page: Page = {
@@ -1847,7 +1981,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setDraftType(null);
       }
     },
-    [pendingTopic, bigCategory, runDecomposeFor],
+    [
+      pendingTopic,
+      bigCategory,
+      runDecomposeFor,
+      topicDirectionId,
+      customDirections,
+      topicResultType,
+      principleCustomContext,
+    ],
   );
 
   const memoAsTopic = useCallback(
@@ -1968,6 +2110,33 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setUserChips((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // Direct-add path for the "+ 칩추가" button on the chip panel. Unlike
+  // saveChipify (which consumes chipifyPending from a memo-chipify flow),
+  // this just appends to the user chip library from whatever name/
+  // definition the caller supplies.
+  const addUserChip = useCallback(
+    (input: { kind: UserChipKind; name: string; definition: string }) => {
+      const name = input.name.trim();
+      const definition = input.definition.trim();
+      if (!name && !definition) return;
+      const canonical = name || definition;
+      const id = `uchip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setUserChips((prev) => [
+        {
+          id,
+          name: name || canonical,
+          definition,
+          text: canonical,
+          kind: input.kind,
+          source: "memo",
+          createdAt: Date.now(),
+        },
+        ...prev,
+      ]);
+    },
+    [],
+  );
+
   const openActivity = useCallback(
     async (entry: ActivityEntry) => {
       const p = entry.payload;
@@ -1978,6 +2147,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         setTopicPurposeId(p.purposeId);
         await runDecomposeFor(p.topicText.trim(), p.bigCategory, p.purposeId, {
           pushActivity: false,
+          directionId: p.directionId,
+          directionLabel: p.directionLabel,
+          resultType: p.resultType,
+          userContext: p.userContext,
         });
       } else if (p.kind === "chip") {
         setChipSearchQuery(p.query);
@@ -2561,6 +2734,12 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       setTopicDirectionId,
       topicResultType,
       setTopicResultType,
+      topicMode,
+      setTopicMode,
+      topicVerifyLens,
+      setTopicVerifyLens,
+      topicDraftContext,
+      setTopicDraftContext,
       decomposition,
       status,
       error,
@@ -2649,6 +2828,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       userChips,
       chipifyMemo,
       removeUserChip,
+      addUserChip,
       chipifyPending,
       startChipify,
       cancelChipify,
@@ -2667,6 +2847,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       renameMemoPage,
       memoInputFocusTick,
       requestMemoInputFocus,
+      topicDraftTick,
       chipPanelFullScreen,
       setChipPanelFullScreen,
       showMemoList,
@@ -2745,6 +2926,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       deletePage,
       topicDirectionId,
       topicResultType,
+      topicMode,
+      topicVerifyLens,
+      topicDraftContext,
       decomposition,
       status,
       error,
@@ -2832,6 +3016,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       userChips,
       chipifyMemo,
       removeUserChip,
+      addUserChip,
       chipifyPending,
       startChipify,
       cancelChipify,
@@ -2847,6 +3032,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       renameMemoPage,
       memoInputFocusTick,
       requestMemoInputFocus,
+      topicDraftTick,
       chipPanelFullScreen,
       setChipPanelFullScreen,
       showMemoList,

@@ -105,7 +105,7 @@ export default function SessionHistoryDrawer({
               startTopicDraft();
               onClose();
             }}
-            className="flex w-full items-center gap-2 rounded-md bg-white/[0.08] px-3 py-2 text-left text-[13px] text-text-primary hover:bg-white/[0.14]"
+            className="flex w-full items-center gap-2 rounded-md bg-white/[0.08] px-3 py-3.5 text-left text-[14px] text-text-primary hover:bg-white/[0.14]"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
               <path
@@ -134,13 +134,13 @@ export default function SessionHistoryDrawer({
                         openPage(p.id);
                         onClose();
                       }}
-                      className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+                      className={`w-full rounded-md px-3 py-3.5 text-left transition-colors ${
                         isActive
                           ? "bg-white/[0.14] text-text-primary"
                           : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
                       }`}
                     >
-                      <div className="truncate text-[13px] font-medium">
+                      <div className="truncate text-[14px] font-medium">
                         {p.title || "제목 없음"}
                       </div>
                       <div className="mt-0.5 text-[10px] text-text-muted">
@@ -193,7 +193,7 @@ export default function SessionHistoryDrawer({
                   onClose();
                   setLoginModalOpen(true);
                 }}
-                className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-[13px] text-text-primary hover:bg-white/[0.06]"
+                className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-[14px] text-text-primary hover:bg-white/[0.06]"
               >
                 <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
                   <path
@@ -212,7 +212,7 @@ export default function SessionHistoryDrawer({
               onClose();
               onOpenBusinessInfo();
             }}
-            className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-[12px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
+            className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-[14px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
               <circle
@@ -237,7 +237,7 @@ export default function SessionHistoryDrawer({
               onClose();
               setSettingsOpen(true);
             }}
-            className="flex w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-[12px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
+            className="flex w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-[14px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
           >
             <span className="flex items-center gap-2">
               <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
@@ -273,7 +273,7 @@ export default function SessionHistoryDrawer({
                 onClose();
                 await signOut();
               }}
-              className="w-full rounded px-2 py-2 text-left text-[12px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
+              className="w-full rounded px-2 py-2 text-left text-[14px] text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
             >
               로그아웃
             </button>
