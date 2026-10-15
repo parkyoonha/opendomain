@@ -223,6 +223,8 @@ export default function DecompositionTree() {
     topicPurposeId,
     commitPending,
     selectedLens,
+    topicDirectionId,
+    topicResultType,
   } = useIdea();
 
   if (inputMode === "memo") {
@@ -294,6 +296,8 @@ export default function DecompositionTree() {
           pendingTopic={pendingTopic}
           topicPurposeId={topicPurposeId}
           selectedLens={selectedLens}
+          topicDirectionId={topicDirectionId}
+          topicResultType={topicResultType}
           commitPending={commitPending}
           runDecomposeFacet={runDecomposeFacet}
           runDecomposeSubFacet={runDecomposeSubFacet}
@@ -387,6 +391,8 @@ export default function DecompositionTree() {
             setFacetResultType={setFacetResultType}
             runRecommendChips={runRecommendChips}
             selectedLens={selectedLens}
+            topicDirectionId={topicDirectionId}
+            topicResultType={topicResultType}
           />
           {multiMode && controlsExpanded && (
             <MergedAxisBranch
@@ -433,6 +439,8 @@ export default function DecompositionTree() {
         pendingTopic={pendingTopic}
         topicPurposeId={topicPurposeId}
         selectedLens={selectedLens}
+        topicDirectionId={topicDirectionId}
+        topicResultType={topicResultType}
         commitPending={commitPending}
         runDecomposeFacet={runDecomposeFacet}
         runDecomposeSubFacet={runDecomposeSubFacet}
@@ -461,6 +469,8 @@ type MobileDecomposeFabProps = {
   pendingTopic: string | null;
   topicPurposeId: string;
   selectedLens: SelectedLens | null;
+  topicDirectionId: string;
+  topicResultType: BigCategory | null;
   commitPending: (purposeId: string) => Promise<void>;
   runDecomposeFacet: (
     axis: string,
@@ -507,6 +517,8 @@ function MobileDecomposeFab({
   pendingTopic,
   topicPurposeId,
   selectedLens,
+  topicDirectionId,
+  topicResultType,
   commitPending,
   runDecomposeFacet,
   runDecomposeSubFacet,
@@ -620,9 +632,9 @@ function MobileDecomposeFab({
       if (name === "축 전체") {
         await runDecomposeFacet(
           axis,
-          facetDirection[axis] ?? DEFAULT_DIRECTION_ID,
+          facetDirection[axis] ?? topicDirectionId,
           facetLens[axis] ?? selectedLens ?? null,
-          facetResultType[axis] ?? null,
+          facetResultType[axis] ?? topicResultType ?? null,
         );
       } else {
         const pk = principleKey(axis, name);
@@ -630,9 +642,9 @@ function MobileDecomposeFab({
           axis,
           name,
           text,
-          principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
+          principleDirection[pk] ?? topicDirectionId,
           principleLens[pk] ?? selectedLens ?? null,
-          principleResultType[pk] ?? null,
+          principleResultType[pk] ?? topicResultType ?? null,
         );
       }
     } finally {
@@ -731,6 +743,8 @@ type AxesColumnProps = {
   setFacetResultType: (axis: string, resultType: BigCategory | null) => void;
   runRecommendChips: (axis: string, name: string, text: string) => Promise<void>;
   selectedLens: SelectedLens | null;
+  topicDirectionId: string;
+  topicResultType: BigCategory | null;
 };
 
 function AxesColumn(props: AxesColumnProps) {
@@ -762,6 +776,8 @@ function AxesColumn(props: AxesColumnProps) {
     setFacetResultType,
     runRecommendChips,
     selectedLens,
+    topicDirectionId,
+    topicResultType,
   } = props;
 
   // Find bottom-most selected axis to know where the expand arrow should sit.
@@ -811,7 +827,7 @@ function AxesColumn(props: AxesColumnProps) {
               onDecomposeFacet={(directionId, lens, resultType) =>
                 void runDecomposeFacet(axis, directionId, lens, resultType)
               }
-              currentDirection={facetDirection[axis] ?? DEFAULT_DIRECTION_ID}
+              currentDirection={facetDirection[axis] ?? topicDirectionId}
               onChangeDirection={(directionId) =>
                 setFacetDirection(axis, directionId)
               }
@@ -820,7 +836,9 @@ function AxesColumn(props: AxesColumnProps) {
               removeCustomDirection={removeCustomDirection}
               currentLens={facetLens[axis] ?? selectedLens ?? null}
               onChangeLens={(lens) => setFacetLens(axis, lens)}
-              currentResultType={facetResultType[axis] ?? null}
+              currentResultType={
+                facetResultType[axis] ?? topicResultType ?? null
+              }
               onChangeResultType={(rt) => setFacetResultType(axis, rt)}
             />
             {showArrowBelow && (
@@ -1890,6 +1908,8 @@ export function FacetNode({
     verifyDerivedStatus,
     runVerifyFacet,
     selectedLens,
+    topicDirectionId,
+    topicResultType,
     combinedIdeas,
     combineStatus,
     clearCombined,
@@ -2094,7 +2114,7 @@ export function FacetNode({
               <div className={CONTROL_SECTION_CLASSES}>
                 <DirectionChipRow
                   currentDirection={
-                    principleDirection[pk] ?? DEFAULT_DIRECTION_ID
+                    principleDirection[pk] ?? topicDirectionId
                   }
                   customDirections={customDirections}
                   onChangeDirection={(id) => setPrincipleDirection(pk, id)}
@@ -2114,7 +2134,9 @@ export function FacetNode({
               </div>
               <div className={CONTROL_SECTION_CLASSES}>
                 <ResultTypeChipRow
-                  value={principleResultType[pk] ?? null}
+                  value={
+                    principleResultType[pk] ?? topicResultType ?? null
+                  }
                   onChange={(rt) => setPrincipleResultType(pk, rt)}
                   collapsed={chipsCollapsed}
                   onCollapseChange={setChipsCollapsed}
@@ -2129,9 +2151,9 @@ export function FacetNode({
                         rootAxis,
                         pathName,
                         facetText,
-                        principleDirection[pk] ?? DEFAULT_DIRECTION_ID,
+                        principleDirection[pk] ?? topicDirectionId,
                         principleLens[pk] ?? selectedLens ?? null,
-                        principleResultType[pk] ?? null,
+                        principleResultType[pk] ?? topicResultType ?? null,
                       );
                     } finally {
                       setSubFacetLoading(false);

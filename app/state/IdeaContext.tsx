@@ -1876,15 +1876,13 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     [selectedLens, pushActivity, providerTag],
   );
 
-  // Enter on the InputBar used to just stage pendingTopic and wait for
-  // the user to pick direction/lens/mode on the pending card and press
-  // "분해 시작". That step is gone: enter now commits directly using
-  // whatever the user already picked in the + popover (or the defaults),
-  // and routes to explore vs verify based on topicMode.
+  // Enter on the InputBar just stages pendingTopic. The actual
+  // decompose kicks off when the user picks direction/lens/mode on the
+  // pending card and clicks "분해 시작" (which calls commitPending).
   const runDecompose = useCallback(async () => {
     const trimmed = topicText.trim();
     if (!trimmed) return;
-    // Common reset shared by both modes.
+    setPendingTopic(trimmed);
     setTopicText("");
     setDecomposition(null);
     setCurrentPageId(null);
@@ -1893,61 +1891,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
     setSelectedPrinciple(null);
     setSplitMemoPageId(null);
     setCenterMode("topic");
-
-    if (topicMode === "verify") {
-      // Verify path: keep pendingTopic set so PendingTopicCard renders
-      // the verify report columns. Pre-wire the pending card's mode /
-      // verify-lens / custom-context from the popover draft state.
-      const pk = `주제::${trimmed}`;
-      setPendingTopic(trimmed);
-      setPrincipleControllerMode(pk, "verify");
-      setPrincipleVerifyLens(pk, topicVerifyLens);
-      if (topicDraftContext.trim()) {
-        setPrincipleCustomContext(pk, topicDraftContext.trim());
-      }
-      void runVerifyFacet("주제", trimmed, trimmed, topicVerifyLens);
-      return;
-    }
-
-    // Explore path: direct decompose using popover picks.
-    const directionMeta =
-      kBuiltinDirections.find((d) => d.id === topicDirectionId) ??
-      customDirections.find((d) => d.id === topicDirectionId);
-    const td = await runDecomposeFor(trimmed, bigCategory, topicPurposeId, {
-      pushActivity: true,
-      directionId: topicDirectionId,
-      directionLabel: directionMeta?.label,
-      resultType: topicResultType,
-      userContext: topicDraftContext.trim() || undefined,
-    });
-    if (td) {
-      const page: Page = {
-        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        type: "topic",
-        title: trimmed,
-        createdAt: Date.now(),
-        topicSnapshot: td,
-      };
-      setPages((prev) => [page, ...prev]);
-      setCurrentPageId(page.id);
-      setDraftType(null);
-    }
-  }, [
-    topicText,
-    topicMode,
-    topicVerifyLens,
-    topicDraftContext,
-    topicDirectionId,
-    customDirections,
-    topicResultType,
-    topicPurposeId,
-    bigCategory,
-    runDecomposeFor,
-    setPrincipleControllerMode,
-    setPrincipleVerifyLens,
-    setPrincipleCustomContext,
-    runVerifyFacet,
-  ]);
+  }, [topicText]);
 
   const commitPending = useCallback(
     async (purposeId: string) => {
