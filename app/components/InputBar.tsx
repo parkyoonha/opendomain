@@ -372,7 +372,7 @@ export default function InputBar() {
             document.body.classList.remove("inputbar-focused");
           }}
           placeholder={current.placeholder}
-          className="flex-1 bg-transparent px-1 py-2 text-[16px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[14px]"
+          className="flex-1 bg-transparent px-3 py-2 text-[16px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[14px]"
         />
         <button
           type="submit"

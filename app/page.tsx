@@ -53,6 +53,20 @@ function PageInner() {
   // every list view (empty or not). The input bar still appears inside
   // individual memo rooms where typing is the primary action.
   const hideInputBarInMemoList = inputMode === "memo" && memoListMode;
+  // In topic mode, hide the InputBar once the user has staged a topic
+  // (pendingTopic set) or already committed one (decomposition / a
+  // topic page is open). The pending-topic card below has its own
+  // controller + "분해 시작" button — a top input would just add noise
+  // and double-input temptation. Still show on the empty-state screen
+  // so the user can enter their first topic.
+  const inTopicPage =
+    inputMode === "topic" &&
+    currentPageId !== null &&
+    pages.some((p) => p.id === currentPageId && p.type === "topic");
+  const hideInputBarInTopic =
+    inputMode === "topic" &&
+    (Boolean(pendingTopic) || Boolean(decomposition) || inTopicPage);
+  const hideInputBar = hideInputBarInMemoList || hideInputBarInTopic;
   const canGoBack = inputMode === "memo" && !memoListMode;
   // Bottom-sheet variant only applies to the "verify auto-opened the
   // chip panel while the user is on a 사고확장 topic" flow. A manual
@@ -223,7 +237,7 @@ function PageInner() {
                   : "flex"
             }`}
           >
-            {!hideInputBarInMemoList && <InputBar />}
+            {!hideInputBar && <InputBar />}
             <DecompositionTree />
           </main>
           {inSplit && (
