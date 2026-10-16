@@ -1254,19 +1254,14 @@ function AxisRow({
             })}
           </div>
 
-          <div className={`${CONTROL_SECTION_CLASSES} flex flex-col gap-1`}>
-            <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-              추가 조건 (선택)
-            </span>
-            <input
-              value={axisCustomContext}
-              onChange={(e) =>
-                setPrincipleCustomContext(axisPk, e.target.value)
-              }
-              placeholder="부모 축을 조율할 추가 조건·관점·제약"
-              className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
-            />
-          </div>
+          <input
+            value={axisCustomContext}
+            onChange={(e) =>
+              setPrincipleCustomContext(axisPk, e.target.value)
+            }
+            placeholder="추가 조건 (선택) — 부모 축을 조율할 조건·관점·제약"
+            className="w-full rounded-lg bg-white/[0.05] px-3 py-3 text-[14px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.08] focus:outline-none md:text-[12px]"
+          />
 
           {axisMode === "explore" ? (
             <>
@@ -2088,17 +2083,12 @@ export function FacetNode({
             })}
           </div>
 
-          <div className={`${CONTROL_SECTION_CLASSES} flex flex-col gap-1`}>
-            <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-              추가 조건 (선택)
-            </span>
-            <input
-              value={customContext}
-              onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-              placeholder="부모 축을 조율할 추가 조건·관점·제약"
-              className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
-            />
-          </div>
+          <input
+            value={customContext}
+            onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
+            placeholder="추가 조건 (선택) — 부모 축을 조율할 조건·관점·제약"
+            className="w-full rounded-lg bg-white/[0.05] px-3 py-3 text-[14px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.08] focus:outline-none md:text-[12px]"
+          />
 
           {mode === "explore" ? (
             <>

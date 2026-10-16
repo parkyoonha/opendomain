@@ -191,17 +191,14 @@ export default function PendingTopicCard() {
         })}
       </div>
 
-      <div className="flex flex-col gap-1 rounded-lg bg-white/[0.05] p-3">
-        <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-          추가 조건 (선택)
-        </span>
-        <input
-          value={customContext}
-          onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-          placeholder="주제를 조율할 추가 조건·관점·제약"
-          className="rounded-full bg-white/[0.12] px-4 py-2 text-[14px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[12px]"
-        />
-      </div>
+      {/* The panel itself IS the input — no inner pill, no separate
+          label. Placeholder carries the "추가 조건 (선택)" hint. */}
+      <input
+        value={customContext}
+        onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
+        placeholder="추가 조건 (선택) — 주제를 조율할 조건·관점·제약"
+        className="w-full rounded-lg bg-white/[0.05] px-3 py-3 text-[14px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.08] focus:outline-none md:text-[12px]"
+      />
 
       {mode === "explore" ? (
         <>
