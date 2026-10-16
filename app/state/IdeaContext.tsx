@@ -1898,9 +1898,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       const trimmed = pendingTopic?.trim();
       if (!trimmed) return;
       setTopicPurposeId(purposeId);
-      setPendingTopic(null);
-      // Pending-topic card picks live outside runDecomposeFor's own state,
-      // so forward them explicitly. pk mirrors PendingTopicCard's layout.
+      // Keep pendingTopic set while the decompose is in flight so the
+      // PendingTopicCard stays on screen with its loading state. Only
+      // clear it after the API returns (or on failure, leave it so the
+      // user can retry).
       const directionMeta =
         kBuiltinDirections.find((d) => d.id === topicDirectionId) ??
         customDirections.find((d) => d.id === topicDirectionId);
@@ -1913,6 +1914,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
         userContext: principleCustomContext[pk],
       });
       if (td) {
+        setPendingTopic(null);
         const page: Page = {
           id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: "topic",

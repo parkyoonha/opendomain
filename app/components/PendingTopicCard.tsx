@@ -17,7 +17,6 @@ import { lensLabel } from "@/lib/lenses";
 export default function PendingTopicCard() {
   const {
     pendingTopic,
-    cancelPending,
     commitPending,
     topicPurposeId,
     topicDirectionId,
@@ -155,30 +154,9 @@ export default function PendingTopicCard() {
   return (
     <div className="flex w-max items-start gap-4">
     <div className="decomp-controller flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-3 md:w-[560px]">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-            주제
-          </div>
-          <h1 className="mt-0.5 whitespace-pre-wrap break-words text-[15px] font-bold text-text-primary">
-            {pendingTopic}
-          </h1>
-        </div>
-        <button
-          onClick={cancelPending}
-          aria-label="취소"
-          className="shrink-0 rounded-md p-1 text-text-muted hover:bg-white/10 hover:text-text-primary"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-            <path
-              d="M6 6l12 12M18 6L6 18"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      </div>
+      <h1 className="whitespace-pre-wrap break-words text-[15px] font-bold text-text-primary">
+        {pendingTopic}
+      </h1>
 
       <div className="flex items-center gap-1 self-start rounded-full bg-white/[0.06] p-0.5">
         {(["explore", "verify"] as const).map((m) => {

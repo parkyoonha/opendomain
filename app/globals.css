@@ -25,6 +25,19 @@ body {
   background: transparent;
 }
 
+/* Hide scrollbars entirely on mobile — content still scrolls, just no
+   visible rail. Desktop (md and up) keeps the thin thumb for pointer
+   affordance. */
+@media (max-width: 767px) {
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+  * {
+    scrollbar-width: none;
+  }
+}
+
 /* Safe-area helpers used across mobile UI (bottom nav, top bar buttons). */
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
