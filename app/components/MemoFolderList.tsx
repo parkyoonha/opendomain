@@ -41,31 +41,48 @@ export default function MemoFolderList() {
     setDialogOpen(false);
   };
 
+  const openCreateDialog = () => {
+    setDialogDraft("");
+    setDialogOpen(true);
+  };
+  const noRooms = sortedPages.length === 0;
+
   return (
     <div className="flex flex-col gap-3">
-      <button
-        onClick={() => {
-          setDialogDraft("");
-          setDialogOpen(true);
-        }}
-        className="flex items-center gap-2 self-start rounded-md bg-white/[0.08] px-3 py-2 text-[13px] text-text-primary hover:bg-white/[0.14]"
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-          <path
-            d="M12 5v14M5 12h14"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span>새 메모방</span>
-      </button>
-      {sortedPages.length === 0 ? (
-        <div className="mt-12 flex flex-col items-center gap-2 text-center text-text-muted">
-          <p className="text-[13px]">저장된 메모방이 없습니다</p>
-          <p className="text-[11px]">상단 "새 메모방" 버튼으로 시작하세요</p>
-        </div>
+      {noRooms ? (
+        // Empty-state: the "새 메모방" button mimics a memo room card so
+        // the user instantly recognizes the shape and target size.
+        <button
+          onClick={openCreateDialog}
+          className="flex w-[max(20vw,220px)] min-h-[8rem] flex-col items-center justify-center gap-2 self-start rounded-lg bg-white/[0.05] p-4 text-text-primary transition-colors hover:bg-white/[0.08] max-[400px]:w-[calc(100vw-3rem)]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
+            <path
+              d="M12 5v14M5 12h14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-[14px] font-semibold">새 메모방</span>
+        </button>
       ) : (
+        <button
+          onClick={openCreateDialog}
+          className="flex items-center gap-2 self-start rounded-md bg-white/[0.08] px-3 py-2 text-[13px] text-text-primary hover:bg-white/[0.14]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+            <path
+              d="M12 5v14M5 12h14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span>새 메모방</span>
+        </button>
+      )}
+      {noRooms ? null : (
         <div className="flex flex-wrap gap-3">
           {sortedPages.map((p) => (
             <MemoFolderCard

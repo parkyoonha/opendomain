@@ -165,13 +165,13 @@ function PageInner() {
           <button
             onClick={showMemoList}
             aria-label="메모방 목록으로"
-            className="safe-top-offset absolute left-3 z-30 flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.08] text-text-secondary hover:bg-white/[0.16] hover:text-text-primary md:hidden"
+            className="safe-top-offset absolute left-3 z-30 flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:text-text-primary md:hidden"
           >
-            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7">
               <path
                 d="M15 6l-6 6 6 6"
                 stroke="currentColor"
-                strokeWidth="1.5"
+                strokeWidth="1.75"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />

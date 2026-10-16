@@ -5,8 +5,6 @@ import { useIdea } from "../state/IdeaContext";
 import {
   kBuiltinLenses,
   lensLabel,
-  AUTO_LENS,
-  isAutoLens,
   type SelectedLens,
 } from "@/lib/lenses";
 
@@ -138,13 +136,13 @@ export default function FacetLensRow({
           <>
             <button
               type="button"
-              onClick={() => pick(AUTO_LENS)}
+              onClick={() => pick(null)}
               className={`${CHIP_BASE} ${
-                isAutoLens(currentLens) ? CHIP_ACTIVE : CHIP_INACTIVE
+                currentLens === null ? CHIP_ACTIVE : CHIP_INACTIVE
               }`}
-              title="상황에 맞는 렌즈를 LLM이 자동 선택"
+              title="렌즈 없이 분해"
             >
-              자동
+              없음
             </button>
             {allLenses.map((l) => {
               const active = currentLens?.discipline === l.discipline;

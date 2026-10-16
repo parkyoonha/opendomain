@@ -240,7 +240,7 @@ export default function PendingTopicCard() {
           </ControllerAccordion>
           <ControllerAccordion
             label="렌즈"
-            tag={selectedLens ? lensLabel(selectedLens) : "빈 렌즈"}
+            tag={selectedLens ? lensLabel(selectedLens) : "없음"}
             open={openCategory === "lens"}
             onToggle={() => toggleCategory("lens")}
           >
@@ -262,20 +262,15 @@ export default function PendingTopicCard() {
               hideLabel
             />
           </ControllerAccordion>
-          <button
-            onClick={() => void commitPending(topicPurposeId)}
-            disabled={busy}
-            className="mt-2 inline-flex items-center justify-center gap-1.5 self-start rounded-full bg-white px-5 py-2 text-[14px] font-bold text-black transition-opacity disabled:opacity-30 md:px-3 md:py-1 md:text-[11px]"
-          >
-            <span>분해 시작</span>
-            {busy ? <Spinner /> : <Arrow />}
-          </button>
+          {/* Inline 분해 시작 button removed — the fixed MobileDecomposeFab
+              at the bottom-center of the screen owns the submit action
+              so it stays reachable while the user scrolls. */}
         </>
       ) : (
         <>
           <ControllerAccordion
             label="렌즈"
-            tag={vLens ? lensLabel(vLens) : "빈 렌즈"}
+            tag={vLens ? lensLabel(vLens) : "없음"}
             open={openCategory === "verify-lens"}
             onToggle={() => toggleCategory("verify-lens")}
           >
@@ -285,21 +280,7 @@ export default function PendingTopicCard() {
               hideLabel
             />
           </ControllerAccordion>
-          <button
-            onClick={async () => {
-              setVerifyBusy(true);
-              try {
-                await runVerifyFacet("주제", pendingTopic, pendingTopic, vLens);
-              } finally {
-                setVerifyBusy(false);
-              }
-            }}
-            disabled={verifyBusy}
-            className="mt-2 inline-flex items-center justify-center gap-1.5 self-start rounded-full bg-amber-400 px-5 py-2 text-[14px] font-bold text-black transition-opacity hover:bg-amber-300 disabled:opacity-30 md:px-3 md:py-1 md:text-[11px]"
-          >
-            <span>증명 시작</span>
-            {verifyBusy ? <Spinner /> : <Arrow />}
-          </button>
+          {/* Inline 증명 시작 button removed — the fixed FAB handles it. */}
         </>
       )}
     </div>

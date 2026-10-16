@@ -660,7 +660,7 @@ function MobileDecomposeFab({
       onClick={handleClick}
       disabled={loading}
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
-      className={`mobile-decompose-fab absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg md:hidden ${
+      className={`mobile-decompose-fab absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg ${
         isVerify ? "bg-amber-400" : "bg-white"
       }`}
     >
@@ -1022,7 +1022,7 @@ function MergedAxisBranch({
         </ControllerAccordion>
         <ControllerAccordion
           label="렌즈"
-          tag={currentLens ? lensLabel(currentLens) : "빈 렌즈"}
+          tag={currentLens ? lensLabel(currentLens) : "없음"}
           open={openCategory === "lens"}
           onToggle={() => toggleCategory("lens")}
         >
@@ -1044,14 +1044,8 @@ function MergedAxisBranch({
             hideLabel
           />
         </ControllerAccordion>
-        <button
-          onClick={onDecompose}
-          disabled={status === "loading"}
-          className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
-        >
-          <span>분해 시작</span>
-          {status === "loading" ? <DecomposeSpinnerIcon /> : <DecomposeArrowIcon />}
-        </button>
+        {/* Inline 분해 시작 removed — fixed bottom-center FAB owns the
+            submit action across all breakpoints. */}
         {status === "error" && (
           <span className="text-[10px] text-red-400">분해 실패</span>
         )}
@@ -1321,7 +1315,7 @@ function AxisRow({
               </ControllerAccordion>
               <ControllerAccordion
                 label="렌즈"
-                tag={currentLens ? lensLabel(currentLens) : "빈 렌즈"}
+                tag={currentLens ? lensLabel(currentLens) : "없음"}
                 open={openCategory === "lens"}
                 onToggle={() => toggleCategory("lens")}
               >
@@ -1343,30 +1337,13 @@ function AxisRow({
                   hideLabel
                 />
               </ControllerAccordion>
-              <button
-                onClick={() =>
-                  onDecomposeFacet(
-                    currentDirection,
-                    currentLens,
-                    currentResultType,
-                  )
-                }
-                disabled={fStatus === "loading"}
-                className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black transition-opacity md:flex"
-              >
-                <span>분해 시작</span>
-                {fStatus === "loading" ? (
-                  <DecomposeSpinnerIcon />
-                ) : (
-                  <DecomposeArrowIcon />
-                )}
-              </button>
+              {/* Inline 분해 시작 removed — FAB handles submit. */}
             </>
           ) : (
             <>
               <ControllerAccordion
                 label="렌즈"
-                tag={axisVerifyLens ? lensLabel(axisVerifyLens) : "빈 렌즈"}
+                tag={axisVerifyLens ? lensLabel(axisVerifyLens) : "없음"}
                 open={openCategory === "verify-lens"}
                 onToggle={() => toggleCategory("verify-lens")}
               >
@@ -1376,30 +1353,7 @@ function AxisRow({
                   hideLabel
                 />
               </ControllerAccordion>
-              <button
-                onClick={async () => {
-                  setAxisVerifyLoading(true);
-                  try {
-                    await runVerifyFacet(
-                      axis,
-                      "축 전체",
-                      principle,
-                      axisVerifyLens,
-                    );
-                  } finally {
-                    setAxisVerifyLoading(false);
-                  }
-                }}
-                disabled={axisVerifyLoading}
-                className="mt-2 hidden items-center gap-1.5 self-start rounded-full bg-amber-400 px-3 py-1 text-[11px] font-bold text-black transition-opacity hover:bg-amber-300 md:flex"
-              >
-                <span>증명 시작</span>
-                {axisVerifyLoading ? (
-                  <DecomposeSpinnerIcon />
-                ) : (
-                  <DecomposeArrowIcon />
-                )}
-              </button>
+              {/* Inline 증명 시작 removed — FAB handles submit. */}
             </>
           )}
         </div>
@@ -2177,7 +2131,7 @@ export function FacetNode({
                 label="렌즈"
                 tag={(() => {
                   const l = principleLens[pk] ?? selectedLens ?? null;
-                  return l ? lensLabel(l) : "빈 렌즈";
+                  return l ? lensLabel(l) : "없음";
                 })()}
                 open={openCategory === "lens"}
                 onToggle={() => toggleCategory("lens")}
@@ -2205,40 +2159,13 @@ export function FacetNode({
                   hideLabel
                 />
               </ControllerAccordion>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={async () => {
-                    setSubFacetLoading(true);
-                    try {
-                      await runDecomposeSubFacet(
-                        rootAxis,
-                        pathName,
-                        facetText,
-                        principleDirection[pk] ?? topicDirectionId,
-                        principleLens[pk] ?? selectedLens ?? null,
-                        principleResultType[pk] ?? topicResultType ?? null,
-                      );
-                    } finally {
-                      setSubFacetLoading(false);
-                    }
-                  }}
-                  disabled={subFacetLoading}
-                  className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-black hover:bg-white/90 md:flex"
-                >
-                  <span>분해 시작</span>
-                  {subFacetLoading ? (
-                    <DecomposeSpinnerIcon />
-                  ) : (
-                    <DecomposeArrowIcon />
-                  )}
-                </button>
-              </div>
+              {/* Inline 분해 시작 removed — FAB handles submit. */}
             </>
           ) : (
             <>
               <ControllerAccordion
                 label="렌즈"
-                tag={currentVerifyLens ? lensLabel(currentVerifyLens) : "빈 렌즈"}
+                tag={currentVerifyLens ? lensLabel(currentVerifyLens) : "없음"}
                 open={openCategory === "verify-lens"}
                 onToggle={() => toggleCategory("verify-lens")}
               >
@@ -2248,32 +2175,7 @@ export function FacetNode({
                   hideLabel
                 />
               </ControllerAccordion>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={async () => {
-                    setVerifyLoading(true);
-                    try {
-                      await runVerifyFacet(
-                        rootAxis,
-                        pathName,
-                        facetText,
-                        currentVerifyLens,
-                      );
-                    } finally {
-                      setVerifyLoading(false);
-                    }
-                  }}
-                  disabled={verifyLoading}
-                  className="hidden items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1 text-[11px] font-bold text-black hover:bg-amber-300 md:flex"
-                >
-                  <span>증명 시작</span>
-                  {verifyLoading ? (
-                    <DecomposeSpinnerIcon />
-                  ) : (
-                    <DecomposeArrowIcon />
-                  )}
-                </button>
-              </div>
+              {/* Inline 증명 시작 removed — FAB handles submit. */}
             </>
           )}
         </div>
