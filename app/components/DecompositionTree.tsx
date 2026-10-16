@@ -26,6 +26,7 @@ import type { BigCategory } from "@/lib/constants";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
+import ControllerAccordion from "./ControllerAccordion";
 import {
   feasibilityLabel,
   feasibilityPalette,
@@ -903,8 +904,11 @@ function MergedAxisBranch({
   onDecompose,
   onCollapse,
 }: MergedAxisBranchProps) {
-  const [chipsCollapsed, setChipsCollapsed] = useState(false);
-  const [lensCollapsed, setLensCollapsed] = useState(true);
+  const [openCategory, setOpenCategory] = useState<
+    "direction" | "lens" | "result" | null
+  >("direction");
+  const toggleCategory = (cat: "direction" | "lens" | "result") =>
+    setOpenCategory((prev) => (prev === cat ? null : cat));
   const entries = Object.entries(results);
   const connectorRef = useRef<HTMLDivElement>(null);
   const controlRef = useRef<HTMLDivElement>(null);
@@ -997,33 +1001,49 @@ function MergedAxisBranch({
         <div className="text-[10px] uppercase tracking-wider text-text-muted">
           다축 결합 ({selectedAxes.length}개)
         </div>
-        <div className={CONTROL_SECTION_CLASSES}>
+        <ControllerAccordion
+          label="사고 방향"
+          tag={
+            [...kBuiltinDirections, ...customDirections].find(
+              (d) => d.id === currentDirection,
+            )?.label ?? "원리"
+          }
+          open={openCategory === "direction"}
+          onToggle={() => toggleCategory("direction")}
+        >
           <DirectionChipRow
             currentDirection={currentDirection}
             customDirections={customDirections}
             onChangeDirection={onChangeDirection}
             addCustomDirection={addCustomDirection}
             removeCustomDirection={removeCustomDirection}
-            collapsed={chipsCollapsed}
-            onCollapseChange={setChipsCollapsed}
+            hideLabel
           />
-        </div>
-        <div className={CONTROL_SECTION_CLASSES}>
+        </ControllerAccordion>
+        <ControllerAccordion
+          label="렌즈"
+          tag={currentLens ? lensLabel(currentLens) : "빈 렌즈"}
+          open={openCategory === "lens"}
+          onToggle={() => toggleCategory("lens")}
+        >
           <FacetLensRow
             currentLens={currentLens}
             onChangeLens={onChangeLens}
-            collapsed={lensCollapsed}
-            onCollapseChange={setLensCollapsed}
+            hideLabel
           />
-        </div>
-        <div className={CONTROL_SECTION_CLASSES}>
+        </ControllerAccordion>
+        <ControllerAccordion
+          label="실행 결과"
+          tag={currentResultType ?? "없음"}
+          open={openCategory === "result"}
+          onToggle={() => toggleCategory("result")}
+        >
           <ResultTypeChipRow
             value={currentResultType}
             onChange={onChangeResultType}
-            collapsed={chipsCollapsed}
-            onCollapseChange={setChipsCollapsed}
+            hideLabel
           />
-        </div>
+        </ControllerAccordion>
         <button
           onClick={onDecompose}
           disabled={status === "loading"}
@@ -1119,8 +1139,14 @@ function AxisRow({
   onChangeResultType,
 }: AxisRowProps) {
   const subEntries = subFacets ? Object.entries(subFacets) : [];
-  const [chipsCollapsed, setChipsCollapsed] = useState(false);
-  const [lensCollapsed, setLensCollapsed] = useState(true);
+  // Accordion state for the chip categories; only one open at a time,
+  // 사고 방향 opens by default.
+  const [openCategory, setOpenCategory] = useState<
+    "direction" | "lens" | "result" | "verify-lens" | null
+  >("direction");
+  const toggleCategory = (
+    cat: "direction" | "lens" | "result" | "verify-lens",
+  ) => setOpenCategory((prev) => (prev === cat ? null : cat));
   const {
     addMemo,
     setChipPanelOpen,
@@ -1274,33 +1300,49 @@ function AxisRow({
                   + 축 조합
                 </button>
               </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              <ControllerAccordion
+                label="사고 방향"
+                tag={
+                  [...kBuiltinDirections, ...customDirections].find(
+                    (d) => d.id === currentDirection,
+                  )?.label ?? "원리"
+                }
+                open={openCategory === "direction"}
+                onToggle={() => toggleCategory("direction")}
+              >
                 <DirectionChipRow
                   currentDirection={currentDirection}
                   customDirections={customDirections}
                   onChangeDirection={onChangeDirection}
                   addCustomDirection={addCustomDirection}
                   removeCustomDirection={removeCustomDirection}
-                  collapsed={chipsCollapsed}
-                  onCollapseChange={setChipsCollapsed}
+                  hideLabel
                 />
-              </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              </ControllerAccordion>
+              <ControllerAccordion
+                label="렌즈"
+                tag={currentLens ? lensLabel(currentLens) : "빈 렌즈"}
+                open={openCategory === "lens"}
+                onToggle={() => toggleCategory("lens")}
+              >
                 <FacetLensRow
                   currentLens={currentLens}
                   onChangeLens={onChangeLens}
-                  collapsed={lensCollapsed}
-                  onCollapseChange={setLensCollapsed}
+                  hideLabel
                 />
-              </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              </ControllerAccordion>
+              <ControllerAccordion
+                label="실행 결과"
+                tag={currentResultType ?? "없음"}
+                open={openCategory === "result"}
+                onToggle={() => toggleCategory("result")}
+              >
                 <ResultTypeChipRow
                   value={currentResultType}
                   onChange={onChangeResultType}
-                  collapsed={chipsCollapsed}
-                  onCollapseChange={setChipsCollapsed}
+                  hideLabel
                 />
-              </div>
+              </ControllerAccordion>
               <button
                 onClick={() =>
                   onDecomposeFacet(
@@ -1322,14 +1364,18 @@ function AxisRow({
             </>
           ) : (
             <>
-              <div className={CONTROL_SECTION_CLASSES}>
+              <ControllerAccordion
+                label="렌즈"
+                tag={axisVerifyLens ? lensLabel(axisVerifyLens) : "빈 렌즈"}
+                open={openCategory === "verify-lens"}
+                onToggle={() => toggleCategory("verify-lens")}
+              >
                 <FacetLensRow
                   currentLens={axisVerifyLens}
                   onChangeLens={(lens) => setPrincipleVerifyLens(axisPk, lens)}
-                  collapsed={lensCollapsed}
-                  onCollapseChange={setLensCollapsed}
+                  hideLabel
                 />
-              </div>
+              </ControllerAccordion>
               <button
                 onClick={async () => {
                   setAxisVerifyLoading(true);
@@ -1933,8 +1979,12 @@ export function FacetNode({
   );
   const showOwnCombineLoading =
     isSel && combineStatus === "loading" && ownCombinedIdeas.length === 0;
-  const [chipsCollapsed, setChipsCollapsed] = useState(false);
-  const [lensCollapsed, setLensCollapsed] = useState(true);
+  const [openCategory, setOpenCategory] = useState<
+    "direction" | "lens" | "result" | "verify-lens" | null
+  >("direction");
+  const toggleCategory = (
+    cat: "direction" | "lens" | "result" | "verify-lens",
+  ) => setOpenCategory((prev) => (prev === cat ? null : cat));
   const [subFacetLoading, setSubFacetLoading] = useState(false);
   // Global grow-only expansion — survives remounts and never collapses so the
   // tree layout stays stable at every depth.
@@ -2101,7 +2151,17 @@ export function FacetNode({
                   + 축 조합
                 </button>
               </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              <ControllerAccordion
+                label="사고 방향"
+                tag={
+                  [...kBuiltinDirections, ...customDirections].find(
+                    (d) =>
+                      d.id === (principleDirection[pk] ?? topicDirectionId),
+                  )?.label ?? "원리"
+                }
+                open={openCategory === "direction"}
+                onToggle={() => toggleCategory("direction")}
+              >
                 <DirectionChipRow
                   currentDirection={
                     principleDirection[pk] ?? topicDirectionId
@@ -2110,28 +2170,41 @@ export function FacetNode({
                   onChangeDirection={(id) => setPrincipleDirection(pk, id)}
                   addCustomDirection={addCustomDirection}
                   removeCustomDirection={removeCustomDirection}
-                  collapsed={chipsCollapsed}
-                  onCollapseChange={setChipsCollapsed}
+                  hideLabel
                 />
-              </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              </ControllerAccordion>
+              <ControllerAccordion
+                label="렌즈"
+                tag={(() => {
+                  const l = principleLens[pk] ?? selectedLens ?? null;
+                  return l ? lensLabel(l) : "빈 렌즈";
+                })()}
+                open={openCategory === "lens"}
+                onToggle={() => toggleCategory("lens")}
+              >
                 <FacetLensRow
                   currentLens={principleLens[pk] ?? selectedLens ?? null}
                   onChangeLens={(lens) => setPrincipleLens(pk, lens)}
-                  collapsed={lensCollapsed}
-                  onCollapseChange={setLensCollapsed}
+                  hideLabel
                 />
-              </div>
-              <div className={CONTROL_SECTION_CLASSES}>
+              </ControllerAccordion>
+              <ControllerAccordion
+                label="실행 결과"
+                tag={
+                  (principleResultType[pk] ?? topicResultType ?? null) ??
+                  "없음"
+                }
+                open={openCategory === "result"}
+                onToggle={() => toggleCategory("result")}
+              >
                 <ResultTypeChipRow
                   value={
                     principleResultType[pk] ?? topicResultType ?? null
                   }
                   onChange={(rt) => setPrincipleResultType(pk, rt)}
-                  collapsed={chipsCollapsed}
-                  onCollapseChange={setChipsCollapsed}
+                  hideLabel
                 />
-              </div>
+              </ControllerAccordion>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={async () => {
@@ -2163,14 +2236,18 @@ export function FacetNode({
             </>
           ) : (
             <>
-              <div className={CONTROL_SECTION_CLASSES}>
+              <ControllerAccordion
+                label="렌즈"
+                tag={currentVerifyLens ? lensLabel(currentVerifyLens) : "빈 렌즈"}
+                open={openCategory === "verify-lens"}
+                onToggle={() => toggleCategory("verify-lens")}
+              >
                 <FacetLensRow
                   currentLens={currentVerifyLens}
                   onChangeLens={(lens) => setPrincipleVerifyLens(pk, lens)}
-                  collapsed={lensCollapsed}
-                  onCollapseChange={setLensCollapsed}
+                  hideLabel
                 />
-              </div>
+              </ControllerAccordion>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={async () => {

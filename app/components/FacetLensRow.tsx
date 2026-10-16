@@ -21,11 +21,15 @@ export default function FacetLensRow({
   onChangeLens,
   collapsed = false,
   onCollapseChange,
+  hideLabel = false,
 }: {
   currentLens: SelectedLens | null;
   onChangeLens: (lens: SelectedLens | null) => void;
   collapsed?: boolean;
   onCollapseChange?: (v: boolean) => void;
+  // Skip the row's own "렌즈" label — used by accordion wrappers that
+  // render their own header above the chip grid.
+  hideLabel?: boolean;
 }) {
   const { customLenses, addCustomLens, removeCustomLens } = useIdea();
   const [openDiscipline, setOpenDiscipline] = useState<string | null>(null);
@@ -74,16 +78,18 @@ export default function FacetLensRow({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-          렌즈
-        </span>
-        {currentLens && !opened && (
-          <span className="text-[10px] text-text-muted">
-            현재: {lensLabel(currentLens)}
+      {!hideLabel && (
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+            렌즈
           </span>
-        )}
-      </div>
+          {currentLens && !opened && (
+            <span className="text-[10px] text-text-muted">
+              현재: {lensLabel(currentLens)}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {opened ? (
           <>

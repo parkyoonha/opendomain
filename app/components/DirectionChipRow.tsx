@@ -11,6 +11,7 @@ export default function DirectionChipRow({
   removeCustomDirection,
   collapsed = false,
   onCollapseChange,
+  hideLabel = false,
 }: {
   currentDirection: string;
   customDirections: ThinkingDirection[];
@@ -19,6 +20,9 @@ export default function DirectionChipRow({
   removeCustomDirection: (id: string) => void;
   collapsed?: boolean;
   onCollapseChange?: (v: boolean) => void;
+  // Skip the row's own "사고 방향" label — used by accordion wrappers
+  // that render their own header above the chip grid.
+  hideLabel?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -52,9 +56,11 @@ export default function DirectionChipRow({
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-        사고 방향
-      </span>
+      {!hideLabel && (
+        <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+          사고 방향
+        </span>
+      )}
       <div className="flex flex-wrap gap-1">
         {all.map((d) => {
           const active = d.id === currentDirection;

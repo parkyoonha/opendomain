@@ -6,6 +6,8 @@ import { FacetNode, CombinedIdeasBoardSection } from "./DecompositionTree";
 import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
+import ControllerAccordion from "./ControllerAccordion";
+import { kBuiltinDirections } from "@/lib/directions";
 import {
   feasibilityLabel,
   feasibilityPalette,
@@ -52,9 +54,15 @@ export default function PendingTopicCard() {
     expandedPrinciples,
     markPrincipleExpanded,
   } = useIdea();
-  const [collapsedDir, setCollapsedDir] = useState(false);
-  const [collapsedLens, setCollapsedLens] = useState(true);
-  const [collapsedResult, setCollapsedResult] = useState(false);
+  // Accordion: only one chip category open at a time; direction opens
+  // by default. Per spec, clicking a category header toggles that one
+  // and closes the others.
+  const [openCategory, setOpenCategory] = useState<
+    "direction" | "lens" | "result" | "verify-lens" | null
+  >("direction");
+  const toggleCategory = (
+    cat: "direction" | "lens" | "result" | "verify-lens",
+  ) => setOpenCategory((prev) => (prev === cat ? null : cat));
   const [verifyBusy, setVerifyBusy] = useState(false);
   const verifyColRef = useRef<HTMLDivElement>(null);
   const prevGenCountRef = useRef(0);
@@ -211,33 +219,49 @@ export default function PendingTopicCard() {
               + 축 조합
             </button>
           </div>
-          <div className="rounded-lg bg-white/[0.05] p-3">
+          <ControllerAccordion
+            label="사고 방향"
+            tag={
+              [...kBuiltinDirections, ...customDirections].find(
+                (d) => d.id === topicDirectionId,
+              )?.label ?? "원리"
+            }
+            open={openCategory === "direction"}
+            onToggle={() => toggleCategory("direction")}
+          >
             <DirectionChipRow
               currentDirection={topicDirectionId}
               customDirections={customDirections}
               onChangeDirection={setTopicDirectionId}
               addCustomDirection={addCustomDirection}
               removeCustomDirection={removeCustomDirection}
-              collapsed={collapsedDir}
-              onCollapseChange={setCollapsedDir}
+              hideLabel
             />
-          </div>
-          <div className="rounded-lg bg-white/[0.05] p-3">
+          </ControllerAccordion>
+          <ControllerAccordion
+            label="렌즈"
+            tag={selectedLens ? lensLabel(selectedLens) : "빈 렌즈"}
+            open={openCategory === "lens"}
+            onToggle={() => toggleCategory("lens")}
+          >
             <FacetLensRow
               currentLens={selectedLens}
               onChangeLens={setSelectedLens}
-              collapsed={collapsedLens}
-              onCollapseChange={setCollapsedLens}
+              hideLabel
             />
-          </div>
-          <div className="rounded-lg bg-white/[0.05] p-3">
+          </ControllerAccordion>
+          <ControllerAccordion
+            label="실행 결과"
+            tag={topicResultType ?? "없음"}
+            open={openCategory === "result"}
+            onToggle={() => toggleCategory("result")}
+          >
             <ResultTypeChipRow
               value={topicResultType}
               onChange={setTopicResultType}
-              collapsed={collapsedResult}
-              onCollapseChange={setCollapsedResult}
+              hideLabel
             />
-          </div>
+          </ControllerAccordion>
           <button
             onClick={() => void commitPending(topicPurposeId)}
             disabled={busy}
@@ -249,14 +273,18 @@ export default function PendingTopicCard() {
         </>
       ) : (
         <>
-          <div className="rounded-lg bg-white/[0.05] p-3">
+          <ControllerAccordion
+            label="렌즈"
+            tag={vLens ? lensLabel(vLens) : "빈 렌즈"}
+            open={openCategory === "verify-lens"}
+            onToggle={() => toggleCategory("verify-lens")}
+          >
             <FacetLensRow
               currentLens={vLens}
               onChangeLens={(l) => setPrincipleVerifyLens(pk, l)}
-              collapsed={collapsedLens}
-              onCollapseChange={setCollapsedLens}
+              hideLabel
             />
-          </div>
+          </ControllerAccordion>
           <button
             onClick={async () => {
               setVerifyBusy(true);

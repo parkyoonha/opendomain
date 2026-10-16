@@ -15,11 +15,15 @@ export default function ResultTypeChipRow({
   onChange,
   collapsed = false,
   onCollapseChange,
+  hideLabel = false,
 }: {
   value: BigCategory | null;
   onChange: (v: BigCategory | null) => void;
   collapsed?: boolean;
   onCollapseChange?: (v: boolean) => void;
+  // Skip the row's own "실행 결과" label — used by accordion wrappers
+  // that render their own header above the chip grid.
+  hideLabel?: boolean;
 }) {
   const { customResultTypes, addCustomResultType, removeCustomResultType } =
     useIdea();
@@ -49,9 +53,11 @@ export default function ResultTypeChipRow({
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
-        실행 결과
-      </span>
+      {!hideLabel && (
+        <span className="text-[13px] uppercase tracking-wider text-text-muted md:text-[10px]">
+          실행 결과
+        </span>
+      )}
       <div className="flex flex-wrap gap-1">
         <button
           type="button"
