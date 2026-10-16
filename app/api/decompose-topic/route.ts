@@ -44,16 +44,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "topicText is required" }, { status: 400 });
   }
 
-  // A user is "customizing" the first decompose when they picked a
-  // non-default direction, a result-type chip, or typed extra context.
-  // In that case we switch to the facet prompt engine (same one the
-  // sub-facet route uses) so the picks actually shape the output.
-  const customizedDirection =
-    !!body.directionId &&
-    body.directionId !== "none" &&
-    body.directionId !== DEFAULT_DIRECTION_ID;
+  // Route through the facet prompt engine (same one the sub-facet
+  // route uses) whenever any slot of the controller is non-default.
+  // DEFAULT_DIRECTION_ID itself ("principle") still falls through to
+  // the facet prompt — picking "원리" explicitly should still produce
+  // its direction-shaped output rather than silently reverting to the
+  // generic topic prompt, which was why chip picks on the first
+  // controller sometimes looked like default output.
+  const hasDirection =
+    !!body.directionId && body.directionId !== "none";
   const customized =
-    customizedDirection || !!body.resultType || !!body.userContext?.trim();
+    hasDirection || !!body.resultType || !!body.userContext?.trim();
+  const customizedDirection = hasDirection;
+  console.log(
+    `[decompose-topic] customized=${customized} directionId=${body.directionId ?? "-"} resultType=${body.resultType ?? "-"} lens=${body.lens?.discipline ?? "-"}`,
+  );
 
   const system = customized
     ? facetDecompositionSystemPrompt(
