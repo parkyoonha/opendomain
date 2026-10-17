@@ -177,14 +177,22 @@ export default function PendingTopicCard() {
         })}
       </div>
 
-      {/* The panel itself IS the input — no inner pill, no separate
-          label. Placeholder carries the "추가 조건 (선택)" hint. */}
-      <input
-        value={customContext}
-        onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-        placeholder="추가 조건 (선택) — 주제를 조율할 조건·관점·제약"
-        className="w-full rounded-lg bg-white/[0.05] px-3 py-3 text-[14px] text-text-primary placeholder:text-text-muted focus:bg-white/[0.08] focus:outline-none md:text-[12px]"
-      />
+      {/* Styled like the "Thinking..." pill in reference: tall dark
+          slate pill with a bullet dot indicator on the left and a
+          minimal "추가 조건" placeholder. The input's own border is the
+          chip. */}
+      <div className="relative w-full">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-slate-400"
+        />
+        <input
+          value={customContext}
+          onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
+          placeholder="추가 조건"
+          className="w-full rounded-full bg-neutral-800 py-4 pl-9 pr-5 text-[14px] text-neutral-100 placeholder:text-neutral-400 focus:bg-neutral-700 focus:outline-none"
+        />
+      </div>
 
       {mode === "explore" ? (
         <>
