@@ -46,7 +46,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .safe-top-offset {
-  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  top: calc(env(safe-area-inset-top, 0px) + 0.25rem);
 }
 .pt-safe-16 {
   padding-top: calc(env(safe-area-inset-top, 0px) + 3rem);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { callLLM, parseAxesJson, pickProvider } from "@/lib/llm";
 import { facetDecompositionSystemPrompt } from "@/lib/prompts";
 import { modelFor, type BigCategory } from "@/lib/constants";
+import { isExpandDirection } from "@/lib/directions";
 import type { SelectedLens } from "@/lib/lenses";
 
 export const runtime = "nodejs";
@@ -70,8 +71,21 @@ export async function POST(req: Request) {
   const userContextLine = body.userContext?.trim()
     ? `\n\n**사용자 추가 지시 (최우선 제약)**: ${body.userContext.trim()}`
     : "";
-  const user = `${rootLine ? rootLine + "\n\n" : ""}부모 축: ${parentAxis}\n부모 facet: ${parentPrinciple}${directionLine}${lensLine}${resultLine}${userContextLine}`;
+  const expanding = isExpandDirection(body.directionId);
+  const user = expanding
+    ? `출발 facet: ${parentAxis} — ${parentPrinciple}${directionLine}${lensLine}${userContextLine}
 
+위 facet을 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제 3~5개**를 끌어와라.
+
+🚨 **자가 체크 (뽑기 전 반드시 통과)**:
+각 name이 **고유명사(지명/인명/명명된 사건/연도)**를 포함하는가?
+- "~ 패턴" / "~ 메커니즘" / "~ 재편" / "~ 국면" / "~ 주기" ❌ (추상 범주)
+- "러다이트 봉기(1811)" / "케인스 '손주들에게'(1930)" / "엔클로저 운동(16~19C)" ✓
+
+위 "✓ 형식"만 통과시키고 "❌ 형식"은 즉시 재작성하라.`
+    : `${rootLine ? rootLine + "\n\n" : ""}부모 축: ${parentAxis}\n부모 facet: ${parentPrinciple}${directionLine}${lensLine}${resultLine}${userContextLine}`;
+
+  // Flash across the board — see decompose-topic for rationale.
   const tier = body.resultType ? "flash" : "lite";
   // counter (반박) needs strict adherence to the "disagree with parent"
   // instruction — high temperature lets haiku drift into elaboration.

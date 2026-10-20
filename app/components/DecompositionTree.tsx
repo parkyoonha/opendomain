@@ -19,6 +19,7 @@ import {
 import {
   DEFAULT_DIRECTION_ID,
   kBuiltinDirections,
+  type ThinkingAxis,
   type ThinkingDirection,
 } from "@/lib/directions";
 import { lensLabel, type SelectedLens } from "@/lib/lenses";
@@ -27,6 +28,8 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import ControllerAccordion from "./ControllerAccordion";
+import ParentFacetTag from "./ParentFacetTag";
+import SessionTimelineModal from "./SessionTimelineModal";
 import {
   feasibilityLabel,
   feasibilityPalette,
@@ -44,7 +47,152 @@ import MemoFolderList from "./MemoFolderList";
 // 실행 결과) so the controller reads as a stack of distinct cards rather
 // than one giant pill wrapping everything.
 const CONTROL_PANEL_CLASSES =
-  "decomp-controller relative flex shrink-0 snap-start flex-col gap-3 w-[calc(100vw-3rem)] md:w-[560px]";
+  "decomp-controller relative flex shrink-0 snap-center flex-col gap-3 w-[calc(100vw-1.5rem)] md:w-[560px]";
+
+// Full-text modal for parent-facet 전문 보기. Shown when the user clicks
+// the AncestorStack. Displays the current facet's title + body in large
+// readable form, overlay dismisses on outside click.
+function FullFacetModal({
+  title,
+  text,
+  onClose,
+}: {
+  title: string;
+  text: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[80vh] w-full max-w-xl overflow-auto rounded-xl bg-neutral-900 p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="text-[11px] uppercase tracking-wider text-text-muted">
+            부모 facet 전문
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className="rounded p-1 text-text-muted hover:text-text-primary"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <h2 className="mb-2 text-[16px] font-bold leading-6 text-text-primary">
+          {title}
+        </h2>
+        <p className="whitespace-pre-wrap break-words text-[14px] leading-6 text-text-secondary">
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export type AncestorEntry = {
+  // Short title (axis name, segment name, topic). What shows in the stack row.
+  title: string;
+  // pk used to look up attached chips for this ancestor level. undefined if
+  // chips aren't tracked at this level (e.g., the root topic before commit).
+  pk?: string;
+};
+
+// Stacked parent-facet display. Renders inside the outer tabs/accordion
+// border — no own border/background. Shows ONLY the 3 most recent facets;
+// older ones not rendered. Top portion has a subtle gradient overlay to
+// soften the oldest-of-3. ⋮ connectors sit at the LEFT edge of each row.
+function AncestorStack({
+  ancestors,
+  current,
+  onClick,
+}: {
+  ancestors: AncestorEntry[];
+  current: AncestorEntry;
+  onClick?: () => void;
+}) {
+  const { attachedChips } = useIdea();
+  const all = [...ancestors, current];
+  // Render last 3 but visually show ~2.5 — the top of the oldest fades
+  // to transparent via mask-image so only its bottom half peeks through.
+  const visible = all.slice(-3);
+  // Fade: transparent at 0% → stays transparent until 10% → opaque at 25%.
+  // The flat transparent plateau at the top makes the oldest item nearly
+  // invisible instead of merely dim.
+  const maskStyle: React.CSSProperties = {
+    maskImage:
+      "linear-gradient(to bottom, transparent 0%, transparent 10%, black 25%)",
+    WebkitMaskImage:
+      "linear-gradient(to bottom, transparent 0%, transparent 10%, black 25%)",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={onClick ? "클릭하면 전문 보기" : undefined}
+      className="w-full text-left"
+    >
+      <div className="flex flex-col" style={maskStyle}>
+        {visible.flatMap((entry, i) => {
+          const chips = entry.pk ? attachedChips[entry.pk] ?? [] : [];
+          const titleRow = (
+            <div
+              key={`t-${i}`}
+              className="flex min-w-0 items-start gap-2"
+            >
+              <span className="line-clamp-1 min-w-0 flex-1 whitespace-pre-wrap break-words text-[12px] font-normal leading-5 text-text-primary">
+                {entry.title}
+              </span>
+              {chips.length > 0 && (
+                <span className="flex shrink-0 flex-wrap items-center gap-1">
+                  {chips.slice(0, 3).map((c, j) => (
+                    <span
+                      key={j}
+                      className="rounded border border-white/20 px-1.5 py-0 text-[9px] text-text-muted"
+                    >
+                      {c.chipText}
+                    </span>
+                  ))}
+                  {chips.length > 3 && (
+                    <span className="text-[9px] text-text-muted">
+                      +{chips.length - 3}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          );
+          // Connector sits BETWEEN items as its own flex child so its top
+          // and bottom spacing is symmetric. py-0 + leading-none keeps it
+          // tight; the small built-in line-height gives it visual breathing
+          // room without creating asymmetric gaps.
+          if (i === 0) return [titleRow];
+          return [
+            <div
+              key={`c-${i}`}
+              aria-hidden
+              className="pl-1 text-[11px] leading-none text-text-muted"
+            >
+              ⋮
+            </div>,
+            titleRow,
+          ];
+        })}
+      </div>
+    </button>
+  );
+}
 
 // Per-section panel style — every inner section (chip row, custom-context
 // input, action button block) wraps itself in this.
@@ -147,13 +295,11 @@ function findScrollAncestor(el: HTMLElement): HTMLElement | null {
 function scrollElementIntoView(scroller: HTMLElement, el: HTMLElement) {
   const cRect = el.getBoundingClientRect();
   const sRect = scroller.getBoundingClientRect();
-  // (viewportWidth - elementWidth) / 2 is where the element's left
-  // edge needs to sit for the element to be centered. Expressed as a
-  // fraction of viewport width and clamped so an element wider than
-  // the viewport still shows a bit of parent on its left.
-  const centerFrac = (sRect.width - cRect.width) / 2 / sRect.width;
-  const desiredLeftFrac = Math.max(0.05, Math.min(0.5, centerFrac));
-  const desiredLeft = sRect.left + sRect.width * desiredLeftFrac;
+  // Center the element exactly in the viewport. No 5% minimum clamp —
+  // that was causing cards nearly as wide as the viewport to appear
+  // right-shifted (left margin forced to 5% while right margin stayed
+  // whatever was left over).
+  const desiredLeft = sRect.left + Math.max(0, (sRect.width - cRect.width) / 2);
   const deltaX = cRect.left - desiredLeft;
 
   const desiredTop = sRect.top + 24;
@@ -352,16 +498,13 @@ export default function DecompositionTree() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-black">
-      <header className="px-6 pt-6">
-        <p className="text-[11px] uppercase tracking-wider text-text-muted">
-          주제
-        </p>
-        <h1 className="mt-1 whitespace-nowrap text-lg font-bold text-text-primary">
+      <header className="px-6 pt-12">
+        <h1 className="whitespace-nowrap text-lg font-bold text-text-primary">
           {decomposition.topicText}
         </h1>
       </header>
 
-      <div className="flex-1 snap-x snap-mandatory scroll-px-6 overflow-auto px-6 py-6 md:snap-none">
+      <div className="flex-1 snap-x snap-mandatory scroll-px-3 overflow-auto px-3 py-2 md:snap-none">
         {pendingTopic && <PendingTopicCard />}
         <div className="flex w-max items-stretch">
           <AxesColumn
@@ -462,7 +605,7 @@ type MobileDecomposeFabProps = {
   principleDirection: Record<string, string>;
   principleLens: Record<string, SelectedLens | null>;
   principleResultType: Record<string, BigCategory | null>;
-  principleControllerMode: Record<string, "explore" | "verify">;
+  principleControllerMode: Record<string, "explore" | "expand" | "verify">;
   principleVerifyLens: Record<string, SelectedLens | null>;
   multiAxisDirection: string;
   multiAxisLens: SelectedLens | null;
@@ -472,7 +615,7 @@ type MobileDecomposeFabProps = {
   selectedLens: SelectedLens | null;
   topicDirectionId: string;
   topicResultType: BigCategory | null;
-  commitPending: (purposeId: string) => Promise<void>;
+  commitPending: (purposeId: string, axis?: ThinkingAxis) => Promise<void>;
   runDecomposeFacet: (
     axis: string,
     directionId?: string,
@@ -526,8 +669,18 @@ function MobileDecomposeFab({
   runDecomposeMultiAxis,
   runVerifyFacet,
 }: MobileDecomposeFabProps) {
+  const {
+    setChipPanelOpen,
+    principleCustomContext,
+    setPrincipleCustomContext,
+  } = useIdea();
   const [controllerVisible, setControllerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Inline condition-input mode: when the user taps "+ 입력" we expand the
+  // FAB row into a wide input bar + ✓. The other FAB buttons are hidden
+  // while the input is open so the bar can take the full width.
+  const [inputMode, setInputMode] = useState(false);
+  const [draftInput, setDraftInput] = useState("");
   useEffect(() => {
     const visibleSet = new Set<Element>();
     const recomputeVisible = () => {
@@ -584,7 +737,7 @@ function MobileDecomposeFab({
     : canPrinciple && selectedPrinciple
       ? principleKey(selectedPrinciple.axis, selectedPrinciple.name)
       : null;
-  const activeMode: "explore" | "verify" =
+  const activeMode: "explore" | "expand" | "verify" =
     canMulti ? "explore" : activePk ? principleControllerMode[activePk] ?? "explore" : "explore";
 
   const handleClick = async () => {
@@ -617,7 +770,10 @@ function MobileDecomposeFab({
       }
 
       if (canPending) {
-        await commitPending(topicPurposeId);
+        await commitPending(
+          topicPurposeId,
+          activeMode === "expand" ? "expand" : "decompose",
+        );
         return;
       }
       if (canMulti) {
@@ -653,52 +809,164 @@ function MobileDecomposeFab({
     }
   };
 
-  const isVerify = activeMode === "verify";
+  const bgClass =
+    activeMode === "verify"
+      ? "bg-amber-400"
+      : activeMode === "expand"
+        ? "bg-sky-300"
+        : "bg-white";
+  const ariaLabel =
+    activeMode === "verify"
+      ? "증명 시작"
+      : activeMode === "expand"
+        ? "확장 시작"
+        : "분해 시작";
+
+  const openInputMode = () => {
+    if (activePk) setDraftInput(principleCustomContext[activePk] ?? "");
+    else setDraftInput("");
+    setInputMode(true);
+  };
+  const commitInput = () => {
+    if (activePk) setPrincipleCustomContext(activePk, draftInput.trim());
+    setInputMode(false);
+  };
+  const cancelInput = () => {
+    setInputMode(false);
+  };
+  const hasCondition =
+    !!activePk && !!(principleCustomContext[activePk] ?? "").trim();
+  const canUseInput = !!activePk;
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
+    <div
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
-      className={`mobile-decompose-fab absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-black shadow-lg ${
-        isVerify ? "bg-amber-400" : "bg-white"
-      }`}
+      className="mobile-decompose-fab absolute left-1/2 z-30 flex w-[calc(100vw-3rem)] max-w-md -translate-x-1/2 items-center justify-center gap-2"
     >
-      <span>{isVerify ? "증명 시작" : "분해 시작"}</span>
-      {loading ? (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          className="h-4 w-4 animate-spin"
-          aria-label="분해 중"
-        >
-          <circle
-            cx="12"
-            cy="12"
-            r="9"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeOpacity="0.25"
+      {inputMode ? (
+        <div className="flex w-full items-center gap-2 rounded-full border border-white bg-neutral-900 pl-4 pr-1 py-1 shadow-lg">
+          <input
+            autoFocus
+            value={draftInput}
+            onChange={(e) => setDraftInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitInput();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelInput();
+              }
+            }}
+            placeholder="추가 조건 입력"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[14px] text-white placeholder:text-white/[0.4] focus:outline-none"
           />
-          <path
-            d="M21 12a9 9 0 0 0-9-9"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
+          <button
+            type="button"
+            onClick={cancelInput}
+            aria-label="취소"
+            title="취소"
+            className="shrink-0 rounded-full p-1.5 text-white/60 hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={commitInput}
+            aria-label="조건 적용"
+            title="조건 적용"
+            className="shrink-0 rounded-full bg-white p-2 text-black"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path
+                d="M5 12l5 5L20 7"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       ) : (
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-          <path
-            d="M5 12h14M13 5l7 7-7 7"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <>
+          {activeMode !== "verify" && (
+            <button
+              type="button"
+              onClick={() => setChipPanelOpen(true)}
+              aria-label="칩 조합"
+              title="칩 라이브러리 열어 조합"
+              className="rounded-full border border-white/30 bg-neutral-900 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg hover:bg-neutral-800"
+            >
+              + 축 조합
+            </button>
+          )}
+          {canUseInput && (
+            <button
+              type="button"
+              onClick={openInputMode}
+              aria-label={hasCondition ? "조건 수정" : "추가 조건 입력"}
+              title={hasCondition ? "조건 수정" : "추가 조건 입력"}
+              className={`rounded-full border px-4 py-2.5 text-[13px] font-semibold shadow-lg transition-colors ${
+                hasCondition
+                  ? "border-white bg-white text-black hover:bg-white/90"
+                  : "border-white/30 bg-neutral-900 text-white hover:bg-neutral-800"
+              }`}
+            >
+              {hasCondition ? "✓ 조건" : "+ 입력"}
+            </button>
+          )}
+          <button
+            onClick={handleClick}
+            disabled={loading}
+            aria-label={ariaLabel}
+            title={ariaLabel}
+            className={`flex items-center justify-center rounded-full p-3 text-black shadow-lg ${bgClass}`}
+          >
+        {loading ? (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            className="h-5 w-5 animate-spin"
+            aria-hidden
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeOpacity="0.25"
+            />
+            <path
+              d="M21 12a9 9 0 0 0-9-9"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+            <path
+              d="M5 12h14M13 5l7 7-7 7"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+          </button>
+        </>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -843,7 +1111,7 @@ function AxesColumn(props: AxesColumnProps) {
               onChangeResultType={(rt) => setFacetResultType(axis, rt)}
             />
             {showArrowBelow && (
-              <div className="flex w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] justify-end px-2 py-3">
+              <div className="flex w-[max(24vw,260px)] max-md:w-[calc(100vw-1.5rem)] justify-end px-2 py-3">
                 <button
                   onClick={onExpandControls}
                   aria-label="컨트롤러 열기"
@@ -1160,13 +1428,29 @@ function AxisRow({
     verifyDerived,
     verifyDerivedStatus,
     runVerifyFacet,
+    decomposition,
   } = useIdea();
   const axisPk = principleKey(axis, "축 전체");
   const axisMode = principleControllerMode[axisPk] ?? "explore";
   const axisCustomContext = principleCustomContext[axisPk] ?? "";
   const axisVerifyLens = principleVerifyLens[axisPk] ?? null;
+  const [showFullFacet, setShowFullFacet] = useState(false);
+  const fullFacetText = `${axis} — ${principle}`;
+  const ancestorEntries: AncestorEntry[] = decomposition?.topicText
+    ? [
+        {
+          title: decomposition.topicText,
+          pk: `주제::${decomposition.topicText}`,
+        },
+      ]
+    : [];
+  const currentEntry: AncestorEntry = {
+    title: axis,
+    pk: axisPk,
+  };
   const axisVerifyGens = verifyDerived[axisPk] ?? [];
   const [axisVerifyLoading, setAxisVerifyLoading] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
   const generationsRef = useRef<HTMLDivElement>(null);
   const showControls = showControlsProp && active && !hideRightSide;
@@ -1221,10 +1505,10 @@ function AxisRow({
   }, [showControls]);
 
   return (
-    <div className="flex items-start">
+    <div className="flex items-start gap-3">
       <div
         ref={(el) => registerCardRef?.(axis, el)}
-        className="group relative w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] shrink-0 snap-start"
+        className="group relative w-[max(24vw,260px)] max-md:w-[calc(100vw-1.5rem)] shrink-0 snap-center"
       >
         <button
           onClick={onToggleAxis}
@@ -1255,98 +1539,90 @@ function AxisRow({
 
       {showControls && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
-          <div className="flex items-center gap-1 rounded-full bg-white/[0.06] p-0.5 self-start">
-            {(["explore", "verify"] as const).map((m) => {
-              const active = axisMode === m;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setPrincipleControllerMode(axisPk, m)}
-                  className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
-                    active
-                      ? "bg-white text-black"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {m === "explore" ? "사고확장" : "증명"}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative w-full">
-            <span
-              aria-hidden
-              className="pointer-events-none absolute left-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-slate-400"
+          {/* 외부 보더 — 부모 facet 구간 + 탭(내부 보더) + 아코디언 전부를
+              한 박스에 묶음. 아코디언 열림/닫힘 시 박스 전체 높이가 바뀌어
+              축 하단 공백도 함께 조절되고, 부모 facet 구간도 그 공백에
+              포함됨. */}
+          <div className="flex flex-col gap-3 rounded-xl border border-white/[0.14] bg-white/[0.04] p-3">
+            {/* 부모 facet 스택 — 보더 안 상단 */}
+            <AncestorStack
+              ancestors={ancestorEntries}
+              current={currentEntry}
+              onClick={() => setShowFullFacet(true)}
             />
-            <input
-              value={axisCustomContext}
-              onChange={(e) =>
-                setPrincipleCustomContext(axisPk, e.target.value)
-              }
-              placeholder="추가 조건"
-              className="w-full rounded-full bg-neutral-800 py-4 pl-9 pr-5 text-[14px] text-neutral-100 placeholder:text-neutral-400 focus:bg-neutral-700 focus:outline-none"
-            />
-          </div>
-
-          {axisMode === "explore" ? (
-            <>
-              <div className={CONTROL_SECTION_CLASSES}>
-                <button
-                  onClick={() => setChipPanelOpen(true)}
-                  title="칩 라이브러리 열어 이 축과 조합하기"
-                  className="rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-                >
-                  + 축 조합
-                </button>
+            {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
+            <div className="rounded-xl border border-white/[0.14] p-1.5">
+              <div className="flex items-stretch gap-1.5">
+                {(["explore", "expand", "verify"] as const).map((m) => {
+                  const active = axisMode === m;
+                const label =
+                  m === "explore" ? "분해" : m === "expand" ? "확장" : "증명";
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPrincipleControllerMode(axisPk, m)}
+                    className={`flex-1 whitespace-nowrap rounded-lg px-6 py-2 text-center text-[14px] font-medium transition-colors md:px-5 md:py-1.5 md:text-[13px] ${
+                      active
+                        ? "bg-white text-black"
+                        : "text-text-secondary hover:bg-white/[0.08] hover:text-text-primary"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
               </div>
-              <ControllerAccordion
-                label="사고 방향"
-                tag={
-                  [...kBuiltinDirections, ...customDirections].find(
-                    (d) => d.id === currentDirection,
-                  )?.label ?? "원리"
-                }
-                open={openCategory === "direction"}
-                onToggle={() => toggleCategory("direction")}
-              >
-                <DirectionChipRow
-                  currentDirection={currentDirection}
-                  customDirections={customDirections}
-                  onChangeDirection={onChangeDirection}
-                  addCustomDirection={addCustomDirection}
-                  removeCustomDirection={removeCustomDirection}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              <ControllerAccordion
-                label="렌즈"
-                tag={currentLens ? lensLabel(currentLens) : "없음"}
-                open={openCategory === "lens"}
-                onToggle={() => toggleCategory("lens")}
-              >
-                <FacetLensRow
-                  currentLens={currentLens}
-                  onChangeLens={onChangeLens}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              <ControllerAccordion
-                label="실행 결과"
-                tag={currentResultType ?? "없음"}
-                open={openCategory === "result"}
-                onToggle={() => toggleCategory("result")}
-              >
-                <ResultTypeChipRow
-                  value={currentResultType}
-                  onChange={onChangeResultType}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              {/* Inline 분해 시작 removed — FAB handles submit. */}
-            </>
-          ) : (
-            <>
+            </div>
+
+            {axisMode === "explore" || axisMode === "expand" ? (
+              <>
+                <ControllerAccordion
+                  label="사고 방향"
+                  tag={
+                    [...kBuiltinDirections, ...customDirections].find(
+                      (d) => d.id === currentDirection,
+                    )?.label ?? (axisMode === "expand" ? "역사 평행" : "원리")
+                  }
+                  open={openCategory === "direction"}
+                  onToggle={() => toggleCategory("direction")}
+                >
+                  <DirectionChipRow
+                    axis={axisMode === "expand" ? "expand" : "decompose"}
+                    currentDirection={currentDirection}
+                    customDirections={customDirections}
+                    onChangeDirection={onChangeDirection}
+                    addCustomDirection={addCustomDirection}
+                    removeCustomDirection={removeCustomDirection}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+                <ControllerAccordion
+                  label="렌즈"
+                  tag={currentLens ? lensLabel(currentLens) : "없음"}
+                  open={openCategory === "lens"}
+                  onToggle={() => toggleCategory("lens")}
+                >
+                  <FacetLensRow
+                    currentLens={currentLens}
+                    onChangeLens={onChangeLens}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+                <ControllerAccordion
+                  label="실행 결과"
+                  tag={currentResultType ?? "없음"}
+                  open={openCategory === "result"}
+                  onToggle={() => toggleCategory("result")}
+                >
+                  <ResultTypeChipRow
+                    value={currentResultType}
+                    onChange={onChangeResultType}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+              </>
+            ) : (
               <ControllerAccordion
                 label="렌즈"
                 tag={axisVerifyLens ? lensLabel(axisVerifyLens) : "없음"}
@@ -1359,8 +1635,18 @@ function AxisRow({
                   hideLabel
                 />
               </ControllerAccordion>
-              {/* Inline 증명 시작 removed — FAB handles submit. */}
-            </>
+            )}
+          </div>
+          <SessionTimelineModal
+            open={timelineOpen}
+            onClose={() => setTimelineOpen(false)}
+          />
+          {showFullFacet && (
+            <FullFacetModal
+              title={axis}
+              text={principle}
+              onClose={() => setShowFullFacet(false)}
+            />
           )}
         </div>
       )}
@@ -1368,7 +1654,7 @@ function AxisRow({
       {showControls && generations && generations.length > 0 && (
         <div
           ref={generationsRef}
-          className="flex shrink-0 snap-start flex-col gap-4 md:pl-4"
+          className="flex shrink-0 snap-center flex-col gap-4 md:pl-4"
         >
           {generations.map((g) => {
             const dirLabel =
@@ -1404,7 +1690,7 @@ function AxisRow({
         </div>
       )}
       {showControls && axisVerifyGens.length > 0 && (
-        <div className="flex shrink-0 snap-start flex-col gap-4 md:pl-4">
+        <div className="flex shrink-0 snap-center flex-col gap-4 md:pl-4">
           {axisVerifyGens.map((v) => {
             const st = verifyDerivedStatus[v.key];
             return (
@@ -1916,6 +2202,7 @@ export function FacetNode({
     clearCombined,
     focusedCombinedIdeaId,
     setFocusedCombinedIdeaId,
+    decomposition,
   } = useIdea();
 
   const pk = principleKey(rootAxis, pathName);
@@ -1946,6 +2233,35 @@ export function FacetNode({
     cat: "direction" | "lens" | "result" | "verify-lens",
   ) => setOpenCategory((prev) => (prev === cat ? null : cat));
   const [subFacetLoading, setSubFacetLoading] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [showFullFacet, setShowFullFacet] = useState(false);
+  const fullFacetText = `${facetName} — ${facetText}`;
+  // Build ancestor chain with per-level pk so each row can look up its
+  // attached chips. pathName is "A>B>C" (full path from axis); build the
+  // accumulated path progressively to construct each ancestor's pk.
+  const pathSegments = pathName.split(">");
+  const ancestorEntries: AncestorEntry[] = [];
+  if (decomposition?.topicText) {
+    ancestorEntries.push({
+      title: decomposition.topicText,
+      pk: `주제::${decomposition.topicText}`,
+    });
+  }
+  ancestorEntries.push({
+    title: rootAxis,
+    pk: principleKey(rootAxis, "축 전체"),
+  });
+  {
+    let acc = "";
+    for (let i = 0; i < pathSegments.length - 1; i++) {
+      acc = acc ? `${acc}>${pathSegments[i]}` : pathSegments[i];
+      ancestorEntries.push({
+        title: pathSegments[i],
+        pk: principleKey(rootAxis, acc),
+      });
+    }
+  }
+  const currentEntry: AncestorEntry = { title: facetName, pk };
   // Global grow-only expansion — survives remounts and never collapses so the
   // tree layout stays stable at every depth.
   const expanded = expandedPrinciples.has(pk);
@@ -2000,8 +2316,8 @@ export function FacetNode({
   const latestFacetChip = chips[chips.length - 1];
 
   return (
-    <div className="flex items-start">
-      <div className="group relative w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)] shrink-0 snap-start">
+    <div className="flex items-start gap-3">
+      <div className="group relative w-[max(24vw,260px)] max-md:w-[calc(100vw-1.5rem)] shrink-0 snap-center">
         <button
           onClick={handleSelect}
           className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
@@ -2074,107 +2390,97 @@ export function FacetNode({
       </div>
       {expanded && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
-          <div className="flex items-center gap-1 rounded-full bg-white/[0.06] p-0.5 self-start">
-            {(["explore", "verify"] as const).map((m) => {
-              const active = mode === m;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setPrincipleControllerMode(pk, m)}
-                  className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
-                    active
-                      ? "bg-white text-black"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {m === "explore" ? "사고확장" : "증명"}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative w-full">
-            <span
-              aria-hidden
-              className="pointer-events-none absolute left-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-slate-400"
+          {/* 외부 보더 — 부모 facet + 탭(인너 보더) + 아코디언 전부 포함 */}
+          <div className="flex flex-col gap-3 rounded-xl border border-white/[0.14] bg-white/[0.04] p-3">
+            <AncestorStack
+              ancestors={ancestorEntries}
+              current={currentEntry}
+              onClick={() => setShowFullFacet(true)}
             />
-            <input
-              value={customContext}
-              onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-              placeholder="추가 조건"
-              className="w-full rounded-full bg-neutral-800 py-4 pl-9 pr-5 text-[14px] text-neutral-100 placeholder:text-neutral-400 focus:bg-neutral-700 focus:outline-none"
-            />
-          </div>
-
-          {mode === "explore" ? (
-            <>
-              <div className={CONTROL_SECTION_CLASSES}>
-                <button
-                  onClick={() => setChipPanelOpen(true)}
-                  title="칩 라이브러리 열어 이 원리와 조합하기"
-                  className="rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-                >
-                  + 축 조합
-                </button>
+            {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
+            <div className="rounded-xl border border-white/[0.14] p-1.5">
+              <div className="flex items-stretch gap-1.5">
+                {(["explore", "expand", "verify"] as const).map((m) => {
+                  const active = mode === m;
+                  const label =
+                    m === "explore" ? "분해" : m === "expand" ? "확장" : "증명";
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setPrincipleControllerMode(pk, m)}
+                      className={`flex-1 whitespace-nowrap rounded-lg px-6 py-2 text-center text-[14px] font-medium transition-colors md:px-5 md:py-1.5 md:text-[13px] ${
+                        active
+                          ? "bg-white text-black"
+                          : "text-text-secondary hover:bg-white/[0.08] hover:text-text-primary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
-              <ControllerAccordion
-                label="사고 방향"
-                tag={
-                  [...kBuiltinDirections, ...customDirections].find(
-                    (d) =>
-                      d.id === (principleDirection[pk] ?? topicDirectionId),
-                  )?.label ?? "원리"
-                }
-                open={openCategory === "direction"}
-                onToggle={() => toggleCategory("direction")}
-              >
-                <DirectionChipRow
-                  currentDirection={
-                    principleDirection[pk] ?? topicDirectionId
+            </div>
+
+            {mode === "explore" || mode === "expand" ? (
+              <>
+                <ControllerAccordion
+                  label="사고 방향"
+                  tag={
+                    [...kBuiltinDirections, ...customDirections].find(
+                      (d) =>
+                        d.id === (principleDirection[pk] ?? topicDirectionId),
+                    )?.label ?? (mode === "expand" ? "역사 평행" : "원리")
                   }
-                  customDirections={customDirections}
-                  onChangeDirection={(id) => setPrincipleDirection(pk, id)}
-                  addCustomDirection={addCustomDirection}
-                  removeCustomDirection={removeCustomDirection}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              <ControllerAccordion
-                label="렌즈"
-                tag={(() => {
-                  const l = principleLens[pk] ?? selectedLens ?? null;
-                  return l ? lensLabel(l) : "없음";
-                })()}
-                open={openCategory === "lens"}
-                onToggle={() => toggleCategory("lens")}
-              >
-                <FacetLensRow
-                  currentLens={principleLens[pk] ?? selectedLens ?? null}
-                  onChangeLens={(lens) => setPrincipleLens(pk, lens)}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              <ControllerAccordion
-                label="실행 결과"
-                tag={
-                  (principleResultType[pk] ?? topicResultType ?? null) ??
-                  "없음"
-                }
-                open={openCategory === "result"}
-                onToggle={() => toggleCategory("result")}
-              >
-                <ResultTypeChipRow
-                  value={
-                    principleResultType[pk] ?? topicResultType ?? null
+                  open={openCategory === "direction"}
+                  onToggle={() => toggleCategory("direction")}
+                >
+                  <DirectionChipRow
+                    axis={mode === "expand" ? "expand" : "decompose"}
+                    currentDirection={
+                      principleDirection[pk] ?? topicDirectionId
+                    }
+                    customDirections={customDirections}
+                    onChangeDirection={(id) => setPrincipleDirection(pk, id)}
+                    addCustomDirection={addCustomDirection}
+                    removeCustomDirection={removeCustomDirection}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+                <ControllerAccordion
+                  label="렌즈"
+                  tag={(() => {
+                    const l = principleLens[pk] ?? selectedLens ?? null;
+                    return l ? lensLabel(l) : "없음";
+                  })()}
+                  open={openCategory === "lens"}
+                  onToggle={() => toggleCategory("lens")}
+                >
+                  <FacetLensRow
+                    currentLens={principleLens[pk] ?? selectedLens ?? null}
+                    onChangeLens={(lens) => setPrincipleLens(pk, lens)}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+                <ControllerAccordion
+                  label="실행 결과"
+                  tag={
+                    (principleResultType[pk] ?? topicResultType ?? null) ??
+                    "없음"
                   }
-                  onChange={(rt) => setPrincipleResultType(pk, rt)}
-                  hideLabel
-                />
-              </ControllerAccordion>
-              {/* Inline 분해 시작 removed — FAB handles submit. */}
-            </>
-          ) : (
-            <>
+                  open={openCategory === "result"}
+                  onToggle={() => toggleCategory("result")}
+                >
+                  <ResultTypeChipRow
+                    value={
+                      principleResultType[pk] ?? topicResultType ?? null
+                    }
+                    onChange={(rt) => setPrincipleResultType(pk, rt)}
+                    hideLabel
+                  />
+                </ControllerAccordion>
+              </>
+            ) : (
               <ControllerAccordion
                 label="렌즈"
                 tag={currentVerifyLens ? lensLabel(currentVerifyLens) : "없음"}
@@ -2187,8 +2493,18 @@ export function FacetNode({
                   hideLabel
                 />
               </ControllerAccordion>
-              {/* Inline 증명 시작 removed — FAB handles submit. */}
-            </>
+            )}
+          </div>
+          <SessionTimelineModal
+            open={timelineOpen}
+            onClose={() => setTimelineOpen(false)}
+          />
+          {showFullFacet && (
+            <FullFacetModal
+              title={facetName}
+              text={facetText}
+              onClose={() => setShowFullFacet(false)}
+            />
           )}
         </div>
       )}
@@ -2196,7 +2512,7 @@ export function FacetNode({
       {expanded && derived.length > 0 && (
         <div
           ref={derivedRef}
-          className="flex shrink-0 snap-start flex-col gap-3 md:ml-4"
+          className="flex shrink-0 snap-center flex-col gap-3 md:ml-4"
         >
           {derived.map((d) => {
             const directionLabel =
@@ -2237,7 +2553,7 @@ export function FacetNode({
       )}
 
       {expanded && verifyGens.length > 0 && (
-        <div className="flex shrink-0 snap-start flex-col gap-3 md:ml-4">
+        <div className="flex shrink-0 snap-center flex-col gap-3 md:ml-4">
           {verifyGens.map((v) => {
             const st = verifyDerivedStatus[v.key];
             return (
@@ -2335,7 +2651,7 @@ export function CombinedIdeasBoardSection({
   return (
     <div
       ref={containerRef}
-      className="flex shrink-0 snap-start flex-col gap-3 md:ml-4"
+      className="flex shrink-0 snap-center flex-col gap-3 md:ml-4"
     >
       {combineStatus === "loading" && combinedIdeas.length === 0 && (
         <div className="md:pl-8">
@@ -2525,7 +2841,7 @@ function VerifyReportCard({
     void runChipFocusMatrix(sel.axis, sel.name, sel.text);
   };
 
-  const widthCls = "w-[max(20vw,220px)] max-md:w-[calc(100vw-3rem)]";
+  const widthCls = "w-[max(24vw,260px)] max-md:w-[calc(100vw-1.5rem)]";
 
   return (
     <div className="flex flex-col gap-2 md:pl-8">

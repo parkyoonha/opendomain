@@ -92,9 +92,19 @@ export const lensLabel = (lens: SelectedLens | null): string => {
 export const lensKey = (lens: SelectedLens | null): string =>
   lens ? `${lens.discipline}::${lens.scholar ?? "*"}` : "none";
 
-export const lensPromptFragment = (lens: SelectedLens | null): string => {
+export type LensApplyAxis = "decompose" | "expand";
+
+export const lensPromptFragment = (
+  lens: SelectedLens | null,
+  axis: LensApplyAxis = "decompose",
+): string => {
   if (!lens) return "";
   if (isAutoLens(lens)) {
+    if (axis === "expand") {
+      return `**적용 렌즈: 자동 선택 (확장 모드)**
+- 부모 facet의 성격을 보고 **가장 적합한 학문/도메인 렌즈 하나를 스스로 선택**하되, 자식들의 어휘는 **그 렌즈에 묶이지 말고 다른 도메인·시대·학문**으로 뻗어나가라.
+- 선택한 렌즈는 **발판**이지 **어휘 저수지**가 아니다. 자식 각각은 발판에서 뛰어나간 인접 공간이어야.`;
+    }
     return `**적용 렌즈: 자동 선택**
 - 부모 facet의 성격·결과 유형·주제 맥락을 보고 **가장 적합한 학문/도메인 렌즈 하나를 스스로 선택**해 적용하라.
 - 선택한 렌즈가 무엇인지 자연스럽게 서술에 녹아들게 하되, 억지 인용·과잉 학술 어휘는 금지.
@@ -103,6 +113,25 @@ export const lensPromptFragment = (lens: SelectedLens | null): string => {
   const perspective = lens.scholar
     ? `${lens.discipline}의 ${lens.scholar} 관점`
     : `${lens.discipline}의 학문적 관점`;
+  if (axis === "expand") {
+    const lensName = lens.scholar ?? lens.discipline;
+    return `**적용 렌즈: ${perspective} — 확장 모드의 발판**
+
+🚨 **확장 모드에서 렌즈의 역할**:
+- 렌즈는 **발판(launching pad)**이지 **어휘 저수지**가 아니다.
+- 각 자식은 ${lensName}의 어휘를 쓰는 게 아니라, ${lensName}을(를) **발판으로 삼아 다른 사상·시대·학문·전통으로 뛰어나간 adjacent 공간**이어야.
+- principle에는 "${lensName}와(과) 이 adjacent가 **어느 지점에서 평행·대립·파생** 관계인지"를 담아 ${lensName}이 연결선으로 작동함을 보여라.
+
+✓ 좋은 예 (렌즈=하이데거, 출발 주제="죽음과 삶 선명화"일 때):
+  ✓ "에피쿠로스의 아타락시아 — '죽음은 우리에게 없다'며 공포를 지우려 한 입장. 선구(先驅)로 공포에 머물라는 하이데거와 2000년의 대립"
+  ✓ "모노노아와레(物の哀れ) — 일본 미학의 '덧없음을 통한 각성'. 각자성과 평행궤도를 그리되 결단이 아닌 미적 수용"
+  ✓ "Cicely Saunders 호스피스(1960s) — '좋은 죽음' 제도 설계가 각자성을 임상 공간으로 번역한 사례"
+
+✗ 나쁜 예 (렌즈 어휘로 되돌아간 경우):
+  ✗ "세인(das Man)의 자기망각" (❌ 하이데거 내부 어휘 — 분해 결과)
+  ✗ "존재가능성의 응축" (❌ 하이데거 내부)
+  ✗ "본래성과 비본래성" (❌ 하이데거 내부)`;
+  }
   return `**적용 렌즈: ${perspective}**
 - 위 렌즈의 개념·방법론·핵심 통찰을 분해/조합의 시선으로 삼는다.
 - 렌즈의 고유 어휘·프레임을 재료로 활용하되, 억지 인용·현학적 나열은 금지.

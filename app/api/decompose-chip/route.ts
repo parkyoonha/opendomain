@@ -7,6 +7,7 @@ import {
   type BigCategory,
   type ChipKind,
 } from "@/lib/constants";
+import { isExpandDirection } from "@/lib/directions";
 import type { SelectedLens } from "@/lib/lenses";
 
 export const runtime = "nodejs";
@@ -58,8 +59,12 @@ export async function POST(req: Request) {
     ? `\n렌즈: ${body.lens.discipline}${body.lens.scholar ? ` · ${body.lens.scholar}` : ""}`
     : "";
   const resultLine = body.resultType ? `\n실행 결과: ${body.resultType}` : "";
-  const user = `칩: ${chipText}\n종류: ${kindLabel}${directionLine}${lensLine}${resultLine}\n\n위 칩을 실제 내용과 렌즈에 맞춰 3~5개 축으로 자유 분해하라. 축 이름은 이 칩 고유의 각도가 드러나도록.`;
+  const expanding = isExpandDirection(body.directionId);
+  const user = expanding
+    ? `출발 칩: ${chipText}\n종류: ${kindLabel}${directionLine}${lensLine}\n\n위 칩을 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제 3~5개**를 끌어와라. 칩의 하위 메커니즘·구성요소를 뽑지 마라.`
+    : `칩: ${chipText}\n종류: ${kindLabel}${directionLine}${lensLine}${resultLine}\n\n위 칩을 실제 내용과 렌즈에 맞춰 3~5개 축으로 자유 분해하라. 축 이름은 이 칩 고유의 각도가 드러나도록.`;
 
+  // Flash across the board — see decompose-topic for rationale.
   const tier = body.resultType ? "flash" : "lite";
 
   try {

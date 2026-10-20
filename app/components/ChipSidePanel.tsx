@@ -16,6 +16,7 @@ import {
   type ChipKind,
 } from "@/lib/constants";
 import { chipSearchModeLabel, type ChipSearchMode } from "@/lib/prompts";
+import { DEFAULT_EXPAND_DIRECTION_ID } from "@/lib/directions";
 import { lensLabel } from "@/lib/lenses";
 import { focusMatchColor, focusMatchIcon } from "@/lib/verify";
 import FacetLensRow from "./FacetLensRow";
@@ -197,6 +198,17 @@ export default function ChipSidePanel() {
     // (kind is only a hint — the API now generates free-form axes anyway).
     const kind = staged.source === "library" ? staged.kind : "industry";
     void runDecomposeChip(kind, staged.chipText);
+  };
+
+  const expandStaged = () => {
+    if (!staged) return;
+    const kind = staged.source === "library" ? staged.kind : "industry";
+    // Expansion runs through the same chip-decompose pipeline but with a
+    // default 확장 direction (parallel). The direction fragment flips the
+    // guidance from "stay within parent" to "jump to adjacent space", so
+    // the output renders as independent-topic facets rather than internal
+    // sub-parts.
+    void runDecomposeChip(kind, staged.chipText, DEFAULT_EXPAND_DIRECTION_ID);
   };
 
   const canDecompose = !!staged;
@@ -1025,98 +1037,120 @@ export default function ChipSidePanel() {
         )}
       </div>
 
-      <div className="flex gap-2 px-3 pb-1 pt-2">
-        <button
-          type="button"
-          onClick={() => {
-            const name = window.prompt("새 칩 이름 (예: 자기복제, 압력)")?.trim();
-            if (!name) return;
-            const definition =
-              window.prompt("칩 정의/설명 (선택)")?.trim() ?? "";
-            addUserChip({ kind: "memo", name, definition });
-          }}
-          aria-label="칩 추가"
-          title="새 칩을 라이브러리에 추가"
-          className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/[0.08] px-4 text-[15px] text-white transition-opacity hover:bg-white/[0.16] md:h-9 md:px-3 md:text-[12px]"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-            <path
-              d="M12 5v14M5 12h14"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span>칩 추가</span>
-        </button>
-        <button
-          onClick={decomposeStaged}
-          disabled={!canDecompose || stagedDStatus === "loading"}
-          aria-label="칩 분해"
-          className={`flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/[0.08] px-4 text-[15px] text-white transition-opacity hover:bg-white/[0.16] disabled:opacity-30 md:h-9 md:px-3 md:text-[12px] ${
-            hasPrinciple ? "" : "flex-1"
-          }`}
-          title={
-            canDecompose
-              ? "선택한 칩을 분해합니다"
-              : "칩을 먼저 선택하세요"
-          }
-        >
-          {stagedDStatus === "loading" ? (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              className="h-4 w-4 animate-spin"
-              aria-label="칩 분해 중"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeOpacity="0.25"
-              />
+      <div className="flex flex-col gap-2 px-3 pb-1 pt-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const name = window.prompt("새 칩 이름 (예: 자기복제, 압력)")?.trim();
+              if (!name) return;
+              const definition =
+                window.prompt("칩 정의/설명 (선택)")?.trim() ?? "";
+              addUserChip({ kind: "memo", name, definition });
+            }}
+            aria-label="칩 추가"
+            title="새 칩을 라이브러리에 추가"
+            className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.08] px-4 text-[15px] text-white transition-opacity hover:bg-white/[0.16] md:h-9 md:px-3 md:text-[12px]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
               <path
-                d="M21 12a9 9 0 0 0-9-9"
+                d="M12 5v14M5 12h14"
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
               />
             </svg>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-                <path
-                  d="M6 3v18M18 3v18M3 6h18M3 12h18M3 18h18"
+            <span>칩 추가</span>
+          </button>
+          <button
+            onClick={decomposeStaged}
+            disabled={!canDecompose || stagedDStatus === "loading"}
+            aria-label="칩 분해"
+            className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.08] px-4 text-[15px] text-white transition-opacity hover:bg-white/[0.16] disabled:opacity-30 md:h-9 md:px-3 md:text-[12px]"
+            title={
+              canDecompose
+                ? "선택한 칩을 분해합니다"
+                : "칩을 먼저 선택하세요"
+            }
+          >
+            {stagedDStatus === "loading" ? (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-4 w-4 animate-spin"
+                aria-label="칩 분해 중"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
                   stroke="currentColor"
-                  strokeWidth="1.5"
+                  strokeWidth="2"
+                  strokeOpacity="0.25"
+                />
+                <path
+                  d="M21 12a9 9 0 0 0-9-9"
+                  stroke="currentColor"
+                  strokeWidth="2"
                   strokeLinecap="round"
                 />
               </svg>
-              <span>칩 분해</span>
-            </>
-          )}
-        </button>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                  <path
+                    d="M6 3v18M18 3v18M3 6h18M3 12h18M3 18h18"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>칩 분해</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={expandStaged}
+            disabled={!canDecompose || stagedDStatus === "loading"}
+            aria-label="칩 확장"
+            className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-sky-500/20 px-4 text-[15px] text-sky-100 transition-opacity hover:bg-sky-500/30 disabled:opacity-30 md:h-9 md:px-3 md:text-[12px]"
+            title={
+              canDecompose
+                ? "선택한 칩을 발판으로 adjacent 공간으로 확장합니다"
+                : "칩을 먼저 선택하세요"
+            }
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path
+                d="M4 20L20 4M14 4h6v6M10 20H4v-6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>칩 확장</span>
+          </button>
+        </div>
         {hasPrinciple && (
-        <button
-          onClick={attachAndCombine}
-          disabled={!staged}
-          className="flex flex-1 items-center justify-between rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-black transition-opacity disabled:opacity-30 md:px-4 md:py-2 md:text-[12px]"
-        >
-          <span className="truncate">
-            {staged ? `조합: ${staged.chipText}` : "칩을 먼저 선택하세요"}
-          </span>
-          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0">
-            <path
-              d="M5 12h14M13 5l7 7-7 7"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+          <button
+            onClick={attachAndCombine}
+            disabled={!staged}
+            className="flex w-full items-center justify-between rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-black transition-opacity disabled:opacity-30 md:px-4 md:py-2 md:text-[12px]"
+          >
+            <span className="truncate">
+              {staged ? `조합: ${staged.chipText}` : "칩을 먼저 선택하세요"}
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0">
+              <path
+                d="M5 12h14M13 5l7 7-7 7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         )}
       </div>
     </aside>

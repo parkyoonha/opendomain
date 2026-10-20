@@ -28,7 +28,9 @@ import {
 } from "@/lib/purposes";
 import {
   DEFAULT_DIRECTION_ID,
+  DEFAULT_EXPAND_DIRECTION_ID,
   kBuiltinDirections,
+  type ThinkingAxis,
   type ThinkingDirection,
 } from "@/lib/directions";
 import type { VerifyReport, FocusChipCandidate } from "@/lib/verify";
@@ -174,8 +176,9 @@ type Ctx = {
   setTopicPurposeId: (id: string) => void;
 
   pendingTopic: string | null;
+  setPendingTopic: (text: string | null) => void;
   cancelPending: () => void;
-  commitPending: (purposeId: string) => Promise<void>;
+  commitPending: (purposeId: string, axis?: ThinkingAxis) => Promise<void>;
 
   pages: Page[];
   currentPageId: string | null;
@@ -188,6 +191,8 @@ type Ctx = {
 
   topicDirectionId: string;
   setTopicDirectionId: (id: string) => void;
+  topicExpandDirectionId: string;
+  setTopicExpandDirectionId: (id: string) => void;
   topicResultType: BigCategory | null;
   setTopicResultType: (rt: BigCategory | null) => void;
   // Topic-level draft state owned by the InputBar + popover. Picked
@@ -290,10 +295,10 @@ type Ctx = {
   // decomposition chips (direction/lens/result), "verify" swaps them for
   // verification method + evaluation chips. Kept per-pk so different
   // principles can be in different modes simultaneously.
-  principleControllerMode: Record<string, "explore" | "verify">;
+  principleControllerMode: Record<string, "explore" | "expand" | "verify">;
   setPrincipleControllerMode: (
     pk: string,
-    mode: "explore" | "verify",
+    mode: "explore" | "expand" | "verify",
   ) => void;
   principleVerifyLens: Record<string, SelectedLens | null>;
   setPrincipleVerifyLens: (pk: string, lens: SelectedLens | null) => void;
@@ -645,6 +650,9 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   const [draftType, setDraftType] = useState<"topic" | "memo" | null>("topic");
   const [topicDirectionId, setTopicDirectionId] = useState<string>(
     DEFAULT_DIRECTION_ID,
+  );
+  const [topicExpandDirectionId, setTopicExpandDirectionId] = useState<string>(
+    DEFAULT_EXPAND_DIRECTION_ID,
   );
   const [topicResultType, setTopicResultType] = useState<BigCategory | null>(
     null,
@@ -1107,10 +1115,10 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   );
 
   const [principleControllerMode, setPrincipleControllerModeState] = useState<
-    Record<string, "explore" | "verify">
+    Record<string, "explore" | "expand" | "verify">
   >({});
   const setPrincipleControllerMode = useCallback(
-    (pk: string, mode: "explore" | "verify") => {
+    (pk: string, mode: "explore" | "expand" | "verify") => {
       setPrincipleControllerModeState((prev) => ({ ...prev, [pk]: mode }));
     },
     [],
@@ -1894,7 +1902,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
   }, [topicText]);
 
   const commitPending = useCallback(
-    async (purposeId: string) => {
+    async (purposeId: string, axis: ThinkingAxis = "decompose") => {
       const trimmed = pendingTopic?.trim();
       if (!trimmed) return;
       setTopicPurposeId(purposeId);
@@ -1902,13 +1910,15 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       // PendingTopicCard stays on screen with its loading state. Only
       // clear it after the API returns (or on failure, leave it so the
       // user can retry).
+      const effectiveDirectionId =
+        axis === "expand" ? topicExpandDirectionId : topicDirectionId;
       const directionMeta =
-        kBuiltinDirections.find((d) => d.id === topicDirectionId) ??
-        customDirections.find((d) => d.id === topicDirectionId);
+        kBuiltinDirections.find((d) => d.id === effectiveDirectionId) ??
+        customDirections.find((d) => d.id === effectiveDirectionId);
       const pk = `주제::${trimmed}`;
       const td = await runDecomposeFor(trimmed, bigCategory, purposeId, {
         pushActivity: true,
-        directionId: topicDirectionId,
+        directionId: effectiveDirectionId,
         directionLabel: directionMeta?.label,
         resultType: topicResultType,
         userContext: principleCustomContext[pk],
@@ -1932,6 +1942,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       bigCategory,
       runDecomposeFor,
       topicDirectionId,
+      topicExpandDirectionId,
       customDirections,
       topicResultType,
       principleCustomContext,
@@ -2666,6 +2677,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       topicPurposeId,
       setTopicPurposeId,
       pendingTopic,
+      setPendingTopic,
       cancelPending,
       commitPending,
       pages,
@@ -2678,6 +2690,8 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       deletePage,
       topicDirectionId,
       setTopicDirectionId,
+      topicExpandDirectionId,
+      setTopicExpandDirectionId,
       topicResultType,
       setTopicResultType,
       topicMode,
@@ -2871,6 +2885,7 @@ export function IdeaProvider({ children }: { children: ReactNode }) {
       openPage,
       deletePage,
       topicDirectionId,
+      topicExpandDirectionId,
       topicResultType,
       topicMode,
       topicVerifyLens,

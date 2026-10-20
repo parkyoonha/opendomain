@@ -1,6 +1,6 @@
 import type { BigCategory } from "./constants";
 import { lensPromptFragment, type SelectedLens } from "./lenses";
-import { directionPromptFragment } from "./directions";
+import { directionPromptFragment, isExpandDirection } from "./directions";
 
 const withLens = (base: string, lens?: SelectedLens | null): string => {
   const frag = lensPromptFragment(lens ?? null);
@@ -360,11 +360,58 @@ export const facetDecompositionSystemPrompt = (
   const effectiveDirection =
     !directionId || directionId === "none" ? "principle" : directionId;
   const directionDirective = `\n\n${directionPromptFragment(effectiveDirection, customDirectionLabel)}`;
-  const lensFrag = lensPromptFragment(lens ?? null);
+  const lensFrag = lensPromptFragment(lens ?? null, "decompose");
   const lensDirective = lensFrag ? `\n\n${lensFrag}` : "";
+  // Expand axis gets its own lens framing — the lens becomes a launching
+  // pad instead of the vocabulary bath used in decomposition.
+  const lensFragExpand = lensPromptFragment(lens ?? null, "expand");
+  const lensDirectiveExpand = lensFragExpand ? `\n\n${lensFragExpand}` : "";
 
   // Direction becomes the PRIMARY frame in facet decomposition.
   if (!resultType) {
+    if (isExpandDirection(effectiveDirection)) {
+      // Expansion mode — the scaffolding deliberately re-frames the task.
+      // The outer "parent facet / sub-facet" vocabulary used by
+      // decomposition biases the LLM toward returning internal breakdowns
+      // even when the direction fragment says "jump outward". For
+      // expansion we instead call it a "출발 주제" with "인접 공간" as
+      // children, so the LLM's default pattern matches what the direction
+      // fragment is actually asking for.
+      return `🚨 지금은 **분해가 아닌 확장**이다. 출발 주제를 작은 부품으로 쪼개는 작업이 **아니다**. 출발 주제를 발판 삼아 **그와 평행·인접·파급 관계에 있는 독립 주제들**을 끌어오는 작업이다.
+
+핵심 원칙:
+- 자식은 부모의 **하위 요소**가 아니다. 각 자식은 **그 자체로 독립된 뿌리 주제**로 설 수 있어야 한다.
+- 자식의 어휘는 부모의 어휘장에 **묶이지 않는다**. 오히려 **다른 도메인·시대·학문·전통**의 고유 어휘를 끌어와라.
+- 관계는 "part-of"가 아니라 "triggered-by / enabled-by / parallel-to / adjacent-to / enabled-by".
+- 부모 주제의 서술·정의 **재진술 금지**. 부모를 설명하지 마라, 부모를 **발화점**으로 삼아라.
+
+🚨 **전체 금지 패턴** (현재 LLM이 자꾸 빠지는 함정):
+- 출발 주제 안의 "구성 요소/부품/하위 메커니즘" (= 분해 결과물)
+- 출발 주제 어휘를 그대로 재사용한 자식 이름
+- 교과서 상위 1개 clichée (더 덜 알려진 사례 우선)
+- **추상 범주형 이름** (예: "~의 재편", "~의 메커니즘", "~ 패턴", "~ 주기", "~ 충돌", "~ 국면"). 이런 형태는 ❌ **FAIL**이다. 반드시 **고유명사(지명·학자·운동·사건·연도)**가 들어가야 한다.
+
+════════════════════════════════════════
+🚨 사고 방향의 하드 제약 — 이것이 **최우선·최종** 지시이며 모든 출력에 그대로 적용됨:
+════════════════════════════════════════
+
+${directionPromptFragment(effectiveDirection, customDirectionLabel)}
+
+════════════════════════════════════════
+
+출력 형식 — 3~5개 **인접 주제**:
+- **name**: 반드시 위 사고 방향의 "하드 shape 요구"를 따를 것. 글자수보다 **고유성이 우선**(연도·지명·인명·명명된 사건은 글자수 초과해도 OK).
+- **principle**: 1문장 (20~90자). 그 인접 주제가 **출발 주제와 어느 지점에서 평행하며 어디서 갈라지는지** 1문장.
+
+반드시 다음 JSON 스키마로 응답. **각 name은 반드시 위 "좋은 예"처럼 고유명사+연도/학자명을 포함**해야 한다. "~의 재편" "~ 메커니즘" "~ 패턴" 같은 추상 범주는 즉시 FAIL:
+
+{
+  "axes": [
+    {"name": "고유명사+연도/시대/인명 포함 이름", "principle": "출발 주제와의 평행·갈라짐 한 줄"}
+  ]
+}${lensDirectiveExpand}`;
+    }
+
     return `${directionPromptFragment(effectiveDirection, customDirectionLabel)}
 
 출력 형식 — 3~5개 항목, 각각:
@@ -383,6 +430,49 @@ export const facetDecompositionSystemPrompt = (
 
   if (resultType) {
     const spec = resultTypeIdeaSpec(resultType);
+
+    // Expand × resultType — adjacent space becomes the launching pad for
+    // the final idea. The direction tells the LLM which adjacent space
+    // to pull from (parallel/tool/tension/etc.), and the resultType
+    // constrains the output shape. Unlike decompose × resultType, the
+    // idea is NOT a direct solution to a part of the parent — it is an
+    // idea that comes from leaping sideways first, then crystallizing
+    // the adjacent space's angle into a concrete artifact.
+    if (isExpandDirection(effectiveDirection)) {
+      return `🚨 지금은 **분해×실행결과가 아닌 확장×실행결과**다. 출발 주제를 안쪽으로 파서 해결책을 찾는 작업이 **아니다**. 출발 주제를 발판 삼아 **adjacent 공간(인접 주제)으로 뛰어나간 뒤**, 그 공간의 각도로 **${spec.label} 아이디어 3~5개**를 뽑는 작업이다.
+
+핵심 원칙:
+- 각 아이디어는 **반드시 하나의 adjacent 공간**(parallel/tool/tension/downstream/macro/analog 중 하나)을 **발판으로** 삼아야 한다.
+- 아이디어는 adjacent 공간에서 **번역·결정화된 ${spec.label}**이지, 출발 주제의 안쪽 문제를 직접 해결하는 ${spec.label}이 아니다.
+- "AI 노동종말 → 재훈련 플랫폼" (❌ 분해×서비스 패턴) / "AI 노동종말 → 러다이트 저항 조직화 플랫폼" (✓ 확장×서비스 패턴 — 러다이트가 발판)
+
+${directionPromptFragment(effectiveDirection, customDirectionLabel)}
+
+⚠️ **결과 형태 하드 제약 — ${spec.label}**: 각 항목은 반드시 ${spec.label} 형태의 **실행 가능한 산출물**. adjacent 공간을 단순 서술로 끝내지 말고, 반드시 ${spec.label}로 결정화할 것.
+
+결과 형태 규칙 — ${spec.label}:
+${spec.body}
+
+각 아이디어 규칙:
+- **name**: ${spec.label} 아이디어의 이름 (짧고 강렬, 6~14자). adjacent 공간이 아이디어 안에서 느껴지는 명명.
+- **principle**: 1문장 (30~70자). "출발 주제 → **[adjacent 공간 이름]** 발판 → 이 ${spec.label}이 어떻게 그 공간의 각도를 담는지".
+- 좋음 예시 (출발="AI 노동종말", 결과=서비스일 때):
+  ✓ "러다이트 재림 평행 저항 조직화 플랫폼 — 1811 영국 방직공 저항사를 매뉴얼화해 AI 대체 산업 노동자가 동료 저항을 조직할 수 있게 돕는다"
+  ✓ "Solow 역설 체감 리포트 — 생산성 통계와 체감 격차를 개인 단위로 측정·추적해주는 B2C 리포트 서비스"
+  ✓ "돌봄 희소자원 매칭 — AI가 못 하는 돌봄 영역을 희소자원으로 재가치화하는 돌봄 종사자 매칭 플랫폼"
+- 나쁨:
+  ✗ "AI 재훈련 매칭 플랫폼" (분해 패턴 — 부모 안쪽 문제 직결)
+  ✗ "AI 노동 분석 서비스" (출발 주제 어휘 반복)
+  ✗ 어떤 adjacent 공간에서 왔는지 안 보이는 ${spec.label}
+
+반드시 다음 JSON 스키마로 응답:
+{
+  "axes": [
+    {"name": "${spec.label} 이름", "principle": "adjacent 공간 발판 → ${spec.label}로의 결정화 한 줄"}
+  ]
+}${lensDirectiveExpand}`;
+    }
+
     const directionLabel =
       effectiveDirection === "principle"
         ? ""
@@ -773,8 +863,67 @@ export const chipDecompositionSystemPrompt = (
   const directionDirective = directionId
     ? `\n\n${directionPromptFragment(directionId, customDirectionLabel)}`
     : "";
-  const lensFrag = lensPromptFragment(lens ?? null);
+  const lensFrag = lensPromptFragment(lens ?? null, "decompose");
   const lensDirective = lensFrag ? `\n\n${lensFrag}` : "";
+  const lensFragExpand = lensPromptFragment(lens ?? null, "expand");
+  const lensDirectiveExpand = lensFragExpand ? `\n\n${lensFragExpand}` : "";
+
+  // Chip expansion mode — re-frames the task so the LLM doesn't fall back
+  // to listing the chip's internal sub-axes. Same shape as the facet
+  // expansion branch above.
+  if (!resultType && isExpandDirection(directionId)) {
+    return `🚨 지금은 **분해가 아닌 확장**이다. 칩을 작은 부품으로 쪼개는 작업이 **아니다**. 칩(${kindLabel})을 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제들**을 끌어오는 작업이다.
+
+핵심 원칙:
+- 자식은 칩의 **하위 메커니즘·구성요소**가 아니다. 각 자식은 그 자체로 **독립된 뿌리 주제**로 설 수 있어야 한다.
+- 자식의 어휘는 칩의 어휘장에 **묶이지 않는다**. 오히려 다른 도메인·시대·학문·전통의 고유 어휘를 끌어와라.
+- 관계는 "part-of"가 아니라 "parallel-to / adjacent-to / enabled-by / triggered-by".
+- 칩 이름·정의 **재진술 금지**. 칩을 설명하지 마라, 칩을 **발화점**으로 삼아라.
+
+${directionPromptFragment(directionId!, customDirectionLabel)}
+
+출력 형식 — 3~5개 **인접 주제**:
+- name: 짧게 (6~14자). 다른 도메인·시대·사례의 **고유명사·개념어** (연도·지명 포함 좋음).
+- principle: 1문장 (20~70자). 그 인접 주제가 **이 칩과 어느 지점에서 평행하며 어디서 갈라지는지**.
+
+🚨 **금지**:
+- 칩의 하위 메커니즘·구성요소 (= 분해 결과)
+- 칩 이름·어휘를 그대로 재사용한 자식 이름
+- 교과서 상위 1개 clichée
+
+반드시 다음 JSON 스키마로 응답:
+{
+  "axes": [
+    {"name": "인접 주제 이름", "principle": "칩과의 관계 한 줄"}
+  ]
+}${lensDirectiveExpand}`;
+  }
+
+  if (resultType && isExpandDirection(directionId)) {
+    const spec = resultTypeIdeaSpec(resultType);
+    return `🚨 지금은 **분해×실행결과가 아닌 확장×실행결과**다. 칩(${kindLabel})을 안쪽으로 파서 해결책을 찾는 작업이 아니다. 칩을 **발판 삼아 adjacent 공간으로 뛰어나간 뒤**, 그 공간의 각도로 **${spec.label} 아이디어 3~5개**를 뽑아라.
+
+핵심 원칙:
+- 각 아이디어는 **반드시 하나의 adjacent 공간**(parallel/tool/tension/downstream/macro/analog 중 하나)을 **발판으로** 삼을 것.
+- 아이디어는 그 adjacent 공간에서 **번역·결정화된 ${spec.label}**이지, 칩 내부 메커니즘의 직접 응용이 아님.
+
+${directionPromptFragment(directionId!, customDirectionLabel)}
+
+⚠️ 결과 형태 하드 제약 — ${spec.label}:
+${spec.body}
+
+각 아이디어 규칙:
+- **name**: ${spec.label} 아이디어 이름 (짧고 강렬, 6~14자). adjacent 공간이 아이디어 안에서 느껴지는 명명.
+- **principle**: 1문장 (30~70자). "칩 → [adjacent 공간 이름] 발판 → 이 ${spec.label}이 그 각도를 담는 방식".
+- 나쁨: 칩 이름·어휘 재사용, 칩 내부 메커니즘 직접 응용 (= 분해×실행결과 패턴)
+
+반드시 다음 JSON 스키마로 응답:
+{
+  "axes": [
+    {"name": "${spec.label} 이름", "principle": "adjacent 공간 발판 → ${spec.label} 한 줄"}
+  ]
+}${lensDirectiveExpand}`;
+  }
 
   if (resultType) {
     const spec = resultTypeIdeaSpec(resultType);

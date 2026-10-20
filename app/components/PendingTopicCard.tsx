@@ -7,6 +7,8 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import ControllerAccordion from "./ControllerAccordion";
+import ParentFacetTag from "./ParentFacetTag";
+import SessionTimelineModal from "./SessionTimelineModal";
 import { kBuiltinDirections } from "@/lib/directions";
 import {
   feasibilityLabel,
@@ -17,10 +19,14 @@ import { lensLabel } from "@/lib/lenses";
 export default function PendingTopicCard() {
   const {
     pendingTopic,
+    setPendingTopic,
     commitPending,
+    addMemo,
     topicPurposeId,
     topicDirectionId,
     setTopicDirectionId,
+    topicExpandDirectionId,
+    setTopicExpandDirectionId,
     topicResultType,
     setTopicResultType,
     customDirections,
@@ -63,10 +69,46 @@ export default function PendingTopicCard() {
     cat: "direction" | "lens" | "result" | "verify-lens",
   ) => setOpenCategory((prev) => (prev === cat ? null : cat));
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [topicSubmitting, setTopicSubmitting] = useState(false);
   const verifyColRef = useRef<HTMLDivElement>(null);
   const prevGenCountRef = useRef(0);
   const combineColRef = useRef<HTMLDivElement>(null);
   const prevCombineCountRef = useRef(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Center the card in the horizontal scroller on first mount. Browser's
+  // native scroll-snap doesn't always snap new content on initial render,
+  // so we scroll explicitly to avoid the "right-shifted" landing bug.
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      let scroller: HTMLElement | null = el.parentElement;
+      while (scroller) {
+        const s = getComputedStyle(scroller);
+        if (
+          s.overflowX === "auto" ||
+          s.overflowX === "scroll" ||
+          s.overflow === "auto" ||
+          s.overflow === "scroll"
+        )
+          break;
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) return;
+      const cRect = el.getBoundingClientRect();
+      const sRect = scroller.getBoundingClientRect();
+      const desiredLeft = sRect.left + (sRect.width - cRect.width) / 2;
+      const deltaX = cRect.left - desiredLeft;
+      if (Math.abs(deltaX) < 2) return;
+      scroller.scrollTo({
+        left: scroller.scrollLeft + deltaX,
+        behavior: "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   if (!pendingTopic) return null;
 
@@ -77,6 +119,25 @@ export default function PendingTopicCard() {
   const customContext = principleCustomContext[pk] ?? "";
   const vLens = principleVerifyLens[pk] ?? null;
   const vGens = verifyDerived[pk] ?? [];
+
+  // Mode-aware submit: Enter / 우측 arrow button → mirrors the FAB
+  // behavior for the pending-topic context (explore / expand / verify).
+  const handleTopicSubmit = async () => {
+    if (!pendingTopic?.trim() || topicSubmitting) return;
+    setTopicSubmitting(true);
+    try {
+      if (mode === "verify") {
+        await runVerifyFacet("주제", pendingTopic, pendingTopic, vLens);
+      } else {
+        await commitPending(
+          topicPurposeId,
+          mode === "expand" ? "expand" : "decompose",
+        );
+      }
+    } finally {
+      setTopicSubmitting(false);
+    }
+  };
 
   const pendingCombines = combinedIdeas.filter(
     (c) => c.topicAxis === "주제",
@@ -152,108 +213,160 @@ export default function PendingTopicCard() {
   }, [vGens.length]);
 
   return (
-    <div className="flex w-max items-start gap-4">
-    <div className="decomp-controller flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-3 md:w-[560px]">
-      <h1 className="whitespace-pre-wrap break-words text-[15px] font-bold text-text-primary">
-        {pendingTopic}
-      </h1>
-
-      <div className="flex items-center gap-1 self-start rounded-full bg-white/[0.06] p-0.5">
-        {(["explore", "verify"] as const).map((m) => {
-          const active = mode === m;
-          return (
-            <button
-              key={m}
-              onClick={() => setPrincipleControllerMode(pk, m)}
-              className={`rounded-full px-4 py-1 text-[12px] transition-colors md:px-3 md:text-[10px] ${
-                active
-                  ? "bg-white text-black"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {m === "explore" ? "사고확장" : "증명"}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Styled like the "Thinking..." pill in reference: tall dark
-          slate pill with a bullet dot indicator on the left and a
-          minimal "추가 조건" placeholder. The input's own border is the
-          chip. */}
-      <div className="relative w-full">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute left-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-slate-400"
-        />
+    <div className="mt-6 flex w-max items-start gap-4">
+    <div
+      ref={cardRef}
+      className="decomp-controller flex w-[calc(100vw-1.5rem)] max-w-full shrink-0 snap-center flex-col gap-3 md:w-[560px]"
+    >
+      {/* 주제 입력 — 초기 InputBar와 동일한 pill 스타일 + 우측 enter 버튼.
+          Enter 키 / 버튼 클릭 → 현재 mode(분해/확장/증명)에 맞춰 FAB과
+          동일한 액션 트리거. */}
+      <div className="flex items-center gap-1 rounded-full bg-white/[0.12] py-3 pl-3 pr-2">
         <input
-          value={customContext}
-          onChange={(e) => setPrincipleCustomContext(pk, e.target.value)}
-          placeholder="추가 조건"
-          className="w-full rounded-full bg-neutral-800 py-4 pl-9 pr-5 text-[14px] text-neutral-100 placeholder:text-neutral-400 focus:bg-neutral-700 focus:outline-none"
-        />
-      </div>
-
-      {mode === "explore" ? (
-        <>
-          <div className="rounded-lg bg-white/[0.05] p-3">
-            <button
-              onClick={() => setChipPanelOpen(true)}
-              title="칩 라이브러리 열어 이 주제와 조합하기"
-              className="rounded-full bg-white/[0.08] px-5 py-2 text-[14px] text-text-primary hover:bg-white/[0.16] md:px-3 md:py-1 md:text-[11px]"
-            >
-              + 축 조합
-            </button>
-          </div>
-          <ControllerAccordion
-            label="사고 방향"
-            tag={
-              [...kBuiltinDirections, ...customDirections].find(
-                (d) => d.id === topicDirectionId,
-              )?.label ?? "원리"
+          value={pendingTopic}
+          onChange={(e) => setPendingTopic(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleTopicSubmit();
             }
-            open={openCategory === "direction"}
-            onToggle={() => toggleCategory("direction")}
-          >
-            <DirectionChipRow
-              currentDirection={topicDirectionId}
-              customDirections={customDirections}
-              onChangeDirection={setTopicDirectionId}
-              addCustomDirection={addCustomDirection}
-              removeCustomDirection={removeCustomDirection}
-              hideLabel
-            />
-          </ControllerAccordion>
-          <ControllerAccordion
-            label="렌즈"
-            tag={selectedLens ? lensLabel(selectedLens) : "없음"}
-            open={openCategory === "lens"}
-            onToggle={() => toggleCategory("lens")}
-          >
-            <FacetLensRow
-              currentLens={selectedLens}
-              onChangeLens={setSelectedLens}
-              hideLabel
-            />
-          </ControllerAccordion>
-          <ControllerAccordion
-            label="실행 결과"
-            tag={topicResultType ?? "없음"}
-            open={openCategory === "result"}
-            onToggle={() => toggleCategory("result")}
-          >
-            <ResultTypeChipRow
-              value={topicResultType}
-              onChange={setTopicResultType}
-              hideLabel
-            />
-          </ControllerAccordion>
-          {/* Inline 분해 시작 button removed — the fixed MobileDecomposeFab
-              at the bottom-center of the screen owns the submit action
-              so it stays reachable while the user scrolls. */}
-        </>
-      ) : (
-        <>
+          }}
+          placeholder="주제 입력"
+          className="flex-1 bg-transparent px-3 py-2 text-[16px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[14px]"
+        />
+        <button
+          type="button"
+          onClick={() => void handleTopicSubmit()}
+          disabled={!pendingTopic?.trim() || topicSubmitting}
+          aria-label="제출"
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-9 md:w-9 ${
+            topicSubmitting ? "bg-white/[0.15] text-white" : "bg-white text-black"
+          }`}
+        >
+          {topicSubmitting ? (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="h-4 w-4 animate-spin"
+              aria-label="제출 중"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeOpacity="0.25"
+              />
+              <path
+                d="M21 12a9 9 0 0 0-9-9"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path
+                d="M5 12h14M13 5l7 7-7 7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </button>
+      </div>
+      <SessionTimelineModal
+        open={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+      />
+
+      {/* 외부 보더 — 탭(인너 보더) + 아코디언 포함. 부모 facet은
+          PendingTopicCard에는 없음 (topic 자체가 root). */}
+      <div className="flex flex-col gap-3 rounded-xl border border-white/[0.14] bg-white/[0.04] p-3">
+        {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
+        <div className="rounded-xl border border-white/[0.14] p-1.5">
+          <div className="flex items-stretch gap-1.5">
+            {(["explore", "expand", "verify"] as const).map((m) => {
+              const active = mode === m;
+              const label =
+                m === "explore" ? "분해" : m === "expand" ? "확장" : "증명";
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPrincipleControllerMode(pk, m)}
+                  className={`flex-1 whitespace-nowrap rounded-lg px-6 py-2 text-center text-[14px] font-medium transition-colors md:px-5 md:py-1.5 md:text-[13px] ${
+                    active
+                      ? "bg-white text-black"
+                      : "text-text-secondary hover:bg-white/[0.08] hover:text-text-primary"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {mode === "explore" || mode === "expand" ? (
+          <>
+            <ControllerAccordion
+              label="사고 방향"
+              tag={
+                [...kBuiltinDirections, ...customDirections].find(
+                  (d) =>
+                    d.id ===
+                    (mode === "expand" ? topicExpandDirectionId : topicDirectionId),
+                )?.label ?? (mode === "expand" ? "역사 평행" : "원리")
+              }
+              open={openCategory === "direction"}
+              onToggle={() => toggleCategory("direction")}
+            >
+              <DirectionChipRow
+                axis={mode === "expand" ? "expand" : "decompose"}
+                currentDirection={
+                  mode === "expand" ? topicExpandDirectionId : topicDirectionId
+                }
+                customDirections={customDirections}
+                onChangeDirection={
+                  mode === "expand"
+                    ? setTopicExpandDirectionId
+                    : setTopicDirectionId
+                }
+                addCustomDirection={addCustomDirection}
+                removeCustomDirection={removeCustomDirection}
+                hideLabel
+              />
+            </ControllerAccordion>
+            <ControllerAccordion
+              label="렌즈"
+              tag={selectedLens ? lensLabel(selectedLens) : "없음"}
+              open={openCategory === "lens"}
+              onToggle={() => toggleCategory("lens")}
+            >
+              <FacetLensRow
+                currentLens={selectedLens}
+                onChangeLens={setSelectedLens}
+                hideLabel
+              />
+            </ControllerAccordion>
+            <ControllerAccordion
+              label="실행 결과"
+              tag={topicResultType ?? "없음"}
+              open={openCategory === "result"}
+              onToggle={() => toggleCategory("result")}
+            >
+              <ResultTypeChipRow
+                value={topicResultType}
+                onChange={setTopicResultType}
+                hideLabel
+              />
+            </ControllerAccordion>
+          </>
+        ) : (
           <ControllerAccordion
             label="렌즈"
             tag={vLens ? lensLabel(vLens) : "없음"}
@@ -266,9 +379,8 @@ export default function PendingTopicCard() {
               hideLabel
             />
           </ControllerAccordion>
-          {/* Inline 증명 시작 button removed — the fixed FAB handles it. */}
-        </>
-      )}
+        )}
+      </div>
     </div>
 
     {/* Verify results render to the RIGHT of the pending card as a
@@ -277,7 +389,7 @@ export default function PendingTopicCard() {
     {mode === "verify" && vGens.length > 0 && (
       <div
         ref={verifyColRef}
-        className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-3 md:w-[560px]"
+        className="flex w-[calc(100vw-1.5rem)] max-w-full shrink-0 flex-col gap-3 md:w-[560px]"
       >
         {vGens.map((v) => {
           const st = verifyDerivedStatus[v.key];
@@ -548,7 +660,7 @@ export default function PendingTopicCard() {
       (pendingCombines.length > 0 || combineStatus === "loading") && (
         <div
           ref={combineColRef}
-          className="flex w-[calc(100vw-3rem)] max-w-full shrink-0 flex-col gap-2 md:w-[560px]"
+          className="flex w-[calc(100vw-1.5rem)] max-w-full shrink-0 flex-col gap-2 md:w-[560px]"
         >
           <CombinedIdeasBoardSection
             combinedIdeas={pendingCombines}

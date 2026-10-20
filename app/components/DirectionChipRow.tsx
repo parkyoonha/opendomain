@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { kBuiltinDirections, type ThinkingDirection } from "@/lib/directions";
+import {
+  directionsForAxis,
+  kBuiltinDirections,
+  type ThinkingAxis,
+  type ThinkingDirection,
+} from "@/lib/directions";
 
 export default function DirectionChipRow({
+  axis = "decompose",
   currentDirection,
   customDirections,
   onChangeDirection,
@@ -13,6 +19,10 @@ export default function DirectionChipRow({
   onCollapseChange,
   hideLabel = false,
 }: {
+  // Which axis the row is driving. Expansion filters out decompose-only
+  // directions and vice versa, so the user only sees chips that produce
+  // meaningful output in the current mode.
+  axis?: ThinkingAxis;
   currentDirection: string;
   customDirections: ThinkingDirection[];
   onChangeDirection: (id: string) => void;
@@ -26,12 +36,14 @@ export default function DirectionChipRow({
 }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
-  const all: ThinkingDirection[] = [
-    ...kBuiltinDirections,
-    ...customDirections,
-  ];
+  const all: ThinkingDirection[] = directionsForAxis(axis, customDirections);
+  // currentLabel lookup should fall back across the full set — the user
+  // may have a selection that was once valid for the previous axis but
+  // isn't filtered in now; the label still comes from the global list.
   const currentLabel =
-    all.find((d) => d.id === currentDirection)?.label ?? currentDirection;
+    [...kBuiltinDirections, ...customDirections].find(
+      (d) => d.id === currentDirection,
+    )?.label ?? currentDirection;
 
   if (collapsed) {
     return (

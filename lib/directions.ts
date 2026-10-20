@@ -1,21 +1,61 @@
+export type ThinkingAxis = "decompose" | "expand";
+
 export type ThinkingDirection = {
   id: string;
   label: string;
   isCustom?: boolean;
+  // Which axes this direction can be used with. Decomposition directions
+  // produce part-of children (zoom-in); expansion directions produce
+  // adjacent-to children (zoom-out). Omit = decompose-only (legacy default).
+  axes?: ThinkingAxis[];
 };
 
 export const kBuiltinDirections: ThinkingDirection[] = [
-  { id: "principle", label: "원리" },
-  { id: "problems", label: "문제 분해" },
-  { id: "interpretation", label: "해석" },
-  { id: "counter", label: "반박/모순" },
-  { id: "emotion", label: "감정" },
-  { id: "question", label: "질문" },
-  { id: "expansion", label: "확장" },
-  { id: "elements", label: "요소" },
+  { id: "principle", label: "원리", axes: ["decompose"] },
+  { id: "problems", label: "문제 분해", axes: ["decompose"] },
+  { id: "interpretation", label: "해석", axes: ["decompose"] },
+  { id: "counter", label: "반박/모순", axes: ["decompose"] },
+  { id: "emotion", label: "감정", axes: ["decompose"] },
+  { id: "question", label: "질문", axes: ["decompose"] },
+  { id: "expansion", label: "확장", axes: ["decompose"] },
+  { id: "elements", label: "요소", axes: ["decompose"] },
+  // Expansion-axis directions. Each produces children that stand as
+  // independent root topics (adjacent spaces, not internal parts).
+  { id: "analog", label: "유사 메커니즘", axes: ["expand"] },
+  { id: "parallel", label: "역사 평행", axes: ["expand"] },
+  { id: "tool", label: "분석 도구", axes: ["expand"] },
+  { id: "tension", label: "대립 입장", axes: ["expand"] },
+  { id: "downstream", label: "파생 담론", axes: ["expand"] },
+  { id: "macro", label: "거시 파급", axes: ["expand"] },
 ];
 
 export const DEFAULT_DIRECTION_ID = "principle";
+export const DEFAULT_EXPAND_DIRECTION_ID = "parallel";
+
+export const isExpandDirection = (id: string | undefined): boolean => {
+  if (!id) return false;
+  const d = kBuiltinDirections.find((x) => x.id === id);
+  if (!d) return false;
+  // Expand-only if its axes array contains 'expand' and does NOT contain
+  // 'decompose'. Shared-axis directions (none exist today) would need
+  // explicit mode selection, which we don't yet thread through, so
+  // treating pure-expand IDs as the signal is sufficient.
+  return !!d.axes && d.axes.includes("expand") && !d.axes.includes("decompose");
+};
+
+export const directionsForAxis = (
+  axis: ThinkingAxis,
+  custom: ThinkingDirection[],
+): ThinkingDirection[] => {
+  const builtin = kBuiltinDirections.filter(
+    (d) => !d.axes || d.axes.includes(axis),
+  );
+  // Custom directions carry no axis tag today — expose them on decompose
+  // only. Users can later override by adding an axes field to custom
+  // entries if the UI starts asking for it.
+  const customFiltered = axis === "decompose" ? custom : [];
+  return [...builtin, ...customFiltered];
+};
 
 export const directionLabel = (
   id: string,
@@ -170,6 +210,183 @@ export const directionPromptFragment = (
 - 부모 문장에 없는 새 방향·해석·전제 절대 금지 — 오직 이미 있는 것의 원자화
 - 도메인 특수 어휘 금지 — 어느 산업/사물/생물에도 이식 가능한 원리어만
 - 사용자가 각 원자를 다른 만물칩과 곧바로 조합할 수 있어야 함`;
+
+    case "analog":
+      return `사고 방향: **유사 메커니즘 — 다른 도메인의 '명명된' 구체 사례**
+
+🚨 **하드 shape 요구**: 각 name은 반드시 **다른 도메인의 구체 사물·현상·종(種)**이어야 한다. 범주 명사(X) → 구체 명명(O).
+
+🚨 **반드시 거부 (안전한 추상으로 숨지 마라)**:
+- "비슷한 ~" / "~의 사례" / "유사 ~" (관계 선언, 명명 아님)
+- "자연의 ~" / "공학의 ~" / "~ 시스템" (범주 라벨)
+- 부모 facet 어휘를 그대로 재사용한 이름
+
+✓ 좋은 예 (출발 주제가 "흡수 메커니즘"일 때):
+  ✓ "꿀벌 집단 조정 — 꿀벌이 꿀을 벌집 셀에 분산 저장하는 메커니즘, 수요-공급 비대칭을 분산 캐시로 해결"
+  ✓ "활성탄 미세기공 — 수만㎡/g의 표면적을 미세기공 네트워크로 압축해 같은 부피에서 흡착량 극대화"
+  ✓ "토양의 삼투압 — 뿌리가 수분을 끌어올릴 때 삼투압 차이만으로 중력을 거슬러 수직 이동"
+
+✗ 나쁜 예:
+  ✗ "자연의 흡수 사례" (범주)
+  ✗ "비슷한 메커니즘들" (관계 선언)
+  ✗ "흡수의 변주" (부모 어휘 재사용)
+
+- **principle**: 이 사례가 **어떤 재료·구조·힘**으로 부모의 메커니즘을 **다른 방식**으로 구현하는지 1문장. 훔칠 수 있는 메커니즘 핵심이 드러날 것.
+
+규칙:
+- 3~5개. 각 자식은 **서로 다른 도메인**(생물/물리/공학/건축/화학/생태계/인공물 중 하나씩)
+- 각 자식은 사용자가 **구글 검색해 바로 공부 가능**한 수준의 고유성
+- 자식은 부모와 독립된 뿌리 주제로 설 것`;
+
+    case "parallel":
+      return `사고 방향: **역사 평행 — 특정 시기·사건의 '명명된' 과거 국면**
+
+🚨 **하드 shape 요구**: 각 name은 반드시 **(a) 연도** 또는 **(b) 지명·국가명** 또는 **(c) 고유 운동/사건명** 중 **최소 하나**를 포함해야 한다.
+
+🚨 **반드시 거부 (지금 LLM이 자꾸 빠지는 함정)**:
+- "비슷한 역사 사건" / "과거의 사례" / "역사적 반복" (추상)
+- "~적 변화" / "~의 계층화" / "~의 재편" (뭉뚱한 범주)
+- "경제적/사회적/문화적/정치적" + 일반명사 (추상 영역명)
+- 교과서 상위 1개 clichée (더 덜 알려진 사례 우선)
+
+✓ 좋은 예 (출발 주제가 "AI 노동종말"일 때):
+  ✓ "러다이트 봉기(1811-16) — 영국 방직공들이 자동 베틀을 파괴한 조직적 저항, 결국 임금 하락과 노조화로 수렴"
+  ✓ "하비 캐리의 미국 체계(1850s) — 영국 산업화에 저항한 보호무역 담론, 지금의 '리쇼어링'과 평행"
+  ✓ "소련 전시공산주의(1918-21) — 자본주의 가격 메커니즘 폐지 실험, UBI 유토피아의 선구 사례"
+
+✗ 나쁜 예:
+  ✗ "비슷한 역사" (추상)
+  ✗ "산업혁명" (교과서 상위, 너무 뭉뚱)
+  ✗ "노동 변화의 역사" (영역명)
+
+- **principle**: 이 역사적 국면이 부모 현상과 **어느 지점에서 평행하며 어디서 갈라지는지** 1문장. 평행과 갈라짐을 모두 담을 것.
+
+규칙:
+- 3~5개. 각 자식은 **서로 다른 시대·지역**에서
+- 각 자식은 사용자가 **위키피디아에 바로 검색 가능**한 수준의 고유성
+- 자식 각각이 사용자가 **더 파고들 뿌리 주제**가 될 수 있어야 함`;
+
+    case "tool":
+      return `사고 방향: **분석 도구 — 다른 학문에서 수입한 '명명된' 개념 하나하나**
+
+🚨 **하드 shape 요구**: 각 name은 반드시 아래 중 **최소 하나**를 포함해야 한다:
+- **구체 창시자·학자 이름** (예: "하이에크", "피케티", "르네 지라르")
+- **구체 연도·시대** (예: "1987 Solow 역설", "1962 쿤의 패러다임")
+- **고유 명명된 개념어** (예: "경로의존성", "모방욕망", "창조적 파괴")
+
+🚨 **반드시 거부 (지금 LLM이 자꾸 빠지는 함정)**:
+- "~적 영향" / "~적 변화" / "~의 구조" / "~의 재편" (뭉뚱한 범주)
+- "경제적/사회적/문화적/정치적" + 일반명사 ("경제적 영향", "사회적 계층화" 등)
+- "정책 및 제도" / "개인 역량" / "역사적 비교" (안전한 사회학 카테고리 — ❌)
+- 부모 어휘 재배열 ("노동 변화의 분석")
+
+✓ 좋은 예 (출발 주제가 "AI 노동종말"일 때):
+  ✓ "Solow 역설(1987) — '컴퓨터는 어디에나 있지만 생산성 통계엔 없다'. AI도 같은 패턴일까?"
+  ✓ "폴라니의 암묵지(1958) — AI는 명시지만 전이 가능하므로 암묵지 보유자가 역설적 희소자원이 됨"
+  ✓ "쿠즈네츠 곡선 — 산업화 과정 불평등의 역U자. AI 전환도 재현될까?"
+  ✓ "슘페터 창조적 파괴 — 혁신은 반드시 기존 산업·일자리를 파괴하며 전진. AI = 그 가속판"
+  ✓ "그람시 헤게모니 — AI 자본가가 '당연한 상식'을 재주조하는 담론 권력"
+
+✗ 나쁜 예 (지금 실제 결과):
+  ✗ "경제적 영향" (뭉뚱한 영향 범주 — ❌)
+  ✗ "사회적 계층화" (일반 사회학 개념일 뿐, 수입된 분석 도구 아님 — ❌)
+  ✗ "정책 및 제도" (영역 이름 — ❌)
+  ✗ "개인 역량 적응" (뭉뚱 — ❌)
+  ✗ "역사적 비교" (메타 범주 — ❌)
+
+- **principle**: 이 개념이 부모 현상에 적용될 때 **어떤 지점을 어떻게 새로 보이게** 하는지 1문장. "~라는 개념은 ~한다"가 아니라 "이 개념으로 보면 부모가 ~로 재조명됨".
+
+규칙:
+- 3~5개. 각각 **서로 다른 학문 계보**(경제학/사회학/인류학/정치철학/과학사/언어학 등)
+- 각 개념은 반드시 창시자 OR 연도 OR 고유 개념어 중 하나는 연결
+- 사용자가 **구글 검색해 바로 공부 가능**한 수준의 구체성`;
+
+    case "tension":
+      return `사고 방향: **대립 입장 — 명명된 학파·학자의 반대 입장**
+
+🚨 **하드 shape 요구**: 각 name에 반드시 **구체 학파명·학자명·전통명**이 포함되어야 한다 (예: "에피쿠로스", "하이에크", "노자", "스토아학파").
+
+🚨 **반드시 거부**:
+- "반대 의견" / "다른 생각" / "회의론" (추상)
+- "~적 비판" / "비판론" (뭉뚱한 범주)
+- "일부 학자는 ~"처럼 익명 (❌)
+- 부모 주장의 단순 부정 (counter와 다름 — tension은 외부 전통)
+
+✓ 좋은 예 (출발 주제가 "AI 노동종말"일 때):
+  ✓ "리카도의 비교우위(1817) — 자동화 후에도 인간은 상대적으로 더 잘하는 영역으로 재분배됨, '종말' 명제 거부"
+  ✓ "노자의 무위(無爲) — 적게 하는 것이 더 많이 하는 것. AI가 일을 가져가는 게 '손실'이 아닌 '해방'일 가능성"
+  ✓ "일리치 공생공락 도구(1973) — AI가 종말이 아니라 도구와의 재협상 국면. 종말 서사는 자본의 의도된 담론"
+  ✓ "케인스 '손주들에게'(1930) — 100년 뒤 하루 3시간 노동 예언. AI 종말은 그 비전의 실현일 수도"
+
+✗ 나쁜 예:
+  ✗ "반대 입장" (추상)
+  ✗ "경제학적 비판" (범주)
+  ✗ "노동의 가치 재조명" (부모 어휘)
+
+- **principle**: 이 입장이 부모 주장의 **정확히 어느 전제**와 충돌하는지 1문장. 충돌축이 선명해야 함.
+
+규칙:
+- 3~5개. 각각 **서로 다른 사상 계보**(동양/서양/고대/근대/현대 등)
+- 각 입장은 반드시 명명된 학자 또는 학파와 연결
+- counter(부모 자기모순)와 다름 — tension은 **외부 전통의 수입**`;
+
+    case "downstream":
+      return `사고 방향: **파생 담론 — 명명된 운동·시장·제도의 2차·3차 파장**
+
+🚨 **하드 shape 요구**: 각 name은 반드시 **(a) 명명된 운동·법·시장 이름** 또는 **(b) 특정 시기·연도** 또는 **(c) 고유 조직·플랫폼** 중 하나를 포함해야 한다.
+
+🚨 **반드시 거부**:
+- "결과들" / "영향" / "변화" / "파장" (추상)
+- "~적 결과" / "~의 영향" (뭉뚱한 범주)
+- "다양한 반응" / "사회적 반응" (영역명)
+
+✓ 좋은 예 (출발 주제가 "AI 노동종말"일 때):
+  ✓ "크리에이터 경제 과포화(2020s) — 전통고용 밀려난 사람들이 플랫폼으로 몰려 알고리즘이 새 임금격차 메커니즘이 됨"
+  ✓ "EU AI Act(2024) — AI 노동 대체를 규제로 느리게 하려는 법적 담론의 결정화"
+  ✓ "UBI 알래스카 모델 재조명 — 1976년 알래스카 영구기금의 성공 사례가 AI 시대 분배 설계의 현실 근거로 재부상"
+  ✓ "노조의 할리우드 파업(2023) — WGA·SAG-AFTRA가 AI 생성물 사용권을 쟁점화한 첫 대규모 노동 저항"
+
+✗ 나쁜 예:
+  ✗ "사회적 결과" (추상)
+  ✗ "경제의 변화" (뭉뚱)
+  ✗ "노동의 미래" (영역명)
+
+- **principle**: 부모 현상이 이 담론을 **어떻게 촉발·굴절**시켰고, 지금 어디로 번지는지 1문장.
+
+규칙:
+- 3~5개. 각각 **서로 다른 영역**(제도/법/시장/운동/문화 중 하나씩)
+- 각 자식은 사용자가 **뉴스·논문 검색으로 바로 추적 가능**한 수준의 고유성
+- 부모 **바깥**으로 번져나간 2차 파장만, 부모 안의 결과(= 분해) 금지`;
+
+    case "macro":
+      return `사고 방향: **거시 파급 — 명명된 거시 구조·체제·질서의 재편**
+
+🚨 **하드 shape 요구**: 각 name은 반드시 **명명된 거시 구조·체제·질서**여야 한다. 체제 이름(브레튼우즈/베스트팔렌/EU/WTO), 질서 이름(가치사슬/안보동맹/통화질서), 전환 경로 이름(탈탄소/디지털전환/고령화) 중 하나.
+
+🚨 **반드시 거부**:
+- "큰 영향" / "사회 전체" / "거시 효과" (추상)
+- "~적 재편" / "~의 구조" / "~의 변화" (뭉뚱한 범주)
+- "경제 전반" / "사회 전반" (영역명)
+- "~의 미래" (예언 톤)
+- "경제 체제" / "노동 체제" (뭉뚱한 체제 라벨 — 체제명이 아님)
+
+✓ 좋은 예 (출발 주제가 "AI 노동종말"일 때):
+  ✓ "글로벌 가치사슬 재편 — 인도·필리핀 BPO의 역할이 AI 자동화로 재조정되며 신흥국 일자리 모델 자체가 흔들림"
+  ✓ "복지국가 베버리지 체제 — 1942 베버리지 보고서 기반 사회보장이 '정규고용 전제'인데 그 전제 자체가 침식"
+  ✓ "WTO 자유무역 질서 — 각국이 AI 산업보호주의로 전환하며 1995 체제의 다자주의가 균열"
+  ✓ "브렉시트 이후 서유럽 질서 — 이민 노동 축소 + AI 대체가 겹치며 노동 공급원 자체가 재편"
+
+✗ 나쁜 예:
+  ✗ "거시경제 영향" (추상 범주)
+  ✗ "사회 체제의 변화" (뭉뚱)
+  ✗ "전반적 재편" (영역명)
+
+- **principle**: 부모 현상이 이 거시 구조를 **어느 축으로** 흔들며, 그 재편이 **어디로 향하는지** 1문장.
+
+규칙:
+- 3~5개. 각각 **서로 다른 거시 레이어**(통화/통상/안보/복지/인구/생태 중 하나씩)
+- 각 체제·질서는 반드시 명명된 고유 이름
+- 자식 각각이 **그 자체로 뿌리 주제**로 설 수 있어야`;
 
     case "expansion":
       return `사고 방향: **확장 — 부모 facet에서 언급된 특정 부분을 심화**

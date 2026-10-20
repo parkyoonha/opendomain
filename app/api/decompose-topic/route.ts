@@ -6,7 +6,7 @@ import {
 } from "@/lib/prompts";
 import { modelFor, type BigCategory } from "@/lib/constants";
 import type { SelectedLens } from "@/lib/lenses";
-import { DEFAULT_DIRECTION_ID } from "@/lib/directions";
+import { DEFAULT_DIRECTION_ID, isExpandDirection } from "@/lib/directions";
 
 export const runtime = "nodejs";
 
@@ -56,9 +56,6 @@ export async function POST(req: Request) {
   const customized =
     hasDirection || !!body.resultType || !!body.userContext?.trim();
   const customizedDirection = hasDirection;
-  console.log(
-    `[decompose-topic] customized=${customized} directionId=${body.directionId ?? "-"} resultType=${body.resultType ?? "-"} lens=${body.lens?.discipline ?? "-"}`,
-  );
 
   const system = customized
     ? facetDecompositionSystemPrompt(
@@ -88,18 +85,51 @@ export async function POST(req: Request) {
     : "";
   // When customized, present the topic as the facet-prompt engine expects
   // ("부모 facet"). Otherwise keep the historic "주제: ..." framing.
+  // For expansion, re-word to "출발 주제" so the user message doesn't
+  // bias the LLM toward "break this parent into parts" semantics; the
+  // system prompt already re-frames the task but repeating the shift
+  // here makes it stick.
+  const expanding = isExpandDirection(body.directionId);
   const user = customized
-    ? `부모 축: 주제\n부모 facet: ${topic}${directionLine}${lensLine}${resultLine}${userContextLine}`
+    ? expanding
+      ? `출발 주제: ${topic}${directionLine}${lensLine}${userContextLine}
+
+위 주제를 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제 3~5개**를 끌어와라.
+
+🚨 **자가 체크 (뽑기 전 반드시 통과)**:
+각 name이 **고유명사(지명/인명/명명된 사건/연도)**를 포함하는가?
+- "산업혁명 패턴" ❌ (추상 범주)
+- "사회 재편 메커니즘" ❌ (추상 범주)
+- "불평등 심화 국면" ❌ (추상 범주)
+- "러다이트 봉기(1811)" ✓ (사건명+연도)
+- "엔클로저 운동(16~19C)" ✓ (운동명+시대)
+- "소련 전시공산주의(1918-21)" ✓ (국가+체제+연도)
+- "케인스의 '손주들에게'(1930)" ✓ (학자+저작+연도)
+
+위 "✓ 형식"만 통과시키고, "❌ 형식"은 즉시 재작성하라.`
+      : `부모 축: 주제\n부모 facet: ${topic}${directionLine}${lensLine}${resultLine}${userContextLine}`
     : `주제: ${topic}${purposeLine}${lensLine}${userContextLine}`;
 
+  // Keep flash tier for all paths. Sonnet upgrade didn't improve adherence
+  // meaningfully — rolling back and pushing prompt-side constraints instead.
   const tier = body.purposeId === "structure" ? "flash" : "flash";
-  const temperature = body.purposeId === "structure" ? 0.95 : 0.7;
+  // Expand: slight temperature bump to encourage specific recall over safe
+  // category names. Normal direction keeps the historical 0.7.
+  const temperature = expanding
+    ? 0.85
+    : body.purposeId === "structure"
+      ? 0.95
+      : 0.7;
+  const resolvedModel = modelFor(choice.provider, tier);
+  console.log(
+    `[decompose-topic] provider=${choice.provider} tier=${tier} model=${resolvedModel} expanding=${expanding} direction=${body.directionId ?? "-"} temp=${temperature}`,
+  );
 
   try {
     const content = await callLLM({
       provider: choice.provider,
       apiKey: choice.apiKey,
-      model: modelFor(choice.provider, tier),
+      model: resolvedModel,
       temperature,
       messages: [
         { role: "system", content: system },

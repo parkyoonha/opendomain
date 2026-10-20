@@ -316,7 +316,15 @@ function PageInner() {
                       : "text-text-muted hover:text-text-secondary"
                   }`}
                 >
-                  {t.label}
+                  <span
+                    className={
+                      active && t.key === "chip"
+                        ? "rounded-full border border-white px-6 py-1.5"
+                        : ""
+                    }
+                  >
+                    {t.label}
+                  </span>
                 </button>
               );
             })}
