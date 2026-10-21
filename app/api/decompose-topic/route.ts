@@ -94,9 +94,9 @@ export async function POST(req: Request) {
     ? expanding
       ? `출발 주제: ${topic}${directionLine}${lensLine}${userContextLine}
 
-위 주제를 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제 3~5개**를 끌어와라.
+**사전 단계 (내부 추론)**: 이 주제의 핵심 구조적 긴장을 1문장으로 식별하라. 예: "AI로 인한 노동종말" → "기술이 노동 범주를 재편해 저항·수용·분배가 분기되는 역사적 반복". 이 긴장과 평행하는 다른 시대·사회·학문의 **구체 사례**를 아래 하드 제약에 맞춰 3~5개 뽑는다.
 
-🚨 **자가 체크 (뽑기 전 반드시 통과)**:
+🚨 **자가 체크 (각 결과물마다 반드시 통과)**:
 각 name이 **고유명사(지명/인명/명명된 사건/연도)**를 포함하는가?
 - "산업혁명 패턴" ❌ (추상 범주)
 - "사회 재편 메커니즘" ❌ (추상 범주)
@@ -106,20 +106,19 @@ export async function POST(req: Request) {
 - "소련 전시공산주의(1918-21)" ✓ (국가+체제+연도)
 - "케인스의 '손주들에게'(1930)" ✓ (학자+저작+연도)
 
-위 "✓ 형식"만 통과시키고, "❌ 형식"은 즉시 재작성하라.`
+각 principle이 **평행 지점 + 갈라짐 지점**을 둘 다 담았는가? (예: "~와 평행하지만, ~로 수렴/분기한다")
+
+위 체크를 통과하지 못한 항목은 즉시 재작성. 모든 facet의 깊이는 균일할 것 — 첫 facet만 간단하면 FAIL.`
       : `부모 축: 주제\n부모 facet: ${topic}${directionLine}${lensLine}${resultLine}${userContextLine}`
     : `주제: ${topic}${purposeLine}${lensLine}${userContextLine}`;
 
   // Keep flash tier for all paths. Sonnet upgrade didn't improve adherence
   // meaningfully — rolling back and pushing prompt-side constraints instead.
   const tier = body.purposeId === "structure" ? "flash" : "flash";
-  // Expand: slight temperature bump to encourage specific recall over safe
-  // category names. Normal direction keeps the historical 0.7.
-  const temperature = expanding
-    ? 0.85
-    : body.purposeId === "structure"
-      ? 0.95
-      : 0.7;
+  // Match decompose-facet's expand temperature (0.7). Higher temps on the
+  // topic-level route produced quality drift — first-of-3 facet came out
+  // too thin while facet-route siblings stayed consistent.
+  const temperature = body.purposeId === "structure" ? 0.95 : 0.7;
   const resolvedModel = modelFor(choice.provider, tier);
   console.log(
     `[decompose-topic] provider=${choice.provider} tier=${tier} model=${resolvedModel} expanding=${expanding} direction=${body.directionId ?? "-"} temp=${temperature}`,
