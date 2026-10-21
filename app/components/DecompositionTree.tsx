@@ -1436,6 +1436,8 @@ function AxisRow({
   const axisVerifyLens = principleVerifyLens[axisPk] ?? null;
   const [showFullFacet, setShowFullFacet] = useState(false);
   const fullFacetText = `${axis} — ${principle}`;
+  // Ancestor + current rendered as "제목 — 내용..." one-liners (line-clamp-1).
+  // Topic ancestor has no secondary content — just the topic text.
   const ancestorEntries: AncestorEntry[] = decomposition?.topicText
     ? [
         {
@@ -1445,7 +1447,7 @@ function AxisRow({
       ]
     : [];
   const currentEntry: AncestorEntry = {
-    title: axis,
+    title: fullFacetText,
     pk: axisPk,
   };
   const axisVerifyGens = verifyDerived[axisPk] ?? [];
@@ -2203,6 +2205,7 @@ export function FacetNode({
     focusedCombinedIdeaId,
     setFocusedCombinedIdeaId,
     decomposition,
+    facetDecompositions,
   } = useIdea();
 
   const pk = principleKey(rootAxis, pathName);
@@ -2236,9 +2239,12 @@ export function FacetNode({
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [showFullFacet, setShowFullFacet] = useState(false);
   const fullFacetText = `${facetName} — ${facetText}`;
-  // Build ancestor chain with per-level pk so each row can look up its
-  // attached chips. pathName is "A>B>C" (full path from axis); build the
-  // accumulated path progressively to construct each ancestor's pk.
+  // Build ancestor chain. Each row renders "제목 — 내용..." one-liner so we
+  // resolve content for each level where possible:
+  //   - Topic: no content (title itself is the full text)
+  //   - Axis: decomposition.axisToPrinciple[rootAxis]
+  //   - Direct child of axis: facetDecompositions[rootAxis][segName]
+  //   - Deeper descendants: fall back to title-only (lookup gets expensive)
   const pathSegments = pathName.split(">");
   const ancestorEntries: AncestorEntry[] = [];
   if (decomposition?.topicText) {
@@ -2247,21 +2253,27 @@ export function FacetNode({
       pk: `주제::${decomposition.topicText}`,
     });
   }
+  const axisPrinciple = decomposition?.axisToPrinciple?.[rootAxis];
   ancestorEntries.push({
-    title: rootAxis,
+    title: axisPrinciple ? `${rootAxis} — ${axisPrinciple}` : rootAxis,
     pk: principleKey(rootAxis, "축 전체"),
   });
   {
     let acc = "";
     for (let i = 0; i < pathSegments.length - 1; i++) {
       acc = acc ? `${acc}>${pathSegments[i]}` : pathSegments[i];
+      const segName = pathSegments[i];
+      // Direct child of axis (depth 1 from axis): look up in facetDecompositions.
+      // Deeper levels aren't easily resolvable here — fall back to just segName.
+      const segContent =
+        i === 0 ? facetDecompositions?.[rootAxis]?.[segName] : undefined;
       ancestorEntries.push({
-        title: pathSegments[i],
+        title: segContent ? `${segName} — ${segContent}` : segName,
         pk: principleKey(rootAxis, acc),
       });
     }
   }
-  const currentEntry: AncestorEntry = { title: facetName, pk };
+  const currentEntry: AncestorEntry = { title: fullFacetText, pk };
   // Global grow-only expansion — survives remounts and never collapses so the
   // tree layout stays stable at every depth.
   const expanded = expandedPrinciples.has(pk);
