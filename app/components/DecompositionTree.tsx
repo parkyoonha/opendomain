@@ -49,53 +49,99 @@ import MemoFolderList from "./MemoFolderList";
 const CONTROL_PANEL_CLASSES =
   "decomp-controller relative flex shrink-0 snap-center flex-col gap-3 w-[calc(100vw-1.5rem)] md:w-[560px]";
 
-// Full-text modal for parent-facet 전문 보기. Shown when the user clicks
-// the AncestorStack. Displays the current facet's title + body in large
-// readable form, overlay dismisses on outside click.
-function FullFacetModal({
-  title,
-  text,
+// Fullscreen journey view for parent-facet 전문 보기. Replaces the old
+// small modal: shows the entire ancestor chain (제목·전문·attached chips at
+// each level) + the current facet, as a scrollable fullscreen stack.
+// Lets the user see the whole context they drilled through, including
+// their chip choices at each step.
+function FullFacetJourneyView({
+  journey,
   onClose,
 }: {
-  title: string;
-  text: string;
+  journey: AncestorEntry[];
   onClose: () => void;
 }) {
+  const { attachedChips } = useIdea();
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[80vh] w-full max-w-xl overflow-auto rounded-xl bg-neutral-900 p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="text-[11px] uppercase tracking-wider text-text-muted">
-            부모 facet 전문
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            className="rounded p-1 text-text-muted hover:text-text-primary"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.08] bg-black/95 px-5 py-4 backdrop-blur">
+        <div>
+          <h2 className="text-[14px] font-bold text-text-primary">사고 여정</h2>
+          <p className="mt-0.5 text-[11px] text-text-muted">
+            지금까지 들어온 모든 facet · 조합한 칩
+          </p>
         </div>
-        <h2 className="mb-2 text-[16px] font-bold leading-6 text-text-primary">
-          {title}
-        </h2>
-        <p className="whitespace-pre-wrap break-words text-[14px] leading-6 text-text-secondary">
-          {text}
-        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="rounded-full p-1.5 text-text-muted hover:bg-white/[0.08] hover:text-text-primary"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <path
+              d="M6 6l12 12M18 6L6 18"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto">
+        <div className="flex flex-col gap-3 p-5">
+          {journey.map((entry, i) => {
+            const chips = entry.pk ? attachedChips[entry.pk] ?? [] : [];
+            const isLast = i === journey.length - 1;
+            const heading = entry.shortTitle ?? entry.title;
+            return (
+              <div
+                key={`j-${i}`}
+                className={`rounded-xl border p-4 ${
+                  isLast
+                    ? "border-white/30 bg-white/[0.08]"
+                    : "border-white/[0.14] bg-white/[0.04]"
+                }`}
+              >
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                    {entry.label ?? `레벨 ${i + 1}`}
+                  </span>
+                  {isLast && (
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-black">
+                      현재
+                    </span>
+                  )}
+                </div>
+                <h3 className="whitespace-pre-wrap break-words text-[15px] font-bold leading-6 text-text-primary">
+                  {heading}
+                </h3>
+                {entry.fullText && (
+                  <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-6 text-text-secondary">
+                    {entry.fullText}
+                  </p>
+                )}
+                {chips.length > 0 && (
+                  <div className="mt-3 border-t border-white/[0.08] pt-3">
+                    <div className="mb-1.5 text-[9px] uppercase tracking-wider text-text-muted">
+                      조합된 칩 ({chips.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {chips.map((c, j) => (
+                        <span
+                          key={`c-${j}`}
+                          className="rounded-md border border-white/20 bg-white/[0.06] px-2 py-1 text-[11px] text-text-primary"
+                          title={c.reason}
+                        >
+                          {c.chipText}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -103,10 +149,20 @@ function FullFacetModal({
 
 export type AncestorEntry = {
   // Short title (axis name, segment name, topic). What shows in the stack row.
+  // When content is available, this already carries "제목 — 내용..." combined.
   title: string;
   // pk used to look up attached chips for this ancestor level. undefined if
   // chips aren't tracked at this level (e.g., the root topic before commit).
   pk?: string;
+  // Pure short title without content — rendered as the heading in the
+  // fullscreen journey view.
+  shortTitle?: string;
+  // Full content/text of this facet (axis principle, sub-facet text, etc.).
+  // Rendered as body text in the fullscreen journey view. Undefined for the
+  // root topic (title alone is the full text).
+  fullText?: string;
+  // Level label like "주제" / "축" / "세부 facet" / "현재" for the journey view.
+  label?: string;
 };
 
 // Stacked parent-facet display. Renders inside the outer tabs/accordion
@@ -1437,19 +1493,26 @@ function AxisRow({
   const [showFullFacet, setShowFullFacet] = useState(false);
   const fullFacetText = `${axis} — ${principle}`;
   // Ancestor + current rendered as "제목 — 내용..." one-liners (line-clamp-1).
-  // Topic ancestor has no secondary content — just the topic text.
+  // Each entry also carries shortTitle/fullText/label for the fullscreen
+  // journey view.
   const ancestorEntries: AncestorEntry[] = decomposition?.topicText
     ? [
         {
           title: decomposition.topicText,
+          shortTitle: decomposition.topicText,
           pk: `주제::${decomposition.topicText}`,
+          label: "주제",
         },
       ]
     : [];
   const currentEntry: AncestorEntry = {
     title: fullFacetText,
+    shortTitle: axis,
+    fullText: principle,
     pk: axisPk,
+    label: "축",
   };
+  const journeyEntries: AncestorEntry[] = [...ancestorEntries, currentEntry];
   const axisVerifyGens = verifyDerived[axisPk] ?? [];
   const [axisVerifyLoading, setAxisVerifyLoading] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -1644,9 +1707,8 @@ function AxisRow({
             onClose={() => setTimelineOpen(false)}
           />
           {showFullFacet && (
-            <FullFacetModal
-              title={axis}
-              text={principle}
+            <FullFacetJourneyView
+              journey={journeyEntries}
               onClose={() => setShowFullFacet(false)}
             />
           )}
@@ -2245,18 +2307,25 @@ export function FacetNode({
   //   - Axis: decomposition.axisToPrinciple[rootAxis]
   //   - Direct child of axis: facetDecompositions[rootAxis][segName]
   //   - Deeper descendants: fall back to title-only (lookup gets expensive)
+  // Each entry also carries shortTitle/fullText/label for the fullscreen
+  // journey view.
   const pathSegments = pathName.split(">");
   const ancestorEntries: AncestorEntry[] = [];
   if (decomposition?.topicText) {
     ancestorEntries.push({
       title: decomposition.topicText,
+      shortTitle: decomposition.topicText,
       pk: `주제::${decomposition.topicText}`,
+      label: "주제",
     });
   }
   const axisPrinciple = decomposition?.axisToPrinciple?.[rootAxis];
   ancestorEntries.push({
     title: axisPrinciple ? `${rootAxis} — ${axisPrinciple}` : rootAxis,
+    shortTitle: rootAxis,
+    fullText: axisPrinciple,
     pk: principleKey(rootAxis, "축 전체"),
+    label: "축",
   });
   {
     let acc = "";
@@ -2269,11 +2338,21 @@ export function FacetNode({
         i === 0 ? facetDecompositions?.[rootAxis]?.[segName] : undefined;
       ancestorEntries.push({
         title: segContent ? `${segName} — ${segContent}` : segName,
+        shortTitle: segName,
+        fullText: segContent,
         pk: principleKey(rootAxis, acc),
+        label: `세부 facet · 레벨 ${i + 1}`,
       });
     }
   }
-  const currentEntry: AncestorEntry = { title: fullFacetText, pk };
+  const currentEntry: AncestorEntry = {
+    title: fullFacetText,
+    shortTitle: facetName,
+    fullText: facetText,
+    pk,
+    label: "세부 facet · 현재",
+  };
+  const journeyEntries: AncestorEntry[] = [...ancestorEntries, currentEntry];
   // Global grow-only expansion — survives remounts and never collapses so the
   // tree layout stays stable at every depth.
   const expanded = expandedPrinciples.has(pk);
@@ -2512,9 +2591,8 @@ export function FacetNode({
             onClose={() => setTimelineOpen(false)}
           />
           {showFullFacet && (
-            <FullFacetModal
-              title={facetName}
-              text={facetText}
+            <FullFacetJourneyView
+              journey={journeyEntries}
               onClose={() => setShowFullFacet(false)}
             />
           )}
