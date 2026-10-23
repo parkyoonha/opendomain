@@ -75,14 +75,15 @@ export async function POST(req: Request) {
   const user = expanding
     ? `출발 facet: ${parentAxis} — ${parentPrinciple}${directionLine}${lensLine}${userContextLine}
 
-위 facet을 **발판 삼아** 다른 도메인·시대·학문의 **인접 주제 3~5개**를 끌어와라.
+위 facet을 **발판 삼아** 사고 방향이 지정한 담당 영역에서 **인접 주제 3~5개**를 끌어와라. 사고 방향의 "담당 영역 (엄격 경계)"를 **반드시** 지켜라 — 영역을 넘으면 FAIL.
 
-🚨 **자가 체크 (뽑기 전 반드시 통과)**:
-각 name이 **고유명사(지명/인명/명명된 사건/연도)**를 포함하는가?
-- "~ 패턴" / "~ 메커니즘" / "~ 재편" / "~ 국면" / "~ 주기" ❌ (추상 범주)
-- "러다이트 봉기(1811)" / "케인스 '손주들에게'(1930)" / "엔클로저 운동(16~19C)" ✓
+🚨 **자가 체크 (각 결과물마다 반드시 통과)**:
+1. 각 name이 **사고 방향이 지정한 담당 영역**의 재료인가? (역사 사건 ↔ 비역사 도메인 ↔ 학자 분석 개념 ↔ 학자 반대 입장 ↔ 현재 운동/법 ↔ 거시 체제 — 혼동 금지)
+2. 각 name이 **고유명사(지명/인명/사건명/연도/체제명/개념어)**를 포함하는가?
+3. "~ 패턴" / "~ 메커니즘" / "~ 재편" / "~ 국면" / "~ 주기" 같은 추상 범주 즉시 FAIL
+4. 각 principle이 **평행·대립·파급·수입 지점 + 갈라짐 지점**을 둘 다 담았는가?
 
-위 "✓ 형식"만 통과시키고 "❌ 형식"은 즉시 재작성하라.`
+위 체크를 통과하지 못한 항목은 즉시 재작성. 모든 facet의 깊이는 균일할 것 — 첫 facet만 간단하면 FAIL.`
     : `${rootLine ? rootLine + "\n\n" : ""}부모 축: ${parentAxis}\n부모 facet: ${parentPrinciple}${directionLine}${lensLine}${resultLine}${userContextLine}`;
 
   // Flash across the board — see decompose-topic for rationale.

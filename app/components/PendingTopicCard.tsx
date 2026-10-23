@@ -286,8 +286,8 @@ export default function PendingTopicCard() {
       {/* 외부 보더 — 탭(인너 보더) + 아코디언 포함. 부모 facet은
           PendingTopicCard에는 없음 (topic 자체가 root). */}
       <div className="flex flex-col gap-3 rounded-xl border border-white/[0.14] bg-white/[0.04] p-3">
-        {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
-        <div className="rounded-xl border border-white/[0.14] p-1.5">
+        {/* 분해/확장/증명 탭 — 백컬러 블랙, 아웃라인 보더 없음 */}
+        <div className="rounded-xl bg-black p-1.5">
           <div className="flex items-stretch gap-1.5">
             {(["explore", "expand", "verify"] as const).map((m) => {
               const active = mode === m;

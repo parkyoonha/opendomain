@@ -959,7 +959,7 @@ function MobileDecomposeFab({
               onClick={() => setChipPanelOpen(true)}
               aria-label="칩 조합"
               title="칩 라이브러리 열어 조합"
-              className="rounded-full border border-white/30 bg-neutral-900 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg hover:bg-neutral-800"
+              className="rounded-full bg-neutral-900 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg hover:bg-neutral-800"
             >
               + 축 조합
             </button>
@@ -970,10 +970,10 @@ function MobileDecomposeFab({
               onClick={openInputMode}
               aria-label={hasCondition ? "조건 수정" : "추가 조건 입력"}
               title={hasCondition ? "조건 수정" : "추가 조건 입력"}
-              className={`rounded-full border px-4 py-2.5 text-[13px] font-semibold shadow-lg transition-colors ${
+              className={`rounded-full px-4 py-2.5 text-[13px] font-semibold shadow-lg transition-colors ${
                 hasCondition
-                  ? "border-white bg-white text-black hover:bg-white/90"
-                  : "border-white/30 bg-neutral-900 text-white hover:bg-neutral-800"
+                  ? "bg-white text-black hover:bg-white/90"
+                  : "bg-neutral-900 text-white hover:bg-neutral-800"
               }`}
             >
               {hasCondition ? "✓ 조건" : "+ 입력"}
@@ -1615,8 +1615,8 @@ function AxisRow({
               current={currentEntry}
               onClick={() => setShowFullFacet(true)}
             />
-            {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
-            <div className="rounded-xl border border-white/[0.14] p-1.5">
+            {/* 분해/확장/증명 탭 — 백컬러 블랙, 아웃라인 보더 없음 */}
+            <div className="rounded-xl bg-black p-1.5">
               <div className="flex items-stretch gap-1.5">
                 {(["explore", "expand", "verify"] as const).map((m) => {
                   const active = axisMode === m;
@@ -2488,8 +2488,8 @@ export function FacetNode({
               current={currentEntry}
               onClick={() => setShowFullFacet(true)}
             />
-            {/* 분해/확장/증명 탭 — 아웃라인 보더만, 백컬러 없음 */}
-            <div className="rounded-xl border border-white/[0.14] p-1.5">
+            {/* 분해/확장/증명 탭 — 백컬러 블랙, 아웃라인 보더 없음 */}
+            <div className="rounded-xl bg-black p-1.5">
               <div className="flex items-stretch gap-1.5">
                 {(["explore", "expand", "verify"] as const).map((m) => {
                   const active = mode === m;

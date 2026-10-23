@@ -46,8 +46,6 @@ function PageInner() {
   const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const inSplit = Boolean(splitMemoPageId) && inputMode === "topic";
-  const isEmptyTopicState =
-    inputMode === "topic" && !decomposition && !pendingTopic;
   // Memo folder list has its own "+ 새 메모방" button for room creation,
   // so the bottom input bar is just visual noise there — hide it on
   // every list view (empty or not). The input bar still appears inside
@@ -221,13 +219,7 @@ function PageInner() {
             </div>
           )}
           <main
-            className={`min-w-0 flex-1 overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 ${
-              inputMode === "memo"
-                ? "flex-col-reverse md:flex-col"
-                : "flex-col"
-            } ${
-              isEmptyTopicState ? "justify-center md:justify-start" : ""
-            } ${
+            className={`min-w-0 flex-1 overflow-hidden bg-black pb-safe-14 pt-safe-8 md:pb-0 md:pt-12 flex-col-reverse md:flex-col ${
               inSplit
                 ? activeSplitView === "topic"
                   ? "flex"
@@ -318,7 +310,7 @@ function PageInner() {
                 >
                   <span
                     className={
-                      active && t.key === "chip"
+                      active && t.key === "chip" && chipAsBottomSheet
                         ? "rounded-full border border-white px-6 py-1.5"
                         : ""
                     }

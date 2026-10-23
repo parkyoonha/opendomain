@@ -83,8 +83,8 @@ export default function DirectionChipRow({
                 onClick={() => pick(d.id)}
                 className={`rounded-full px-5 py-2 text-[14px] transition-colors whitespace-nowrap md:px-3 md:py-1 md:text-[11px] ${
                   active
-                    ? "bg-white/[0.18] text-text-primary"
-                    : "bg-white/[0.06] text-text-secondary hover:bg-white/[0.12] hover:text-text-primary"
+                    ? "bg-white/[0.22] text-text-primary"
+                    : "bg-black text-text-muted hover:bg-white/[0.1] hover:text-text-primary"
                 }`}
               >
                 {d.label}
