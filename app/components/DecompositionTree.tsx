@@ -64,7 +64,9 @@ function FullFacetJourneyView({
   const { attachedChips } = useIdea();
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.08] bg-black/95 px-5 py-4 backdrop-blur">
+      {/* pt-safe-8 — 안드로이드/iOS 상단 상태바(시계·배터리)와 겹치지 않도록
+          safe-area-inset-top 만큼 여백 확보. */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.08] bg-black/95 px-5 pb-4 pt-safe-8 backdrop-blur">
         <div>
           <h2 className="text-[14px] font-bold text-text-primary">사고 여정</h2>
           <p className="mt-0.5 text-[11px] text-text-muted">
@@ -91,6 +93,13 @@ function FullFacetJourneyView({
         <div className="flex flex-col gap-3 p-5">
           {journey.map((entry, i) => {
             const chips = entry.pk ? attachedChips[entry.pk] ?? [] : [];
+            // 이 facet을 "낳은" 부모의 attachedChips —
+            // 부모 레벨에서 사용자가 꽂았던 칩들이 결국 이 facet의
+            // 적용결과를 만든 재료. 루트(주제)에는 부모가 없으므로
+            // undefined.
+            const parent = i > 0 ? journey[i - 1] : null;
+            const parentChips =
+              parent?.pk ? attachedChips[parent.pk] ?? [] : [];
             const isLast = i === journey.length - 1;
             const heading = entry.shortTitle ?? entry.title;
             return (
@@ -112,6 +121,22 @@ function FullFacetJourneyView({
                     </span>
                   )}
                 </div>
+                {parentChips.length > 0 && (
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                      ← 적용 칩
+                    </span>
+                    {parentChips.map((c, j) => (
+                      <span
+                        key={`pc-${j}`}
+                        className="rounded-md bg-white/[0.12] px-1.5 py-0.5 text-[10px] text-text-primary"
+                        title={c.reason}
+                      >
+                        {c.chipText}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <h3 className="whitespace-pre-wrap break-words text-[15px] font-bold leading-6 text-text-primary">
                   {heading}
                 </h3>
@@ -123,7 +148,7 @@ function FullFacetJourneyView({
                 {chips.length > 0 && (
                   <div className="mt-3 border-t border-white/[0.08] pt-3">
                     <div className="mb-1.5 text-[9px] uppercase tracking-wider text-text-muted">
-                      조합된 칩 ({chips.length})
+                      이 레벨에서 조합한 칩 ({chips.length})
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {chips.map((c, j) => (
@@ -519,7 +544,9 @@ export default function DecompositionTree() {
   }
 
   const axes = Object.entries(decomposition.axisToPrinciple);
-  const multiMode = selectedAxes.size >= 2;
+  // 다축 결합 모드 보류 — 선택된 축마다 각각의 컨트롤러를 유지해서
+  // 두 축을 동시에 탐색 가능하게. (이전: selectedAxes.size >= 2)
+  const multiMode = false;
   const axisCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const registerAxisRef = useCallback(
     (axis: string, el: HTMLDivElement | null) => {
@@ -560,7 +587,12 @@ export default function DecompositionTree() {
         </h1>
       </header>
 
-      <div className="flex-1 snap-x snap-mandatory scroll-px-3 overflow-auto px-3 py-2 md:snap-none">
+      {/* pb-[80vh] 확보 — 마지막 축을 선택했을 때도 scrollElementIntoView가
+          해당 축의 컨트롤러를 스크롤러 상단에 올려놓을 수 있도록 하단에
+          스크롤 여유 공간을 깔아둠. 이 패딩이 없으면 axis 4+ 또는 컨트롤러가
+          접혀서 짧아진 경우 scrollTop이 maxScrollTop에 걸려 clamp되고,
+          결과적으로 컨트롤러가 상단에 못 붙음. */}
+      <div className="flex-1 snap-x snap-mandatory scroll-px-3 overflow-auto px-3 pt-2 pb-[80vh] md:pb-[60vh] md:snap-none">
         {pendingTopic && <PendingTopicCard />}
         <div className="flex w-max items-stretch">
           <AxesColumn

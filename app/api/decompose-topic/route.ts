@@ -102,6 +102,8 @@ export async function POST(req: Request) {
 3. "~적 영향" / "~의 재편" / "~ 패턴" / "~ 메커니즘" / "~ 국면" 같은 **추상 범주형은 즉시 FAIL**
 4. 각 principle이 **평행·대립·파급·수입 지점 + 갈라짐 지점**을 둘 다 담았는가?
 
+⚠️ **direction 예시 재사용 금지**: 시스템 프롬프트의 "✓ 형식 예시"는 참조용. 지금 주제의 **고유 긴장**에 맞는 새 사례를 뽑아라. 예시를 그대로 베끼면 FAIL.
+
 위 체크를 통과하지 못한 항목은 즉시 재작성. 모든 facet의 깊이는 균일할 것 — 첫 facet만 간단하면 FAIL.`
       : `부모 축: 주제\n부모 facet: ${topic}${directionLine}${lensLine}${resultLine}${userContextLine}`
     : `주제: ${topic}${purposeLine}${lensLine}${userContextLine}`;

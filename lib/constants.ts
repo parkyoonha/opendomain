@@ -118,7 +118,7 @@ export const topicAxesFor = (cat?: BigCategory): readonly string[] =>
 export const OPENAI_MODEL_DEFAULT = "gpt-4o"; // legacy, unused
 
 // Bump when prompts or axes change — invalidates all persisted/in-memory caches.
-export const PROMPT_VERSION = "v35-2026-10-23-expand-direction-boundaries";
+export const PROMPT_VERSION = "v36-2026-10-23-expand-facet-specificity";
 
 export const MODEL_BY_PROVIDER = {
   gemini: {
