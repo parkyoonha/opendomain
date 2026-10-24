@@ -61,23 +61,22 @@ function FullFacetJourneyView({
   journey: AncestorEntry[];
   onClose: () => void;
 }) {
-  const { attachedChips } = useIdea();
+  const { attachedChips, combinedIdeas } = useIdea();
+  // 상단 헤더에 노출할 주제 텍스트 — journey의 첫 엔트리가 항상 루트(주제).
+  const topicTitle = journey[0]?.shortTitle ?? journey[0]?.title ?? "";
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black">
-      {/* pt-safe-8 — 안드로이드/iOS 상단 상태바(시계·배터리)와 겹치지 않도록
+      {/* pt-safe-8 — 안드로이드/iOS 상단 상태바와 겹치지 않도록
           safe-area-inset-top 만큼 여백 확보. */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.08] bg-black/95 px-5 pb-4 pt-safe-8 backdrop-blur">
-        <div>
-          <h2 className="text-[14px] font-bold text-text-primary">사고 여정</h2>
-          <p className="mt-0.5 text-[11px] text-text-muted">
-            지금까지 들어온 모든 facet · 조합한 칩
-          </p>
-        </div>
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/[0.08] bg-black/95 px-5 pb-4 pt-safe-8 backdrop-blur">
+        <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold text-text-primary">
+          {topicTitle}
+        </h2>
         <button
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="rounded-full p-1.5 text-text-muted hover:bg-white/[0.08] hover:text-text-primary"
+          className="shrink-0 rounded-full p-1.5 text-text-muted hover:bg-white/[0.08] hover:text-text-primary"
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
             <path
@@ -89,80 +88,93 @@ function FullFacetJourneyView({
           </svg>
         </button>
       </div>
+      {/* 보더/박스 제거 — "제목 — 내용 전문" + 끝에 적용 칩 태그 inline +
+          엔트리 사이 ⋮ 커넥터로만 구성. 전체보기이므로 line-clamp 없이
+          전문 노출. */}
       <div className="flex-1 overflow-auto">
-        <div className="flex flex-col gap-3 p-5">
+        <div className="flex flex-col px-5 pb-5 pt-3">
           {journey.map((entry, i) => {
-            const chips = entry.pk ? attachedChips[entry.pk] ?? [] : [];
-            // 이 facet을 "낳은" 부모의 attachedChips —
-            // 부모 레벨에서 사용자가 꽂았던 칩들이 결국 이 facet의
-            // 적용결과를 만든 재료. 루트(주제)에는 부모가 없으므로
-            // undefined.
+            // 이 facet을 "낳은" 소스 칩 찾기:
+            //   1순위 — combinedIdeas에서 title 매칭. 조합(runCombine)으로
+            //           생성된 facet은 그 때 쓴 chipLabel이 바로 소스 칩.
+            //   2순위 — 부모 레벨에서 사용자가 꽂아둔 attachedChips
+            //           (분해 프롬프트의 재료).
+            const entryName = entry.pk ? entry.pk.split("::")[1] ?? "" : "";
+            const sourceIdea = entryName
+              ? combinedIdeas.find((c) => c.title === entryName)
+              : null;
             const parent = i > 0 ? journey[i - 1] : null;
-            const parentChips =
-              parent?.pk ? attachedChips[parent.pk] ?? [] : [];
+            const parentAttached = parent?.pk
+              ? attachedChips[parent.pk] ?? []
+              : [];
+            const appliedChips: Array<{ chipText: string; reason?: string }> =
+              sourceIdea
+                ? [
+                    {
+                      chipText:
+                        sourceIdea.chipLabel ?? sourceIdea.chipText ?? "조합",
+                      reason: sourceIdea.chipText,
+                    },
+                    ...parentAttached,
+                  ]
+                : parentAttached;
+            const isFirst = i === 0;
             const isLast = i === journey.length - 1;
-            const heading = entry.shortTitle ?? entry.title;
             return (
-              <div
-                key={`j-${i}`}
-                className={`rounded-xl border p-4 ${
-                  isLast
-                    ? "border-white/30 bg-white/[0.08]"
-                    : "border-white/[0.14] bg-white/[0.04]"
-                }`}
-              >
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                    {entry.label ?? `레벨 ${i + 1}`}
-                  </span>
-                  {isLast && (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-black">
-                      현재
-                    </span>
-                  )}
-                </div>
-                {parentChips.length > 0 && (
-                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[9px] uppercase tracking-wider text-text-muted">
-                      ← 적용 칩
-                    </span>
-                    {parentChips.map((c, j) => (
-                      <span
-                        key={`pc-${j}`}
-                        className="rounded-md bg-white/[0.12] px-1.5 py-0.5 text-[10px] text-text-primary"
-                        title={c.reason}
-                      >
-                        {c.chipText}
-                      </span>
-                    ))}
+              <div key={`j-${i}`} className="flex flex-col">
+                {i > 0 && (
+                  <div
+                    aria-hidden
+                    className="py-1 pl-1 text-[11px] leading-none text-text-muted"
+                  >
+                    ⋮
                   </div>
                 )}
-                <h3 className="whitespace-pre-wrap break-words text-[15px] font-bold leading-6 text-text-primary">
-                  {heading}
-                </h3>
-                {entry.fullText && (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-6 text-text-secondary">
-                    {entry.fullText}
-                  </p>
+                {/* 첫 엔트리(주제)는 헤더와 중복되므로 레벨 라벨 생략.
+                    "현재" 배지도 제거(요구). */}
+                {!isFirst && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                      {entry.label ?? `레벨 ${i + 1}`}
+                    </span>
+                  </div>
                 )}
-                {chips.length > 0 && (
-                  <div className="mt-3 border-t border-white/[0.08] pt-3">
-                    <div className="mb-1.5 text-[9px] uppercase tracking-wider text-text-muted">
-                      이 레벨에서 조합한 칩 ({chips.length})
+                <div className={`${isFirst ? "" : "mt-1"} flex min-w-0 items-start gap-2`}>
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`whitespace-pre-wrap break-words text-[13px] leading-5 ${
+                        isLast
+                          ? "font-semibold text-text-primary"
+                          : "font-normal text-text-primary"
+                      }`}
+                    >
+                      {entry.shortTitle ?? entry.title}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {chips.map((c, j) => (
+                    {entry.fullText && (
+                      <div className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-5 text-text-secondary">
+                        {entry.fullText}
+                      </div>
+                    )}
+                  </div>
+                  {appliedChips.length > 0 && (
+                    <span className="flex shrink-0 flex-wrap items-center gap-1">
+                      {appliedChips.slice(0, 3).map((c, j) => (
                         <span
-                          key={`c-${j}`}
-                          className="rounded-md border border-white/20 bg-white/[0.06] px-2 py-1 text-[11px] text-text-primary"
+                          key={`ac-${j}`}
+                          className="rounded border border-white/20 px-1.5 py-0 text-[9px] text-text-muted"
                           title={c.reason}
                         >
                           {c.chipText}
                         </span>
                       ))}
-                    </div>
-                  </div>
-                )}
+                      {appliedChips.length > 3 && (
+                        <span className="text-[9px] text-text-muted">
+                          +{appliedChips.length - 3}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
