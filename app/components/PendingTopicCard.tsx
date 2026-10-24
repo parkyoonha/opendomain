@@ -71,6 +71,10 @@ export default function PendingTopicCard() {
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [topicSubmitting, setTopicSubmitting] = useState(false);
+  // 요건 뷰 모드: 세로 리스트(기본) vs 가로 표. 표는 모든 미해결 요건의
+  // 해결 버튼을 한 자리에 노출해, 미해결 "하나"가 아니라 전체 공간에서
+  // 바로 매트릭스를 열 수 있게 한다.
+  const [verifyView, setVerifyView] = useState<"list" | "table">("list");
   const verifyColRef = useRef<HTMLDivElement>(null);
   const prevGenCountRef = useRef(0);
   const combineColRef = useRef<HTMLDivElement>(null);
@@ -500,8 +504,59 @@ export default function PendingTopicCard() {
                 const infeasibleReqs = v.report.requirements.filter(
                   (r) => r.feasibility === "infeasible",
                 );
+                const danglingByReq = new Map<string, string>();
+                v.report.danglingNeeds.forEach((d) => {
+                  // 한 요건에 여러 dangling이 있을 수 있으나 UI에선 첫 하나로
+                  // 대표. 매트릭스는 요건 전체를 함께 던지므로 손실 없음.
+                  if (!danglingByReq.has(d.requirementId))
+                    danglingByReq.set(d.requirementId, d.token);
+                });
+                const resolveForReq = (
+                  r: (typeof v.report.requirements)[number],
+                ) => {
+                  if (r.feasibility === "infeasible") {
+                    const exclude = r.conflictingNeed ?? r.needs[0];
+                    if (exclude) openPanelExcluding(exclude, r);
+                    else if (r.provides[0])
+                      openPanelForOutput(r.provides[0], r.id);
+                  } else {
+                    const token = danglingByReq.get(r.id);
+                    if (token) openPanelForOutput(token, r.id);
+                  }
+                };
+                const canResolveReq = (
+                  r: (typeof v.report.requirements)[number],
+                ) =>
+                  r.feasibility === "infeasible" || danglingByReq.has(r.id);
                 return (
                   <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-end">
+                      <div className="inline-flex overflow-hidden rounded-md border border-white/15 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setVerifyView("list")}
+                          className={`px-2 py-0.5 ${
+                            verifyView === "list"
+                              ? "bg-white/15 text-text-primary"
+                              : "text-text-muted hover:text-text-primary"
+                          }`}
+                        >
+                          리스트
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVerifyView("table")}
+                          className={`px-2 py-0.5 ${
+                            verifyView === "table"
+                              ? "bg-white/15 text-text-primary"
+                              : "text-text-muted hover:text-text-primary"
+                          }`}
+                        >
+                          표
+                        </button>
+                      </div>
+                    </div>
+                    {verifyView === "list" ? (
                     <ul className="flex flex-col gap-0.5">
                       {orderedReqs.map((r) => {
                         const pal = feasibilityPalette[r.feasibility];
@@ -595,6 +650,130 @@ export default function PendingTopicCard() {
                         );
                       })}
                     </ul>
+                    ) : (
+                      <div className="overflow-x-auto rounded-md border border-white/[0.08]">
+                        <table className="w-full border-collapse text-left text-[11px] md:text-[10px]">
+                          <thead>
+                            <tr className="bg-white/[0.04] text-[9px] uppercase tracking-wider text-text-muted">
+                              <th className="px-2 py-1.5 font-medium">단계</th>
+                              <th className="px-2 py-1.5 font-medium">요건</th>
+                              <th className="px-2 py-1.5 font-medium">I/O</th>
+                              <th className="px-2 py-1.5 font-medium">상태</th>
+                              <th className="px-2 py-1.5 font-medium">해결</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {orderedReqs.map((r) => {
+                              const pal = feasibilityPalette[r.feasibility];
+                              const rpk = principleKey("주제", r.name);
+                              const isExpanded =
+                                expandedPrinciples.has(rpk);
+                              const expandReq = () => {
+                                const sel = {
+                                  axis: "주제",
+                                  name: r.name,
+                                  text: r.description || r.name,
+                                };
+                                selectPrinciple(sel);
+                                markPrincipleExpanded(rpk);
+                                void runRecommendChips(
+                                  "주제",
+                                  r.name,
+                                  sel.text,
+                                );
+                              };
+                              const canResolve = canResolveReq(r);
+                              return [
+                                <tr
+                                  key={r.id}
+                                  onClick={expandReq}
+                                  className="cursor-pointer border-t border-white/[0.06] align-top hover:bg-white/[0.03]"
+                                >
+                                  <td className="px-2 py-1.5">
+                                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-text-primary ring-1 ring-inset ring-white/15">
+                                      {r.tier}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <div
+                                      className={`font-semibold ${pal.text}`}
+                                    >
+                                      {r.id}. {r.description || r.name}
+                                    </div>
+                                    {r.description &&
+                                      r.name &&
+                                      r.description !== r.name && (
+                                        <div className="text-[9px] text-text-muted">
+                                          ({r.name})
+                                        </div>
+                                      )}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-[10px] text-text-muted md:text-[9px]">
+                                    {r.needs.length > 0 &&
+                                      r.needs.join(" + ")}
+                                    {r.needs.length > 0 &&
+                                      r.provides.length > 0 &&
+                                      " → "}
+                                    {r.provides.length > 0 &&
+                                      r.provides.join(" + ")}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
+                                    >
+                                      {feasibilityLabel[r.feasibility]}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {canResolve ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          resolveForReq(r);
+                                        }}
+                                        className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black hover:opacity-90"
+                                      >
+                                        해결
+                                      </button>
+                                    ) : (
+                                      <span className="text-[10px] text-text-muted">
+                                        —
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>,
+                                isExpanded ? (
+                                  <tr
+                                    key={`${r.id}-x`}
+                                    className="border-t border-white/[0.06] bg-white/[0.02]"
+                                  >
+                                    <td colSpan={5} className="p-2">
+                                      <FacetNode
+                                        rootAxis="주제"
+                                        pathName={r.name}
+                                        facetName={`${r.id}. ${r.description || r.name}`}
+                                        facetText={
+                                          r.rationale ||
+                                          (r.needs.length > 0 ||
+                                          r.provides.length > 0
+                                            ? `${r.needs.join(" + ")}${
+                                                r.provides.length
+                                                  ? ` → ${r.provides.join(" + ")}`
+                                                  : ""
+                                              }`
+                                            : r.description)
+                                        }
+                                      />
+                                    </td>
+                                  </tr>
+                                ) : null,
+                              ];
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                     {(() => {
                       const infeasible = infeasibleReqs[0];
                       const dangling = v.report.danglingNeeds[0];
