@@ -48,6 +48,8 @@ function parseVerifyReport(content: string): VerifyReport {
       substituteDirections?: unknown;
       conflictingNeed?: string;
       resolvedGoal?: string;
+      recommendedDomain?: string;
+      recommendedSolution?: string;
     }>;
     edges?: Array<{ fromId?: string; toId?: string; token?: string }>;
     danglingNeeds?: Array<{ requirementId?: string; token?: string }>;
@@ -77,6 +79,8 @@ function parseVerifyReport(content: string): VerifyReport {
       const provides = asStringArray(r?.provides);
       const conflicting = (r?.conflictingNeed ?? "").trim();
       const resolved = (r?.resolvedGoal ?? "").trim();
+      const recDomain = (r?.recommendedDomain ?? "").trim();
+      const recSolution = (r?.recommendedSolution ?? "").trim();
       return {
         id:
           (r?.id ?? String.fromCharCode(65 + idx)).trim() ||
@@ -94,6 +98,8 @@ function parseVerifyReport(content: string): VerifyReport {
           feasibility === "infeasible" && conflicting ? conflicting : undefined,
         resolvedGoal:
           feasibility === "infeasible" && resolved ? resolved : undefined,
+        recommendedDomain: recDomain || undefined,
+        recommendedSolution: recSolution || undefined,
       };
     })
     .filter((r) => r.name && r.description);

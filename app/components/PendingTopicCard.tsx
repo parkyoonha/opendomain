@@ -7,6 +7,7 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import ControllerAccordion from "./ControllerAccordion";
+import ConditionInputBar from "./ConditionInputBar";
 import ParentFacetTag from "./ParentFacetTag";
 import SessionTimelineModal from "./SessionTimelineModal";
 import { kBuiltinDirections } from "@/lib/directions";
@@ -19,7 +20,6 @@ import { lensLabel } from "@/lib/lenses";
 export default function PendingTopicCard() {
   const {
     pendingTopic,
-    setPendingTopic,
     commitPending,
     addMemo,
     topicPurposeId,
@@ -52,6 +52,7 @@ export default function PendingTopicCard() {
     runRecommendChips,
     runChipFocusMatrix,
     combinedIdeas,
+    attachedChips,
     combineStatus,
     clearCombined,
     focusedCombinedIdeaId,
@@ -222,66 +223,20 @@ export default function PendingTopicCard() {
       ref={cardRef}
       className="decomp-controller flex w-[calc(100vw-1.5rem)] max-w-full shrink-0 snap-center flex-col gap-3 md:w-[560px]"
     >
-      {/* 주제 입력 — 초기 InputBar와 동일한 pill 스타일 + 우측 enter 버튼.
-          Enter 키 / 버튼 클릭 → 현재 mode(분해/확장/증명)에 맞춰 FAB과
-          동일한 액션 트리거. */}
-      <div className="flex items-center gap-1 rounded-full bg-white/[0.12] py-3 pl-3 pr-2">
-        <input
-          value={pendingTopic}
-          onChange={(e) => setPendingTopic(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void handleTopicSubmit();
-            }
-          }}
-          placeholder="주제 입력"
-          className="flex-1 bg-transparent px-3 py-2 text-[16px] text-text-primary placeholder:text-text-muted focus:outline-none md:text-[14px]"
-        />
-        <button
-          type="button"
-          onClick={() => void handleTopicSubmit()}
-          disabled={!pendingTopic?.trim() || topicSubmitting}
-          aria-label="제출"
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-9 md:w-9 ${
-            topicSubmitting ? "bg-white/[0.15] text-white" : "bg-white text-black"
-          }`}
-        >
-          {topicSubmitting ? (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              className="h-4 w-4 animate-spin"
-              aria-label="제출 중"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeOpacity="0.25"
-              />
-              <path
-                d="M21 12a9 9 0 0 0-9-9"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-              <path
-                d="M5 12h14M13 5l7 7-7 7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </button>
-      </div>
+      {/* 입력바 재구성 — 편집 가능한 주제 텍스트가 아니라 "주제 태그 +
+          추가 조건 태그들 + 조건 입력" 조합. 입력창은 추가조건(=
+          principleCustomContext) 입력 전용으로 재사용.
+          Enter → 조건 추가 (텍스트 있을 때) / Submit 버튼 → 현재 모드
+          액션(분해/확장/증명). 조건 태그는 각각 X로 제거. */}
+      <ConditionInputBar
+        tagText={pendingTopic}
+        pk={pk}
+        submitting={topicSubmitting}
+        disabled={!pendingTopic?.trim()}
+        existingContext={customContext}
+        setPrincipleCustomContext={setPrincipleCustomContext}
+        onSubmit={() => void handleTopicSubmit()}
+      />
       <SessionTimelineModal
         open={timelineOpen}
         onClose={() => setTimelineOpen(false)}
@@ -652,14 +607,19 @@ export default function PendingTopicCard() {
                     </ul>
                     ) : (
                       <div className="overflow-x-auto rounded-md border border-white/[0.08]">
+                        {/*
+                          해결 중심 테이블. tier(기반·결합·완성)은 "문제를 어떻게
+                          쪼갤 것인가"의 뼈대로서 가지 셀 안에 작은 뱃지로만
+                          남기고, 주 시각 축은 "실제로 어떤 해결책을 꽂았나"로
+                          둔다. 라이트 형제 사례의 (가지 · 빌려온 도메인 ·
+                          공부할 것) 구성과 맞춤.
+                        */}
                         <table className="w-full border-collapse text-left text-[11px] md:text-[10px]">
                           <thead>
                             <tr className="bg-white/[0.04] text-[9px] uppercase tracking-wider text-text-muted">
-                              <th className="px-2 py-1.5 font-medium">단계</th>
-                              <th className="px-2 py-1.5 font-medium">요건</th>
-                              <th className="px-2 py-1.5 font-medium">I/O</th>
-                              <th className="px-2 py-1.5 font-medium">상태</th>
-                              <th className="px-2 py-1.5 font-medium">해결</th>
+                              <th className="px-2 py-1.5 font-medium">가지</th>
+                              <th className="px-2 py-1.5 font-medium">빌려온 도메인</th>
+                              <th className="px-2 py-1.5 font-medium">해결책</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -668,6 +628,73 @@ export default function PendingTopicCard() {
                               const rpk = principleKey("주제", r.name);
                               const isExpanded =
                                 expandedPrinciples.has(rpk);
+                              // 이 요건에 꽂힌 칩 수집: attachedChips(도메인
+                              // 포함) 우선, 그다음 매트릭스 조합 결과
+                              // (combinedIdeas, topicName이 요건명 또는
+                              // "{provides} 공급원"에 걸린 것). chipText로
+                              // 중복 제거하고 attachedChips 쪽 메타(도메인)를
+                              // 우선 보존.
+                              const attached =
+                                attachedChips[rpk] ?? [];
+                              const scopedTopicNames = new Set<string>([
+                                r.name,
+                                ...r.provides.map(
+                                  (p) => `${p} 공급원`,
+                                ),
+                              ]);
+                              const relatedCombined =
+                                combinedIdeas.filter(
+                                  (ci) =>
+                                    ci.topicAxis === "주제" &&
+                                    !!ci.topicName &&
+                                    scopedTopicNames.has(
+                                      ci.topicName,
+                                    ),
+                                );
+                              const seen = new Set<string>();
+                              const solutions: Array<{
+                                chipText: string;
+                                domain?: string;
+                              }> = [];
+                              for (const a of attached) {
+                                if (seen.has(a.chipText)) continue;
+                                seen.add(a.chipText);
+                                solutions.push({
+                                  chipText: a.chipText,
+                                  domain: a.kindOrCategory,
+                                });
+                              }
+                              for (const ci of relatedCombined) {
+                                if (seen.has(ci.chipText)) continue;
+                                seen.add(ci.chipText);
+                                solutions.push({
+                                  chipText: ci.chipText,
+                                });
+                              }
+                              const primary = solutions[0];
+                              const extraCount = solutions.length - 1;
+                              // 표시 우선순위:
+                              //   1. 사용자가 꽂은 칩 (primary) — 확정
+                              //   2. LLM 1차 추천 (recommendedDomain/
+                              //      recommendedSolution) — 기본값, italic
+                              //   3. 비어있음 — "+" 플레이스홀더
+                              const displayDomain =
+                                primary?.domain ??
+                                r.recommendedDomain ??
+                                null;
+                              const domainIsDefault =
+                                !primary?.domain && !!r.recommendedDomain;
+                              const displaySolution =
+                                primary?.chipText ??
+                                r.recommendedSolution ??
+                                null;
+                              const solutionIsDefault =
+                                !primary && !!r.recommendedSolution;
+                              const infeasibleWarn =
+                                r.feasibility === "infeasible";
+                              const danglingWarn = danglingByReq.has(
+                                r.id,
+                              );
                               const expandReq = () => {
                                 const sel = {
                                   axis: "주제",
@@ -682,63 +709,121 @@ export default function PendingTopicCard() {
                                   sel.text,
                                 );
                               };
-                              const canResolve = canResolveReq(r);
+                              // 셀 클릭 공통: 미해결(infeasible/dangling)이면
+                              // 기존 resolveForReq 로직(제외칩/공급원 매트릭스
+                              // 자동 분기), 아니면 주 provides 토큰으로 매트릭스.
+                              const openPicker = () => {
+                                if (canResolveReq(r)) {
+                                  resolveForReq(r);
+                                } else if (r.provides[0]) {
+                                  openPanelForOutput(
+                                    r.provides[0],
+                                    r.id,
+                                  );
+                                }
+                              };
                               return [
+                                /*
+                                  Wright 형제 표 포맷 그대로: 요건당 1행,
+                                  3컬럼 모두 짧은 단어/명사구. 문장 형태의
+                                  요건은 행 클릭 시 분해 트리에서 노출.
+                                  tier(기반·결합·완성)는 가지 셀 안쪽 작은
+                                  뱃지로 "뼈대"로서만 유지.
+                                */
                                 <tr
                                   key={r.id}
                                   onClick={expandReq}
-                                  className="cursor-pointer border-t border-white/[0.06] align-top hover:bg-white/[0.03]"
+                                  className="cursor-pointer border-t border-white/[0.08] align-top hover:bg-white/[0.03]"
                                 >
                                   <td className="px-2 py-1.5">
-                                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-text-primary ring-1 ring-inset ring-white/15">
-                                      {r.tier}
-                                    </span>
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    <div
-                                      className={`font-semibold ${pal.text}`}
-                                    >
-                                      {r.id}. {r.description || r.name}
-                                    </div>
-                                    {r.description &&
-                                      r.name &&
-                                      r.description !== r.name && (
-                                        <div className="text-[9px] text-text-muted">
-                                          ({r.name})
-                                        </div>
-                                      )}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-[10px] text-text-muted md:text-[9px]">
-                                    {r.needs.length > 0 &&
-                                      r.needs.join(" + ")}
-                                    {r.needs.length > 0 &&
-                                      r.provides.length > 0 &&
-                                      " → "}
-                                    {r.provides.length > 0 &&
-                                      r.provides.join(" + ")}
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    <span
-                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                                    >
-                                      {feasibilityLabel[r.feasibility]}
-                                    </span>
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    {canResolve ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          resolveForReq(r);
-                                        }}
-                                        className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black hover:opacity-90"
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="inline-flex shrink-0 items-center rounded px-1 py-0 text-[8px] font-bold tracking-wider text-text-muted ring-1 ring-inset ring-white/15">
+                                        {r.tier}
+                                      </span>
+                                      <span
+                                        className={`font-semibold ${pal.text}`}
                                       >
-                                        해결
-                                      </button>
+                                        {r.name}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td
+                                    className="cursor-pointer px-2 py-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPicker();
+                                    }}
+                                  >
+                                    {displayDomain ? (
+                                      <span
+                                        className={
+                                          domainIsDefault
+                                            ? "italic text-text-muted/80"
+                                            : "text-text-primary"
+                                        }
+                                      >
+                                        {displayDomain}
+                                      </span>
                                     ) : (
-                                      <span className="text-[10px] text-text-muted">
+                                      <span className="text-text-muted">
                                         —
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td
+                                    className="cursor-pointer px-2 py-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPicker();
+                                    }}
+                                  >
+                                    {primary ? (
+                                      <span className="inline-flex items-center gap-1 rounded border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-text-primary">
+                                        {infeasibleWarn && (
+                                          <span
+                                            className="text-rose-300"
+                                            title="실현 불가로 표시된 요건"
+                                          >
+                                            ⚠
+                                          </span>
+                                        )}
+                                        <span className="truncate">
+                                          {primary.chipText}
+                                        </span>
+                                        {extraCount > 0 && (
+                                          <span className="ml-1 text-[9px] text-text-muted">
+                                            +{extraCount}
+                                          </span>
+                                        )}
+                                      </span>
+                                    ) : solutionIsDefault ? (
+                                      <span
+                                        className={`inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 italic ${
+                                          infeasibleWarn || danglingWarn
+                                            ? "border-rose-300/60 text-rose-200"
+                                            : "border-white/20 text-text-muted/80 hover:text-text-primary"
+                                        }`}
+                                        title="LLM 1차 추천 — 눌러서 매트릭스에서 변경"
+                                      >
+                                        {(infeasibleWarn ||
+                                          danglingWarn) && (
+                                          <span>⚠</span>
+                                        )}
+                                        {displaySolution}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 ${
+                                          infeasibleWarn || danglingWarn
+                                            ? "border-rose-300/60 text-rose-200"
+                                            : "border-white/30 text-text-muted hover:text-text-primary"
+                                        }`}
+                                      >
+                                        {(infeasibleWarn ||
+                                          danglingWarn) && (
+                                          <span>⚠</span>
+                                        )}
+                                        + 선택
                                       </span>
                                     )}
                                   </td>
@@ -746,9 +831,9 @@ export default function PendingTopicCard() {
                                 isExpanded ? (
                                   <tr
                                     key={`${r.id}-x`}
-                                    className="border-t border-white/[0.06] bg-white/[0.02]"
+                                    className="bg-white/[0.02]"
                                   >
-                                    <td colSpan={5} className="p-2">
+                                    <td colSpan={3} className="p-2">
                                       <FacetNode
                                         rootAxis="주제"
                                         pathName={r.name}
@@ -894,3 +979,4 @@ function Arrow() {
     </svg>
   );
 }
+

@@ -110,6 +110,17 @@ export type RequirementPart = {
   // prominently in the 충돌·실패 block so the user reads the blocker
   // as a sub-goal (e.g. "회전 날개 없이 바람을 만드는 선풍기").
   resolvedGoal?: string;
+  // Pre-filled best suggestions so the "해결 중심 표" surfaces concrete
+  // guesses on first render instead of empty cells. 라이트 형제 표의
+  // (빌려온 도메인 · 그래서 공부할 것) 두 셀과 동급 포맷:
+  //   recommendedDomain  — 빌려올 지식/산업 도메인 (단어, 4~12자)
+  //                        예: "유체역학", "조류학", "자전거 균형".
+  //   recommendedSolution — 그 도메인에서 **가져올 구체 대상/기법/부품**
+  //                        (명사구, 4~16자). 문장 아님. 예: "날개 단면
+  //                        (캠버)", "비틀림 각도", "3축 제어 (요/피치/롤)".
+  //                        사용자는 셀을 눌러 매트릭스에서 변경 가능.
+  recommendedDomain?: string;
+  recommendedSolution?: string;
 };
 
 export type RequirementEdge = {
@@ -245,6 +256,8 @@ baselineLimitation을 깨려면 **어떤 요건이 추가**되어야 하는가? 
   - "infeasible": 명확한 제약·모순 때문에 그대로는 구현 불가 (**다른 요건의 needs와 충돌**하거나, 물리/시장 한계)
   - "unknown": 현재 정보로는 판정 불가
 - **rationale**: **최대 40자 한 줄**. 왜 그 feasibility인지. infeasible이면 **어느 요건·토큰과 충돌하는지** 반드시 명시.
+- **recommendedDomain**: **4~12자 명사형 단어** — 이 요건을 메우기 위해 **빌려올 지식/산업 도메인**. 라이트 형제 표의 "빌려온 도메인" 셀과 같은 격의 짧은 라벨. 예: "유체역학", "조류학", "자전거 균형", "선박 프로펠러 설계". 추상 개념(예: "공학", "물리학")은 금지 — 구체적인 분야/사례 집합을 가리키는 어휘를 택한다.
+- **recommendedSolution**: **4~16자 명사구** (문장 금지) — recommendedDomain에서 가져올 **구체 대상/기법/부품명**. 라이트 표의 "그래서 공부할 것" 셀 격식. 예: "날개 단면 (캠버)", "비틀림 각도", "3축 제어 (요/피치/롤)". **메커니즘을 서술하지 말고 공부/적용할 대상 자체의 이름만** 적어라. feasibility가 infeasible이어도 그래도 1차 시도 가능한 명사구를 적는다. 괄호로 1단 보조어를 덧붙여도 좋다.
 - **substituteDirections**: infeasible일 때만. 3~5개 짧은 명제(6~16자). 같은 provides를 유지하되 needs 구성이 다른 대체 부품 방향.
 - **conflictingNeed**: **infeasible일 때만**. 이 요건의 needs 중 **다른 요건과 모순을 일으키는 토큰** 하나를 그대로 적는다. 예: 이 요건이 "회전 날개"를 needs로 가지는데 다른 요건이 "회전부 노출 없음"을 needs로 요구하면 conflictingNeed 값은 "회전 날개". 사용자가 "해결" 버튼을 눌렀을 때 매칭 매트릭스에서 이 토큰을 제외하기 위함. feasible/unknown에는 넣지 마라.
 - **resolvedGoal**: **infeasible일 때만**. 그 충돌이 해결된 상태의 **아이디어 전체를 한 줄 목표문으로 재진술** (최대 40자). "~없이 ~한다", "~로 ~을 만든다" 식의 **쉬운 말 목표문**. 예:
@@ -298,22 +311,22 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
 - target: "아이가 손가락 넣어도 안전한 선풍기"
 - **baselineProduct**: "회전 날개 선풍기"
 - **baselineLimitation**: "날개 노출로 손가락 접근 가능"
-- requirements (4개):
-  - A (기반, name="바람 생성", description="바람을 만든다", needs=["전력", "회전 날개"], provides=["공기 흐름"], **feasibility="infeasible"** — 회전 날개가 B의 "회전부 노출 없음"과 모순, conflictingNeed="회전 날개", resolvedGoal="회전 날개 없이 바람을 만드는 선풍기")
-  - B (결합, name="안전성", description="노출된 회전부가 없다", needs=["회전부 노출 없음", "공기 흐름"], provides=["안전성"], feasible)
-  - C (결합, name="저소음", description="조용하다", needs=["저속 작동"], provides=["저소음"], feasible)
-  - D (완성, name="가정용", description="일반 가정에서 쓸 수 있다", needs=["공기 흐름", "안전성", "저소음", "적정 크기"], provides=["완제품"], feasible)
+- requirements (4개) — 각 요건에 **recommendedDomain + recommendedSolution 필수**:
+  - A (기반, name="바람 생성", description="바람을 만든다", needs=["전력", "회전 날개"], provides=["공기 흐름"], **feasibility="infeasible"** — 회전 날개가 B의 "회전부 노출 없음"과 모순, conflictingNeed="회전 날개", resolvedGoal="회전 날개 없이 바람을 만드는 선풍기", **recommendedDomain="진공청소기 송풍", recommendedSolution="축류 임펠러"**)
+  - B (결합, name="안전성", description="노출된 회전부가 없다", needs=["회전부 노출 없음", "공기 흐름"], provides=["안전성"], feasible, **recommendedDomain="가드·메쉬 디자인", recommendedSolution="손가락 접근 격자 치수"**)
+  - C (결합, name="저소음", description="조용하다", needs=["저속 작동"], provides=["저소음"], feasible, **recommendedDomain="축류팬 소음 제어", recommendedSolution="다익 저속 블레이드"**)
+  - D (완성, name="가정용", description="일반 가정에서 쓸 수 있다", needs=["공기 흐름", "안전성", "저소음", "적정 크기"], provides=["완제품"], feasible, **recommendedDomain="소형 가전 폼팩터", recommendedSolution="책상 치수 규격"**)
 - danglingNeeds: []
 
 ### 예시 2: "누워도 새지 않는 생리대"
 - target: "누워도 새지 않는 생리대"
 - **baselineProduct**: "외부 흡수 패드"
 - **baselineLimitation**: "몸을 타고 흐르는 혈을 패드가 못 잡음"
-- requirements (4개):
-  - A (기반, name="혈 포집", description="흐르기 전에 혈을 잡는다", needs=["외부 패드 흡수"], provides=["포집"], **feasibility="infeasible"** — 외부 패드로는 측와위 유동 혈을 못 잡음, conflictingNeed="외부 패드 흡수", resolvedGoal="몸을 타고 흐르기 전에 혈을 포집하는 생리 제품")
-  - B (결합, name="측면 밀봉", description="옆으로 새지 않는다", needs=["측면 접촉"], provides=["측면 밀봉"], feasible)
-  - C (결합, name="자세 적응", description="누운 자세에서도 작동한다", needs=["포집", "측면 밀봉"], provides=["자세 적응"], feasible)
-  - D (완성, name="착용감", description="오래 착용해도 불편하지 않다", needs=["포집", "측면 밀봉", "자세 적응"], provides=["완제품"], feasible)
+- requirements (4개) — 각 요건에 **recommendedDomain + recommendedSolution 필수**:
+  - A (기반, name="혈 포집", description="흐르기 전에 혈을 잡는다", needs=["외부 패드 흡수"], provides=["포집"], **feasibility="infeasible"** — 외부 패드로는 측와위 유동 혈을 못 잡음, conflictingNeed="외부 패드 흡수", resolvedGoal="몸을 타고 흐르기 전에 혈을 포집하는 생리 제품", **recommendedDomain="생체역학", recommendedSolution="곡면 밀착 집수 shell"**)
+  - B (결합, name="측면 밀봉", description="옆으로 새지 않는다", needs=["측면 접촉"], provides=["측면 밀봉"], feasible, **recommendedDomain="날개형 흡수패드 설계", recommendedSolution="서혜부 레그가드 날개"**)
+  - C (결합, name="자세 적응", description="누운 자세에서도 작동한다", needs=["포집", "측면 밀봉"], provides=["자세 적응"], feasible, **recommendedDomain="수면 자세 분석", recommendedSolution="측와위 중심선 보정"**)
+  - D (완성, name="착용감", description="오래 착용해도 불편하지 않다", needs=["포집", "측면 밀봉", "자세 적응"], provides=["완제품"], feasible, **recommendedDomain="초박형 흡수층 소재", recommendedSolution="부드러운 non-woven top-sheet"**)
 - danglingNeeds: []
 
 **예시 1·2는 레벨 A (root 수준) 패턴**이다. baselineLimitation이 "뚫어야 할 벽"을 정의하고, infeasible 요건이 바로 그 벽을 가리키고, resolvedGoal이 **제품 카테고리를 재정의**한다. "역류 방지"처럼 사이드 디테일을 infeasible로 삼으면 안 된다.
@@ -325,18 +338,41 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
 - target: "층별 거품공극 구조로 방향성 흡수를 구현한다"
 - **baselineProduct**: "균일 공극 흡수층 생리대" (이 facet 없이 같은 root를 시도하는 접근)
 - **baselineLimitation**: "액체가 양방향으로 흐를 수 있어 역류 위험"
-- requirements (4개) — **이 메커니즘의 작동 조건**이지 생리대 전체 조건이 아님:
-  - A (기반, name="층별 제조", description="공극 크기를 층마다 정밀하게 다르게 만든다", needs=["다층 공정"], provides=["층별 공극 구조"], feasible, rationale="다층 성형 기술로 가능")
-  - B (결합, name="중력 흐름", description="액체가 중력으로 아래 층으로 간다", needs=["층별 공극 구조", "중력"], provides=["아래 방향 흐름"], feasible)
-  - C (결합, name="역류 차단", description="역류 시 큰 공극이 흐름을 물리적으로 막는다", needs=["아래 방향 흐름", "큰 공극의 차단력"], provides=["방향성"], **feasibility="infeasible"** — 큰 공극이 역류를 어떻게 선택적으로 막는지 비자명. 유체는 공극 크기만으로는 방향 선택 못 함. conflictingNeed="큰 공극의 차단력", resolvedGoal="역류를 물리적으로 선택 차단하는 구조", rationale="공극 크기만으로 방향성이 성립하지 않음")
-  - D (완성, name="착용 두께", description="전체 구조가 착용 가능한 두께에 들어간다", needs=["층별 공극 구조", "방향성"], provides=["완제품"], feasible)
+- requirements (4개) — **이 메커니즘의 작동 조건**이지 생리대 전체 조건이 아님. 각 요건에 **recommendedDomain + recommendedSolution 필수**:
+  - A (기반, name="층별 제조", description="공극 크기를 층마다 정밀하게 다르게 만든다", needs=["다층 공정"], provides=["층별 공극 구조"], feasible, rationale="다층 성형 기술로 가능", **recommendedDomain="다층 폼 성형", recommendedSolution="그래디언트 공극 적층"**)
+  - B (결합, name="중력 흐름", description="액체가 중력으로 아래 층으로 간다", needs=["층별 공극 구조", "중력"], provides=["아래 방향 흐름"], feasible, **recommendedDomain="유체역학 drainage", recommendedSolution="중력 흐름 경로 설계"**)
+  - C (결합, name="역류 차단", description="역류 시 큰 공극이 흐름을 물리적으로 막는다", needs=["아래 방향 흐름", "큰 공극의 차단력"], provides=["방향성"], **feasibility="infeasible"** — 큰 공극이 역류를 어떻게 선택적으로 막는지 비자명. 유체는 공극 크기만으로는 방향 선택 못 함. conflictingNeed="큰 공극의 차단력", resolvedGoal="역류를 물리적으로 선택 차단하는 구조", rationale="공극 크기만으로 방향성이 성립하지 않음", **recommendedDomain="단방향 밸브 물리학", recommendedSolution="밸브형 방향성 공극"**)
+  - D (완성, name="착용 두께", description="전체 구조가 착용 가능한 두께에 들어간다", needs=["층별 공극 구조", "방향성"], provides=["완제품"], feasible, **recommendedDomain="초슬림 흡수층 공학", recommendedSolution="박막 다층 복합 구조"**)
 - danglingNeeds: []
 
 **핵심 패턴 (레벨 B)**: facet 자체의 작동 조건을 분해하고, 그 메커니즘의 **가장 비자명한 지점**(여기서는 "방향성 흐름"의 성립)을 infeasible로 지정. **"흡수력", "측면 밀봉"처럼 root 생리대 수준 요건은 끌어오지 않았음**에 주목.
 
+## recommendedDomain + recommendedSolution — 요건별 1차 제안 (필수)
+
+각 요건마다 **그 요건을 메우기 위한 사용자의 "출발점"**을 함께 적는다. 라이트 형제가 비행기를 설계할 때 적었다는 (가지 · 빌려온 도메인 · 공부할 것) 표의 뒤 두 셀과 완전히 같은 포맷 — **도메인(단어) + 공부할 대상(명사구)**.
+
+**참조 포맷 (라이트 형제 표):**
+| 가지 | 빌려온 도메인 | 그래서 공부할 것 |
+|---|---|---|
+| 양력 | 조류학/유체역학 | 날개 단면 (캠버) |
+| 추력 | 선박 프로펠러 설계 | 비틀림 각도 |
+| 조종 | 자전거 균형 | 3축 제어 (요/피치/롤) |
+
+- recommendedDomain은 **구체 분야·사례 집합** 수준의 짧은 단어. "공학"·"물리학" 같은 상위 추상 금지. "자전거 균형"·"선박 프로펠러 설계"처럼 **참조 사례를 떠올릴 수 있는 라벨**.
+- recommendedSolution은 **그 도메인에서 공부·적용할 구체 대상의 이름 (명사구)**. 문장 금지. "~한다"·"~로 ~을 만든다" 식 서술 금지. 라이트 표의 "날개 단면 (캠버)" 수준으로 **대상 이름만**.
+
+예 — "아이가 손가락 넣어도 안전한 선풍기"
+- A (바람 생성, infeasible): recommendedDomain="진공청소기 송풍", recommendedSolution="축류 임펠러"
+- B (안전성): recommendedDomain="가드·메쉬 디자인", recommendedSolution="손가락 접근 격자 치수"
+- C (저소음): recommendedDomain="축류팬 소음 제어", recommendedSolution="다익 저속 블레이드"
+- D (가정용): recommendedDomain="소형 가전 폼팩터", recommendedSolution="책상 치수 규격"
+
+infeasible 요건에도 반드시 1차 제안을 적는다 — 사용자가 거기서 출발해 매트릭스에서 더 나은 걸 찾는다.
+
 규칙 요약:
 - **baselineProduct + baselineLimitation 필수** — 전체 분석의 기준점.
 - requirements는 **정확히 3~4개**.
+- 각 요건에 **recommendedDomain + recommendedSolution 필수**.
 - **1개(최대 2개) 요건이 infeasible** — baselineLimitation을 뚫는 지점. 사이드 디테일 금지.
 - resolvedGoal이 baselineProduct 카테고리 자체를 재정의해야 함.
 - danglingNeeds는 **0~1개가 보통**. 외부 공급 전제 토큰(전기/공기/자본 등) 절대 포함 금지.
@@ -362,6 +398,8 @@ needs 토큰도 같은 원칙: "생체적합성", "임상데이터", "규제기�
       "provides": ["토큰3"],
       "feasibility": "feasible" | "infeasible" | "unknown",
       "rationale": "최대 40자 한 줄 근거",
+      "recommendedDomain": "4~12자 빌려올 지식 도메인",
+      "recommendedSolution": "4~16자 명사구 — 그 도메인에서 공부/적용할 대상 (문장 금지)",
       "substituteDirections": ["대체 방향 1", "..."],
       "conflictingNeed": "충돌 토큰 (infeasible만)",
       "resolvedGoal": "충돌 해결된 상태의 재진술 목표문 (infeasible만)"
