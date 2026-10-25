@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useIdea, principleKey } from "../state/IdeaContext";
 import { FacetNode, CombinedIdeasBoardSection } from "./DecompositionTree";
 import DirectionChipRow from "./DirectionChipRow";
@@ -16,6 +16,7 @@ import {
   feasibilityPalette,
 } from "@/lib/verify";
 import { lensLabel } from "@/lib/lenses";
+import { apiPath } from "@/lib/apiPath";
 
 export default function PendingTopicCard() {
   const {
@@ -76,6 +77,17 @@ export default function PendingTopicCard() {
   // 해결 버튼을 한 자리에 노출해, 미해결 "하나"가 아니라 전체 공간에서
   // 바로 매트릭스를 열 수 있게 한다.
   const [verifyView, setVerifyView] = useState<"list" | "table">("list");
+  // Verify 완료 후 각 요건에 recommend-chips 를 lazy fetch 해서 상위 1개
+  // (category=도메인, chipText=해결책)를 inline 추천으로 노출.
+  // LLM이 verify 응답에 recommendedDomain/Solution을 안정적으로 안 적어줘서
+  // 추천 API를 pre-fill 소스로 쓴다. 키 = `${genKey}::${reqId}`.
+  type AutoRec = { domain: string; chipText: string };
+  const [autoRecs, setAutoRecs] = useState<
+    Record<string, AutoRec | null>
+  >({});
+  // 중복 fetch 방지용 ref — key = `${genKey}::${reqId}`. 상태(autoRecs) 를
+  // 의존성에 넣으면 effect가 자기 자신을 재발화하므로 ref로 추적.
+  const autoRecAttempted = useRef<Set<string>>(new Set());
   const verifyColRef = useRef<HTMLDivElement>(null);
   const prevGenCountRef = useRef(0);
   const combineColRef = useRef<HTMLDivElement>(null);
@@ -216,6 +228,58 @@ export default function PendingTopicCard() {
     });
     return () => cancelAnimationFrame(raf);
   }, [vGens.length]);
+
+  // Verify 완료 후 각 요건에 recommend-chips 1회 호출해 상위 1개를
+  // (category=도메인, chipText=해결책) 추천으로 저장. LLM이 verify 응답에
+  // recommendedDomain/Solution을 안정적으로 안 적어주므로 추천 API를
+  // pre-fill 소스로 쓴다. 요청은 요건마다 1번만 (ref로 중복 방지).
+  useEffect(() => {
+    if (!pendingTopic) return;
+    for (const gen of vGens) {
+      for (const r of gen.report.requirements) {
+        const key = `${gen.key}::${r.id}`;
+        if (autoRecAttempted.current.has(key)) continue;
+        autoRecAttempted.current.add(key);
+        setAutoRecs((prev) => ({ ...prev, [key]: null }));
+        void fetch(apiPath("/api/recommend-chips"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            topicText: pendingTopic,
+            axis: "주제",
+            principle: r.name,
+            perCategory: 1,
+          }),
+        })
+          .then(async (res) => {
+            if (!res.ok) return;
+            const data = (await res.json()) as {
+              recommendations?: Record<
+                string,
+                Array<{ chipText?: string }>
+              >;
+            };
+            const recs = data.recommendations ?? {};
+            const firstCat = Object.keys(recs).find(
+              (c) => !!recs[c]?.[0]?.chipText,
+            );
+            const top = firstCat ? recs[firstCat]?.[0] : null;
+            if (top?.chipText && firstCat) {
+              setAutoRecs((prev) => ({
+                ...prev,
+                [key]: {
+                  domain: firstCat,
+                  chipText: top.chipText as string,
+                },
+              }));
+            }
+          })
+          .catch(() => {
+            // 조용히 실패 — null 그대로 두고 inline 추천 안 보여줌
+          });
+      }
+    }
+  }, [vGens, pendingTopic]);
 
   return (
     <div className="mt-6 flex w-max items-start gap-4">
@@ -550,8 +614,21 @@ export default function PendingTopicCard() {
                             </li>
                           );
                         }
+                        const recKey = `${v.key}::${r.id}`;
+                        const rec = autoRecs[recKey];
+                        const openRecPicker = () => {
+                          if (canResolveReq(r)) resolveForReq(r);
+                          else if (r.provides[0])
+                            openPanelForOutput(
+                              r.provides[0],
+                              r.id,
+                            );
+                        };
                         return (
-                          <li key={r.id}>
+                          <li
+                            key={r.id}
+                            className="flex flex-col gap-1"
+                          >
                             <button
                               onClick={expandReq}
                               title="클릭하여 이 요건을 다시 분해"
@@ -601,6 +678,35 @@ export default function PendingTopicCard() {
                                 </div>
                               )}
                             </button>
+                            {/*
+                              Pre-fill 추천: recommend-chips API 상위 1개
+                              (category=빌려올 도메인, chipText=공부할 대상).
+                              클릭 시 매트릭스 열려 사용자가 변경 가능.
+                            */}
+                            {rec && (
+                              <div className="flex items-center gap-1.5 pl-3 text-[11px] md:text-[10px]">
+                                <span
+                                  aria-hidden
+                                  className="text-amber-200/80"
+                                >
+                                  🪄
+                                </span>
+                                <span className="font-medium text-text-primary">
+                                  {rec.domain}
+                                </span>
+                                <span className="text-text-muted">
+                                  ·
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={openRecPicker}
+                                  title="매트릭스에서 다른 걸로 변경"
+                                  className="rounded border border-dashed border-white/30 px-1.5 py-0.5 text-text-muted hover:text-text-primary"
+                                >
+                                  {rec.chipText}
+                                </button>
+                              </div>
+                            )}
                           </li>
                         );
                       })}
