@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useIdea, principleKey } from "../state/IdeaContext";
 import { FacetNode, CombinedIdeasBoardSection } from "./DecompositionTree";
 import DirectionChipRow from "./DirectionChipRow";
@@ -55,6 +55,7 @@ export default function PendingTopicCard() {
     combinedIdeas,
     attachedChips,
     combineStatus,
+    runCombine,
     clearCombined,
     focusedCombinedIdeaId,
     setFocusedCombinedIdeaId,
@@ -73,17 +74,42 @@ export default function PendingTopicCard() {
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [topicSubmitting, setTopicSubmitting] = useState(false);
-  // 요건 뷰 모드: 세로 리스트(기본) vs 가로 표. 표는 모든 미해결 요건의
-  // 해결 버튼을 한 자리에 노출해, 미해결 "하나"가 아니라 전체 공간에서
-  // 바로 매트릭스를 열 수 있게 한다.
-  const [verifyView, setVerifyView] = useState<"list" | "table">("list");
-  // Verify 완료 후 각 요건에 recommend-chips 를 lazy fetch 해서 상위 1개
-  // (category=도메인, chipText=해결책)를 inline 추천으로 노출.
-  // LLM이 verify 응답에 recommendedDomain/Solution을 안정적으로 안 적어줘서
-  // 추천 API를 pre-fill 소스로 쓴다. 키 = `${genKey}::${reqId}`.
-  type AutoRec = { domain: string; chipText: string };
+  // Verify 완료 후 각 요건에 recommend-chips 를 lazy fetch. 첫 번째를
+  // (도메인·해결책) 셀 기본값으로 쓰고, 전체 리스트는 사용자가 셀을 눌렀을
+  // 때 inline 드롭다운에 노출. 키 = `${genKey}::${reqId}`.
+  type AutoRec = {
+    domain: string;
+    chipText: string;
+    reason: string;
+    // 도메인 떼어낸 기능 설명 — "제트 도메인이라 안 어울려" 식의 도메인
+    // 인접성 기각을 피하기 위해 chip 선택 시 함수 레벨 판단 근거로 노출.
+    coreFunction?: string;
+    // 실제 쓰이는 산업/제품 — 신뢰 보조 (판단 기준 아님, 작은 캡션으로).
+    priorArt?: string;
+  };
   const [autoRecs, setAutoRecs] = useState<
-    Record<string, AutoRec | null>
+    Record<string, AutoRec[] | null>
+  >({});
+  // 드롭다운 열림 상태 — 요건 블록 단위, "도메인" / "해결책" 두 모드.
+  // key = `${genKey}::${reqId}`, value = "domain" | "solution" | 없음(닫힘).
+  // B안 구조: 두 pill이 각자 자기 모드로 드롭다운을 연다.
+  type DropdownMode = "domain" | "solution";
+  const [openDropdowns, setOpenDropdowns] = useState<
+    Record<string, DropdownMode | null>
+  >({});
+  // 사용자가 명시적으로 고른 도메인 필터. 해결책 드롭다운이 이 값으로
+  // chip 리스트를 필터링한다. null/undefined이면 전체 chip 노출.
+  // 사용자가 chip을 확인하면 primary.domain이 pill display를 덮어쓰지만,
+  // 필터 상태는 selectedDomain에 그대로 남는다.
+  const [selectedDomain, setSelectedDomain] = useState<
+    Record<string, string | null>
+  >({});
+  // 드롭다운에서 사용자가 "선택"만 한 chip의 식별자(`${domain}::${chipText}`).
+  // 클릭 즉시 combine을 돌리지 않고 핵심 함수/priorArt/확인 버튼을 인라인
+  // 으로 펼친 뒤, 확인에서 비로소 combine 실행. 필터로 pool이 재구성돼도
+  // 식별자가 안정적이도록 index 대신 key 사용.
+  const [selectedChipKey, setSelectedChipKey] = useState<
+    Record<string, string>
   >({});
   // 중복 fetch 방지용 ref — key = `${genKey}::${reqId}`. 상태(autoRecs) 를
   // 의존성에 넣으면 effect가 자기 자신을 재발화하므로 ref로 추적.
@@ -229,57 +255,65 @@ export default function PendingTopicCard() {
     return () => cancelAnimationFrame(raf);
   }, [vGens.length]);
 
-  // Verify 완료 후 각 요건에 recommend-chips 1회 호출해 상위 1개를
-  // (category=도메인, chipText=해결책) 추천으로 저장. LLM이 verify 응답에
-  // recommendedDomain/Solution을 안정적으로 안 적어주므로 추천 API를
-  // pre-fill 소스로 쓴다. 요청은 요건마다 1번만 (ref로 중복 방지).
-  useEffect(() => {
+  // Lazy 추천 호출 — 사용자가 특정 가지의 드롭다운을 처음 여는 순간에만
+  // recommend-chips 1회. verify 완료 시 모든 요건에 eager fetch하면 안
+  // 열어볼 가지까지 토큰이 나가므로, 열람 시점에 요청하도록 격하.
+  // 요건마다 1번만 (ref로 중복 방지).
+  const ensureAutoRecs = (key: string, principleName: string) => {
+    if (autoRecAttempted.current.has(key)) return;
     if (!pendingTopic) return;
-    for (const gen of vGens) {
-      for (const r of gen.report.requirements) {
-        const key = `${gen.key}::${r.id}`;
-        if (autoRecAttempted.current.has(key)) continue;
-        autoRecAttempted.current.add(key);
-        setAutoRecs((prev) => ({ ...prev, [key]: null }));
-        void fetch(apiPath("/api/recommend-chips"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            topicText: pendingTopic,
-            axis: "주제",
-            principle: r.name,
-            perCategory: 1,
-          }),
-        })
-          .then(async (res) => {
-            if (!res.ok) return;
-            const data = (await res.json()) as {
-              recommendations?: Record<
-                string,
-                Array<{ chipText?: string }>
-              >;
-            };
-            const recs = data.recommendations ?? {};
-            const firstCat = Object.keys(recs).find(
-              (c) => !!recs[c]?.[0]?.chipText,
-            );
-            const top = firstCat ? recs[firstCat]?.[0] : null;
-            if (top?.chipText && firstCat) {
-              setAutoRecs((prev) => ({
-                ...prev,
-                [key]: {
-                  domain: firstCat,
-                  chipText: top.chipText as string,
-                },
-              }));
+    autoRecAttempted.current.add(key);
+    setAutoRecs((prev) => ({ ...prev, [key]: null }));
+    void fetch(apiPath("/api/recommend-chips"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        topicText: pendingTopic,
+        axis: "주제",
+        principle: principleName,
+        // 5개씩 뽑아야 "도메인 → 해결책" 2단계 필터링에서 각 도메인에
+        // 선택지가 5~6개 수준으로 유지됨. 더 올리면 LLM이 억지로 채우며
+        // 품질 떨어지고 토큰도 과함.
+        perCategory: 5,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          recommendations?: Record<
+            string,
+            Array<{
+              chipText?: string;
+              reason?: string;
+              coreFunction?: string;
+              priorArt?: string;
+            }>
+          >;
+        };
+        const recs = data.recommendations ?? {};
+        const flat: AutoRec[] = [];
+        for (const [cat, arr] of Object.entries(recs)) {
+          if (!Array.isArray(arr)) continue;
+          for (const item of arr) {
+            if (item?.chipText) {
+              flat.push({
+                domain: cat,
+                chipText: item.chipText,
+                reason: item.reason ?? "",
+                coreFunction: item.coreFunction?.trim() || undefined,
+                priorArt: item.priorArt?.trim() || undefined,
+              });
             }
-          })
-          .catch(() => {
-            // 조용히 실패 — null 그대로 두고 inline 추천 안 보여줌
-          });
-      }
-    }
-  }, [vGens, pendingTopic]);
+          }
+        }
+        if (flat.length > 0) {
+          setAutoRecs((prev) => ({ ...prev, [key]: flat }));
+        }
+      })
+      .catch(() => {
+        // 조용히 실패 — null 그대로 두고 추천 안 보여줌
+      });
+  };
 
   return (
     <div className="mt-6 flex w-max items-start gap-4">
@@ -520,9 +554,6 @@ export default function PendingTopicCard() {
                   setChipPanelOpen(true);
                   void runChipFocusMatrix(sel.axis, sel.name, sel.text);
                 };
-                const infeasibleReqs = v.report.requirements.filter(
-                  (r) => r.feasibility === "infeasible",
-                );
                 const danglingByReq = new Map<string, string>();
                 v.report.danglingNeeds.forEach((d) => {
                   // 한 요건에 여러 dangling이 있을 수 있으나 UI에선 첫 하나로
@@ -548,472 +579,456 @@ export default function PendingTopicCard() {
                 ) =>
                   r.feasibility === "infeasible" || danglingByReq.has(r.id);
                 return (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-end">
-                      <div className="inline-flex overflow-hidden rounded-md border border-white/15 text-[10px]">
-                        <button
-                          type="button"
-                          onClick={() => setVerifyView("list")}
-                          className={`px-2 py-0.5 ${
-                            verifyView === "list"
-                              ? "bg-white/15 text-text-primary"
-                              : "text-text-muted hover:text-text-primary"
-                          }`}
-                        >
-                          리스트
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setVerifyView("table")}
-                          className={`px-2 py-0.5 ${
-                            verifyView === "table"
-                              ? "bg-white/15 text-text-primary"
-                              : "text-text-muted hover:text-text-primary"
-                          }`}
-                        >
-                          표
-                        </button>
-                      </div>
-                    </div>
-                    {verifyView === "list" ? (
-                    <ul className="flex flex-col gap-0.5">
-                      {orderedReqs.map((r) => {
-                        const pal = feasibilityPalette[r.feasibility];
-                        const hasIO =
-                          r.needs.length > 0 || r.provides.length > 0;
-                        const pk = principleKey("주제", r.name);
-                        const isExpanded = expandedPrinciples.has(pk);
-                        const expandReq = () => {
-                          const sel = {
-                            axis: "주제",
-                            name: r.name,
-                            text: r.description || r.name,
+                  <div className="flex flex-col gap-3">
+                    {/*
+                      요건 블록 리스트. 각 블록:
+                        - 가지 제목 (비활성, 클릭 불가)
+                        - 도메인·해결책 두 보더 드롭다운 버튼이 가로로
+                        - 둘 중 하나 클릭 시 동일한 inline 드롭다운 open
+                      라이트 형제 표를 블록으로 세워 재구성한 포맷.
+                    */}
+                    {orderedReqs.map((r) => {
+                      const pal = feasibilityPalette[r.feasibility];
+                      const rpk = principleKey("주제", r.name);
+                      const dropdownKey = `${v.key}::${r.id}`;
+                      const openMode = openDropdowns[dropdownKey] ?? null;
+                      const isDomainOpen = openMode === "domain";
+                      const isSolutionOpen = openMode === "solution";
+                      const isOpen = openMode !== null;
+                      const domainFilter = selectedDomain[dropdownKey] ?? null;
+                      // 이 요건에 꽂힌 칩: attachedChips 우선, 그다음 매트릭스
+                      // 조합 결과(combinedIdeas, topicName이 요건명 또는
+                      // "{provides} 공급원"에 걸린 것). chipText로 dedup.
+                      const attached = attachedChips[rpk] ?? [];
+                      const scopedTopicNames = new Set<string>([
+                        r.name,
+                        ...r.provides.map((p) => `${p} 공급원`),
+                      ]);
+                      const relatedCombined = combinedIdeas.filter(
+                        (ci) =>
+                          ci.topicAxis === "주제" &&
+                          !!ci.topicName &&
+                          scopedTopicNames.has(ci.topicName),
+                      );
+                      const seen = new Set<string>();
+                      const solutions: Array<{
+                        chipText: string;
+                        domain?: string;
+                      }> = [];
+                      for (const a of attached) {
+                        if (seen.has(a.chipText)) continue;
+                        seen.add(a.chipText);
+                        solutions.push({
+                          chipText: a.chipText,
+                          domain: a.kindOrCategory,
+                        });
+                      }
+                      for (const ci of relatedCombined) {
+                        if (seen.has(ci.chipText)) continue;
+                        seen.add(ci.chipText);
+                        solutions.push({ chipText: ci.chipText });
+                      }
+                      const primary = solutions[0];
+                      const pool = autoRecs[dropdownKey] ?? null;
+                      const topRec = pool?.[0] ?? null;
+                      // 도메인 리스트 (pool에서 unique 추출, 등장 순서 유지).
+                      // B안 도메인 pill 드롭다운이 이 리스트를 보여준다.
+                      const uniqueDomains = pool
+                        ? Array.from(new Set(pool.map((c) => c.domain)))
+                        : [];
+                      // 해결책 pill 드롭다운이 노출할 chip 리스트. 사용자가
+                      // 도메인 필터를 명시했으면 그 도메인으로만, 아니면 전체.
+                      const filteredPool = pool
+                        ? domainFilter
+                          ? pool.filter((c) => c.domain === domainFilter)
+                          : pool
+                        : null;
+                      // 표시 우선순위 (도메인):
+                      //   1. 사용자가 확인한 chip의 도메인 (primary)
+                      //   2. 사용자가 명시 선택한 필터 도메인
+                      //   3. LLM 1차 추천 (r.recommendedDomain)
+                      //   4. recommend-chips 자동 추천 (topRec)
+                      const displayDomain =
+                        primary?.domain ??
+                        domainFilter ??
+                        r.recommendedDomain ??
+                        topRec?.domain ??
+                        null;
+                      const domainIsDefault =
+                        !primary?.domain &&
+                        !domainFilter &&
+                        (!!r.recommendedDomain || !!topRec?.domain);
+                      const displaySolution =
+                        primary?.chipText ??
+                        r.recommendedSolution ??
+                        topRec?.chipText ??
+                        null;
+                      const solutionIsDefault =
+                        !primary &&
+                        (!!r.recommendedSolution || !!topRec?.chipText);
+                      const infeasibleWarn =
+                        r.feasibility === "infeasible";
+                      const danglingWarn = danglingByReq.has(r.id);
+                      // 둘 중 하나의 모드로 드롭다운을 토글. 같은 모드 재
+                      // 클릭 시 닫히고, 다른 모드 클릭 시 그 모드로 전환.
+                      // 어느 쪽을 열든 pool이 공유되므로 양쪽 다 lazy fetch
+                      // 트리거.
+                      const openAs = (mode: DropdownMode) => {
+                        setOpenDropdowns((prev) => {
+                          const curr = prev[dropdownKey] ?? null;
+                          return {
+                            ...prev,
+                            [dropdownKey]: curr === mode ? null : mode,
                           };
-                          selectPrinciple(sel);
-                          markPrincipleExpanded(pk);
-                          void runRecommendChips(
-                            "주제",
-                            r.name,
-                            sel.text,
-                          );
-                        };
-                        if (isExpanded) {
-                          return (
-                            <li key={r.id}>
-                              <FacetNode
-                                rootAxis="주제"
-                                pathName={r.name}
-                                facetName={`${r.id}. ${r.description || r.name}`}
-                                facetText={
-                                  r.rationale ||
-                                  (hasIO
-                                    ? `${r.needs.join(" + ")}${r.provides.length ? ` → ${r.provides.join(" + ")}` : ""}`
-                                    : r.description)
-                                }
-                              />
-                            </li>
-                          );
+                        });
+                        ensureAutoRecs(dropdownKey, r.name);
+                      };
+                      // 도메인 리스트에서 하나를 고르면 그 도메인으로 필터
+                      // 세팅 + 해결책 모드로 자동 전환 (B안의 2단계 흐름:
+                      // "먼저 분야 → 그 안에서").
+                      const pickDomain = (domain: string | null) => {
+                        setSelectedDomain((prev) => ({
+                          ...prev,
+                          [dropdownKey]: domain,
+                        }));
+                        setOpenDropdowns((prev) => ({
+                          ...prev,
+                          [dropdownKey]: "solution",
+                        }));
+                        // 필터가 바뀌면 이전에 선택된 chip이 보이지 않을
+                        // 수 있으므로 선택 초기화.
+                        setSelectedChipKey((prev) => {
+                          const next = { ...prev };
+                          delete next[dropdownKey];
+                          return next;
+                        });
+                      };
+                      const confirmChip = async (chip: AutoRec) => {
+                        // 요건을 selectedPrinciple로 세팅 → runCombine의
+                        // topicFacet이 이 요건을 가리킴 → combinedIdea가
+                        // 생성되어 primary로 올라옴.
+                        selectPrinciple({
+                          axis: "주제",
+                          name: r.name,
+                          text: r.description || r.name,
+                        });
+                        setOpenDropdowns((prev) => ({
+                          ...prev,
+                          [dropdownKey]: null,
+                        }));
+                        setSelectedChipKey((prev) => {
+                          const next = { ...prev };
+                          delete next[dropdownKey];
+                          return next;
+                        });
+                        try {
+                          await runCombine({
+                            chipText: chip.chipText,
+                            chipCategory: chip.domain,
+                            chipReason: chip.reason || undefined,
+                          });
+                        } catch {
+                          // 조용히 실패 — 상태는 그대로
                         }
-                        const recKey = `${v.key}::${r.id}`;
-                        const rec = autoRecs[recKey];
-                        const openRecPicker = () => {
-                          if (canResolveReq(r)) resolveForReq(r);
-                          else if (r.provides[0])
-                            openPanelForOutput(
-                              r.provides[0],
-                              r.id,
-                            );
-                        };
-                        return (
-                          <li
-                            key={r.id}
-                            className="flex flex-col gap-1"
+                      };
+                      // 사용자가 어떤 chip을 "선택"만 한 상태 (아직 combine
+                      // 실행 전). 식별자는 "${domain}::${chipText}"로, 필터
+                      // 변화에 안정적.
+                      const chipIdOf = (c: AutoRec) =>
+                        `${c.domain}::${c.chipText}`;
+                      const selChipId = selectedChipKey[dropdownKey] ?? null;
+                      const selectedChip = filteredPool
+                        ? (filteredPool.find(
+                            (c) => chipIdOf(c) === selChipId,
+                          ) ?? null)
+                        : null;
+                      const pillBase =
+                        "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-left transition-colors";
+                      const domainPillClass = (() => {
+                        if (primary?.domain)
+                          return `${pillBase} border-white/20 bg-white/[0.06] text-text-primary hover:border-white/40`;
+                        if (domainIsDefault)
+                          return `${pillBase} border-white/15 bg-white/[0.03] italic text-text-muted hover:border-white/30 hover:text-text-primary`;
+                        if (infeasibleWarn || danglingWarn)
+                          return `${pillBase} border-dashed border-rose-300/60 text-rose-200 hover:border-rose-300`;
+                        return `${pillBase} border-dashed border-white/25 text-text-muted hover:border-white/40 hover:text-text-primary`;
+                      })();
+                      const solutionPillClass = (() => {
+                        if (primary)
+                          return `${pillBase} border-white/20 bg-white/[0.06] text-text-primary hover:border-white/40`;
+                        if (solutionIsDefault)
+                          return `${pillBase} border-white/15 bg-white/[0.03] italic text-text-muted hover:border-white/30 hover:text-text-primary`;
+                        if (infeasibleWarn || danglingWarn)
+                          return `${pillBase} border-dashed border-rose-300/60 text-rose-200 hover:border-rose-300`;
+                        return `${pillBase} border-dashed border-white/25 text-text-muted hover:border-white/40 hover:text-text-primary`;
+                      })();
+                      return (
+                        <div
+                          key={r.id}
+                          className="flex flex-col gap-1.5"
+                        >
+                          {/* 가지 — 제목, 비활성 */}
+                          <div
+                            className={`text-[14px] font-semibold md:text-[13px] ${pal.text}`}
+                            aria-disabled
                           >
+                            {r.name}
+                          </div>
+                          {/* 도메인 + 해결책 — 각자 보더 가진 드롭다운형
+                              버튼. B안: 도메인은 분야 필터 모드, 해결책은
+                              필터된 chip 리스트 모드. */}
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
-                              onClick={expandReq}
-                              title="클릭하여 이 요건을 다시 분해"
-                              className={`flex w-full flex-col gap-0.5 rounded-md px-3 py-1.5 text-left transition-colors ${pal.bg} hover:brightness-110`}
+                              type="button"
+                              onClick={() => openAs("domain")}
+                              className={domainPillClass}
+                              aria-expanded={isDomainOpen}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <div
-                                  className={`text-[13px] md:text-[11px] ${pal.text}`}
-                                >
-                                  <span className="font-semibold">
-                                    {r.id}. {r.description || r.name}
+                              <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                도메인
+                              </span>
+                              <span className="text-[13px] md:text-[12px]">
+                                {displayDomain ?? "선택"}
+                              </span>
+                              <span className="text-text-muted">▾</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openAs("solution")}
+                              className={solutionPillClass}
+                              aria-expanded={isSolutionOpen}
+                            >
+                              <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                해결책
+                              </span>
+                              {(infeasibleWarn || danglingWarn) &&
+                                !primary && (
+                                  <span className="text-rose-300">
+                                    ⚠
                                   </span>
-                                  {r.description &&
-                                    r.name &&
-                                    r.description !== r.name && (
-                                      <span
-                                        className={`ml-1 text-[11px] font-normal md:text-[10px] ${
-                                          r.feasibility === "infeasible"
-                                            ? "text-rose-200/80"
-                                            : "text-text-muted"
+                                )}
+                              <span className="text-[13px] md:text-[12px]">
+                                {displaySolution ?? "선택"}
+                              </span>
+                              <span className="text-text-muted">▾</span>
+                            </button>
+                          </div>
+                          {/* 도메인 모드 — pool에서 unique 도메인만 리스트.
+                              클릭 시 selectedDomain 세팅 + 해결책 모드로 자동
+                              전환. "모두" 옵션으로 필터 해제도 가능. */}
+                          {isDomainOpen && (
+                            <div className="mt-0.5 flex flex-col gap-0.5 rounded-md border border-white/[0.1] bg-white/[0.04] p-1.5">
+                              {pool === null ? (
+                                <div className="px-2 py-1.5 text-[11px] text-text-muted">
+                                  추천 로딩…
+                                </div>
+                              ) : uniqueDomains.length === 0 ? (
+                                <div className="px-2 py-1.5 text-[11px] text-text-muted">
+                                  추천 없음
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => pickDomain(null)}
+                                    className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
+                                      domainFilter === null
+                                        ? "bg-white/[0.1] text-text-primary"
+                                        : "text-text-muted hover:bg-white/[0.06]"
+                                    }`}
+                                  >
+                                    <span>모두 보기</span>
+                                    <span className="shrink-0 text-[10px] text-text-muted">
+                                      {pool.length}개
+                                    </span>
+                                  </button>
+                                  {uniqueDomains.map((d) => {
+                                    const count = pool.filter(
+                                      (c) => c.domain === d,
+                                    ).length;
+                                    const isActive = domainFilter === d;
+                                    return (
+                                      <button
+                                        key={`dom-${d}`}
+                                        type="button"
+                                        onClick={() => pickDomain(d)}
+                                        className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
+                                          isActive
+                                            ? "bg-white/[0.1] text-text-primary"
+                                            : "text-text-primary hover:bg-white/[0.06]"
                                         }`}
                                       >
-                                        ({r.name})
-                                      </span>
-                                    )}
-                                </div>
-                                <span
-                                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider ${pal.chip}`}
-                                >
-                                  {feasibilityLabel[r.feasibility]}
-                                </span>
-                              </div>
-                              {hasIO && (
-                                <div
-                                  className={`text-[10px] leading-4 md:text-[9px] ${
-                                    r.feasibility === "infeasible"
-                                      ? "text-rose-200/80"
-                                      : "text-text-muted"
-                                  }`}
-                                >
-                                  {r.needs.length > 0 && r.needs.join(" + ")}
-                                  {r.needs.length > 0 &&
-                                    r.provides.length > 0 &&
-                                    " → "}
-                                  {r.provides.length > 0 &&
-                                    r.provides.join(" + ")}
+                                        <span className="truncate">{d}</span>
+                                        <span className="shrink-0 text-[10px] text-text-muted">
+                                          {count}개
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {/* 해결책 모드 — domainFilter로 필터된 chip 리스트.
+                              각 chip 클릭 = "선택"만 (combine은 아직). 선택
+                              chip 바로 아래에 핵심 함수·priorArt·확인 버튼이
+                              펼쳐지고, 확인에서 비로소 조합을 돌린다. */}
+                          {isSolutionOpen && (
+                            <div className="mt-0.5 flex flex-col gap-0.5 rounded-md border border-white/[0.1] bg-white/[0.04] p-1.5">
+                              {domainFilter && (
+                                <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-2 pb-1.5 pt-0.5 text-[10px] text-text-muted">
+                                  <span>
+                                    도메인:{" "}
+                                    <span className="text-text-secondary">
+                                      {domainFilter}
+                                    </span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => pickDomain(null)}
+                                    className="rounded text-text-muted hover:text-text-primary"
+                                  >
+                                    해제 ×
+                                  </button>
                                 </div>
                               )}
-                            </button>
-                            {/*
-                              Pre-fill 추천: recommend-chips API 상위 1개
-                              (category=빌려올 도메인, chipText=공부할 대상).
-                              클릭 시 매트릭스 열려 사용자가 변경 가능.
-                            */}
-                            {rec && (
-                              <div className="flex items-center gap-1.5 pl-3 text-[11px] md:text-[10px]">
-                                <span
-                                  aria-hidden
-                                  className="text-amber-200/80"
-                                >
-                                  🪄
-                                </span>
-                                <span className="font-medium text-text-primary">
-                                  {rec.domain}
-                                </span>
-                                <span className="text-text-muted">
-                                  ·
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={openRecPicker}
-                                  title="매트릭스에서 다른 걸로 변경"
-                                  className="rounded border border-dashed border-white/30 px-1.5 py-0.5 text-text-muted hover:text-text-primary"
-                                >
-                                  {rec.chipText}
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    ) : (
-                      <div className="overflow-x-auto rounded-md border border-white/[0.08]">
-                        {/*
-                          해결 중심 테이블. tier(기반·결합·완성)은 "문제를 어떻게
-                          쪼갤 것인가"의 뼈대로서 가지 셀 안에 작은 뱃지로만
-                          남기고, 주 시각 축은 "실제로 어떤 해결책을 꽂았나"로
-                          둔다. 라이트 형제 사례의 (가지 · 빌려온 도메인 ·
-                          공부할 것) 구성과 맞춤.
-                        */}
-                        <table className="w-full border-collapse text-left text-[11px] md:text-[10px]">
-                          <thead>
-                            <tr className="bg-white/[0.04] text-[9px] uppercase tracking-wider text-text-muted">
-                              <th className="px-2 py-1.5 font-medium">가지</th>
-                              <th className="px-2 py-1.5 font-medium">빌려온 도메인</th>
-                              <th className="px-2 py-1.5 font-medium">해결책</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orderedReqs.map((r) => {
-                              const pal = feasibilityPalette[r.feasibility];
-                              const rpk = principleKey("주제", r.name);
-                              const isExpanded =
-                                expandedPrinciples.has(rpk);
-                              // 이 요건에 꽂힌 칩 수집: attachedChips(도메인
-                              // 포함) 우선, 그다음 매트릭스 조합 결과
-                              // (combinedIdeas, topicName이 요건명 또는
-                              // "{provides} 공급원"에 걸린 것). chipText로
-                              // 중복 제거하고 attachedChips 쪽 메타(도메인)를
-                              // 우선 보존.
-                              const attached =
-                                attachedChips[rpk] ?? [];
-                              const scopedTopicNames = new Set<string>([
-                                r.name,
-                                ...r.provides.map(
-                                  (p) => `${p} 공급원`,
-                                ),
-                              ]);
-                              const relatedCombined =
-                                combinedIdeas.filter(
-                                  (ci) =>
-                                    ci.topicAxis === "주제" &&
-                                    !!ci.topicName &&
-                                    scopedTopicNames.has(
-                                      ci.topicName,
-                                    ),
-                                );
-                              const seen = new Set<string>();
-                              const solutions: Array<{
-                                chipText: string;
-                                domain?: string;
-                              }> = [];
-                              for (const a of attached) {
-                                if (seen.has(a.chipText)) continue;
-                                seen.add(a.chipText);
-                                solutions.push({
-                                  chipText: a.chipText,
-                                  domain: a.kindOrCategory,
-                                });
-                              }
-                              for (const ci of relatedCombined) {
-                                if (seen.has(ci.chipText)) continue;
-                                seen.add(ci.chipText);
-                                solutions.push({
-                                  chipText: ci.chipText,
-                                });
-                              }
-                              const primary = solutions[0];
-                              const extraCount = solutions.length - 1;
-                              // 표시 우선순위:
-                              //   1. 사용자가 꽂은 칩 (primary) — 확정
-                              //   2. LLM 1차 추천 (recommendedDomain/
-                              //      recommendedSolution) — 기본값, italic
-                              //   3. 비어있음 — "+" 플레이스홀더
-                              const displayDomain =
-                                primary?.domain ??
-                                r.recommendedDomain ??
-                                null;
-                              const domainIsDefault =
-                                !primary?.domain && !!r.recommendedDomain;
-                              const displaySolution =
-                                primary?.chipText ??
-                                r.recommendedSolution ??
-                                null;
-                              const solutionIsDefault =
-                                !primary && !!r.recommendedSolution;
-                              const infeasibleWarn =
-                                r.feasibility === "infeasible";
-                              const danglingWarn = danglingByReq.has(
-                                r.id,
-                              );
-                              const expandReq = () => {
-                                const sel = {
-                                  axis: "주제",
-                                  name: r.name,
-                                  text: r.description || r.name,
-                                };
-                                selectPrinciple(sel);
-                                markPrincipleExpanded(rpk);
-                                void runRecommendChips(
-                                  "주제",
-                                  r.name,
-                                  sel.text,
-                                );
-                              };
-                              // 셀 클릭 공통: 미해결(infeasible/dangling)이면
-                              // 기존 resolveForReq 로직(제외칩/공급원 매트릭스
-                              // 자동 분기), 아니면 주 provides 토큰으로 매트릭스.
-                              const openPicker = () => {
-                                if (canResolveReq(r)) {
-                                  resolveForReq(r);
-                                } else if (r.provides[0]) {
-                                  openPanelForOutput(
-                                    r.provides[0],
-                                    r.id,
-                                  );
-                                }
-                              };
-                              return [
-                                /*
-                                  Wright 형제 표 포맷 그대로: 요건당 1행,
-                                  3컬럼 모두 짧은 단어/명사구. 문장 형태의
-                                  요건은 행 클릭 시 분해 트리에서 노출.
-                                  tier(기반·결합·완성)는 가지 셀 안쪽 작은
-                                  뱃지로 "뼈대"로서만 유지.
-                                */
-                                <tr
-                                  key={r.id}
-                                  onClick={expandReq}
-                                  className="cursor-pointer border-t border-white/[0.08] align-top hover:bg-white/[0.03]"
-                                >
-                                  <td className="px-2 py-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="inline-flex shrink-0 items-center rounded px-1 py-0 text-[8px] font-bold tracking-wider text-text-muted ring-1 ring-inset ring-white/15">
-                                        {r.tier}
-                                      </span>
-                                      <span
-                                        className={`font-semibold ${pal.text}`}
-                                      >
-                                        {r.name}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td
-                                    className="cursor-pointer px-2 py-1.5"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openPicker();
-                                    }}
-                                  >
-                                    {displayDomain ? (
-                                      <span
-                                        className={
-                                          domainIsDefault
-                                            ? "italic text-text-muted/80"
-                                            : "text-text-primary"
+                              {pool === null ? (
+                                <div className="px-2 py-1.5 text-[11px] text-text-muted">
+                                  추천 로딩…
+                                </div>
+                              ) : !filteredPool || filteredPool.length === 0 ? (
+                                <div className="px-2 py-1.5 text-[11px] text-text-muted">
+                                  {domainFilter
+                                    ? "이 도메인에 추천 없음"
+                                    : "추천 없음"}
+                                </div>
+                              ) : (
+                                filteredPool.map((chip) => {
+                                  const chipId = chipIdOf(chip);
+                                  const isSelected =
+                                    selChipId === chipId &&
+                                    selectedChip !== null;
+                                  return (
+                                    <div
+                                      key={chipId}
+                                      className="flex flex-col"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedChipKey((prev) =>
+                                            prev[dropdownKey] === chipId
+                                              ? (() => {
+                                                  const next = { ...prev };
+                                                  delete next[dropdownKey];
+                                                  return next;
+                                                })()
+                                              : {
+                                                  ...prev,
+                                                  [dropdownKey]: chipId,
+                                                },
+                                          )
                                         }
+                                        title={chip.reason || undefined}
+                                        aria-expanded={isSelected}
+                                        className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
+                                          isSelected
+                                            ? "bg-white/[0.1] text-text-primary"
+                                            : "hover:bg-white/[0.06]"
+                                        }`}
                                       >
-                                        {displayDomain}
-                                      </span>
-                                    ) : (
-                                      <span className="text-text-muted">
-                                        —
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="cursor-pointer px-2 py-1.5"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openPicker();
-                                    }}
-                                  >
-                                    {primary ? (
-                                      <span className="inline-flex items-center gap-1 rounded border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-text-primary">
-                                        {infeasibleWarn && (
-                                          <span
-                                            className="text-rose-300"
-                                            title="실현 불가로 표시된 요건"
-                                          >
-                                            ⚠
-                                          </span>
-                                        )}
-                                        <span className="truncate">
-                                          {primary.chipText}
+                                        <span className="truncate text-text-primary">
+                                          {chip.chipText}
                                         </span>
-                                        {extraCount > 0 && (
-                                          <span className="ml-1 text-[9px] text-text-muted">
-                                            +{extraCount}
-                                          </span>
-                                        )}
-                                      </span>
-                                    ) : solutionIsDefault ? (
-                                      <span
-                                        className={`inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 italic ${
-                                          infeasibleWarn || danglingWarn
-                                            ? "border-rose-300/60 text-rose-200"
-                                            : "border-white/20 text-text-muted/80 hover:text-text-primary"
-                                        }`}
-                                        title="LLM 1차 추천 — 눌러서 매트릭스에서 변경"
-                                      >
-                                        {(infeasibleWarn ||
-                                          danglingWarn) && (
-                                          <span>⚠</span>
-                                        )}
-                                        {displaySolution}
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className={`inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 ${
-                                          infeasibleWarn || danglingWarn
-                                            ? "border-rose-300/60 text-rose-200"
-                                            : "border-white/30 text-text-muted hover:text-text-primary"
-                                        }`}
-                                      >
-                                        {(infeasibleWarn ||
-                                          danglingWarn) && (
-                                          <span>⚠</span>
-                                        )}
-                                        + 선택
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>,
-                                isExpanded ? (
-                                  <tr
-                                    key={`${r.id}-x`}
-                                    className="bg-white/[0.02]"
-                                  >
-                                    <td colSpan={3} className="p-2">
-                                      <FacetNode
-                                        rootAxis="주제"
-                                        pathName={r.name}
-                                        facetName={`${r.id}. ${r.description || r.name}`}
-                                        facetText={
-                                          r.rationale ||
-                                          (r.needs.length > 0 ||
-                                          r.provides.length > 0
-                                            ? `${r.needs.join(" + ")}${
-                                                r.provides.length
-                                                  ? ` → ${r.provides.join(" + ")}`
-                                                  : ""
-                                              }`
-                                            : r.description)
-                                        }
-                                      />
-                                    </td>
-                                  </tr>
-                                ) : null,
-                              ];
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    {(() => {
-                      const infeasible = infeasibleReqs[0];
-                      const dangling = v.report.danglingNeeds[0];
-                      if (!infeasible && !dangling) return null;
-
-                      let subGoal: string;
-                      let onResolve: () => void;
-                      if (infeasible) {
-                        const target = infeasible.provides[0];
-                        const exclude =
-                          infeasible.conflictingNeed ??
-                          infeasible.needs[0] ??
-                          undefined;
-                        subGoal =
-                          infeasible.resolvedGoal ||
-                          (exclude && target
-                            ? `${exclude} 없이 ${target}을 만드는 방법`
-                            : infeasible.name);
-                        onResolve = () => {
-                          if (exclude) openPanelExcluding(exclude, infeasible);
-                          else if (target)
-                            openPanelForOutput(target, infeasible.id);
-                        };
-                      } else {
-                        subGoal = `${dangling!.token}을(를) 공급할 메커니즘`;
-                        onResolve = () =>
-                          openPanelForOutput(
-                            dangling!.token,
-                            dangling!.requirementId,
-                          );
-                      }
-
-                      return (
-                        <div className="mt-1 flex flex-col gap-2 rounded-md bg-white/[0.16] px-3 py-3">
-                          <div className="text-[10px] uppercase tracking-wider text-text-muted">
-                            충돌·실패 → 새 목표
-                          </div>
-                          <div className="text-[14px] font-bold leading-5 text-text-primary md:text-[13px] md:leading-5">
-                            {subGoal}
-                          </div>
-                          <button
-                            onClick={onResolve}
-                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 md:text-[12px]"
-                          >
-                            해결 → 매트릭스
-                          </button>
+                                        <span className="shrink-0 text-[10px] text-text-muted">
+                                          {chip.domain}
+                                        </span>
+                                      </button>
+                                      {isSelected && (
+                                        <div className="mb-1 ml-2 mr-1 mt-1 flex flex-col gap-2 rounded-md border border-white/[0.14] bg-white/[0.05] px-2.5 py-2">
+                                          {/* 핵심 함수 — 도메인/맥락 떼어낸
+                                              기능 설명. 사용자가 "제트
+                                              도메인이라 안 어울려" 식의 도메인
+                                              기각을 피하고, 이 함수가 요건의
+                                              needs/provides와 매칭되는지로
+                                              판단할 수 있게 함. */}
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                              핵심 함수
+                                            </span>
+                                            <span className="text-[12px] leading-snug text-text-primary">
+                                              {chip.coreFunction ||
+                                                chip.reason ||
+                                                "설명 없음"}
+                                            </span>
+                                          </div>
+                                          {/* 요건 매칭 — 이 chip이 끼워질
+                                              자리의 needs/provides 토큰 나열.
+                                              LLM이 평가한 매칭 아님(그건
+                                              매트릭스 패널에서 함). 여기선
+                                              사용자가 핵심 함수와 토큰을 눈
+                                              으로 매칭. */}
+                                          {(r.needs.length > 0 ||
+                                            r.provides.length > 0) && (
+                                            <div className="flex flex-col gap-1">
+                                              <span className="text-[9px] uppercase tracking-wider text-text-muted">
+                                                이 요건의 매칭 지점
+                                              </span>
+                                              <div className="flex flex-wrap gap-1">
+                                                {r.needs.map((t) => (
+                                                  <span
+                                                    key={`need-${t}`}
+                                                    className="inline-flex items-center gap-1 rounded border border-white/[0.14] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-text-secondary"
+                                                  >
+                                                    <span className="text-text-muted">
+                                                      ←
+                                                    </span>
+                                                    {t}
+                                                  </span>
+                                                ))}
+                                                {r.provides.map((t) => (
+                                                  <span
+                                                    key={`prov-${t}`}
+                                                    className="inline-flex items-center gap-1 rounded border border-white/[0.14] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-text-secondary"
+                                                  >
+                                                    <span className="text-text-muted">
+                                                      →
+                                                    </span>
+                                                    {t}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {/* priorArt — 신뢰 보조. 작게,
+                                              판단 기준으로 쓰지 않도록 격하. */}
+                                          {chip.priorArt && (
+                                            <div className="text-[10px] italic text-text-muted">
+                                              쓰이는 곳: {chip.priorArt}
+                                            </div>
+                                          )}
+                                          <div className="flex justify-end">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                void confirmChip(chip)
+                                              }
+                                              className="rounded border border-white/30 bg-white/[0.08] px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:bg-white/[0.14]"
+                                            >
+                                              확인
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
-                    })()}
+                    })}
                   </div>
                 );
               })()}

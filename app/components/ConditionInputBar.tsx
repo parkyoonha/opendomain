@@ -50,7 +50,7 @@ export default function ConditionInputBar({
     onSubmit();
   };
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-white/[0.12] py-2 pl-2 pr-1.5">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-full bg-white/[0.12] py-2 pl-2 pr-1.5">
       {/* 현재 facet 태그 — 비편집, 제거 불가 */}
       <span className="inline-flex max-w-full items-center rounded-full bg-white/[0.22] px-3 py-1.5 text-[14px] font-medium text-text-primary md:text-[12px]">
         <span className="truncate">{tagText}</span>

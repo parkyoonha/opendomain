@@ -213,7 +213,17 @@ export function parseAxesJson(content: string): Record<string, string> {
   return out;
 }
 
-export type ChipRec = { chipText: string; reason: string };
+export type ChipRec = {
+  chipText: string;
+  reason: string;
+  // 도메인·맥락을 떼어낸 물리적/기능적 작동 설명. 사용자가 "제트 도메인에서
+  // 왔으니 선풍기엔 안 어울려" 식으로 도메인 인접성으로 기각하지 않고
+  // 기능 매칭으로 판단할 수 있게 하는 핵심 필드.
+  coreFunction?: string;
+  // 이 원리가 실제로 작동 중인 1~2개 산업/제품 예시. 신뢰 보조용 (판단
+  // 기준이 아니라 "진짜 쓰이는 거구나" 확인).
+  priorArt?: string;
+};
 export type ChipRecommendations = Record<string, ChipRec[]>;
 
 export type CombinedIdea = {
@@ -242,15 +252,41 @@ export function parseChipRecommendationsJson(
   content: string,
 ): ChipRecommendations {
   const parsed = JSON.parse(content) as {
-    recommendations?: Record<string, { chipText?: string; reason?: string }[]>;
+    recommendations?: Record<
+      string,
+      {
+        chipText?: string;
+        reason?: string;
+        coreFunction?: string;
+        priorArt?: string;
+      }[]
+    >;
   };
   const out: ChipRecommendations = {};
   for (const [cat, arr] of Object.entries(parsed.recommendations ?? {})) {
     out[cat] = (arr ?? [])
-      .filter((x): x is { chipText: string; reason: string } =>
-        Boolean(x?.chipText && x?.reason),
+      .filter(
+        (
+          x,
+        ): x is {
+          chipText: string;
+          reason: string;
+          coreFunction?: string;
+          priorArt?: string;
+        } => Boolean(x?.chipText && x?.reason),
       )
-      .map((x) => ({ chipText: x.chipText, reason: x.reason }));
+      .map((x) => ({
+        chipText: x.chipText,
+        reason: x.reason,
+        coreFunction:
+          typeof x.coreFunction === "string" && x.coreFunction.trim()
+            ? x.coreFunction.trim()
+            : undefined,
+        priorArt:
+          typeof x.priorArt === "string" && x.priorArt.trim()
+            ? x.priorArt.trim()
+            : undefined,
+      }));
   }
   return out;
 }

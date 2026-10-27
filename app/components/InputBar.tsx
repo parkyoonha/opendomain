@@ -181,8 +181,16 @@ export default function InputBar() {
     }
   };
 
+  const isTopicHome = inputMode === "topic";
+
   return (
-    <div className="bg-black px-3 pt-2 md:px-6">
+    <div
+      className={
+        isTopicHome
+          ? "flex flex-1 flex-col justify-center bg-black px-3 md:px-6"
+          : "bg-black px-3 pt-2 md:px-6"
+      }
+    >
       <div className="mb-2 hidden justify-center gap-1 md:flex">
         {modes.map((m) => {
           const active = inputMode === m.key;
@@ -261,7 +269,11 @@ export default function InputBar() {
           e.preventDefault();
           submit();
         }}
-        className="mx-auto flex items-center gap-1 rounded-full bg-white/[0.12] py-3 pl-3 pr-2 md:max-w-[760px]"
+        className={
+          isTopicHome
+            ? "mx-auto flex w-full items-center gap-1 border-b border-white py-2 md:max-w-[760px]"
+            : "mx-auto flex items-center gap-1 rounded-full bg-white/[0.12] py-3 pl-3 pr-2 md:max-w-[760px]"
+        }
       >
         {inputMode === "memo" && (
           <div
@@ -378,11 +390,15 @@ export default function InputBar() {
           type="submit"
           disabled={!canSubmit}
           aria-label="제출"
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-9 md:w-9 ${
-            busy
-              ? "bg-white/[0.15] text-white"
-              : "bg-white text-black"
-          }`}
+          className={
+            isTopicHome
+              ? "flex h-11 w-11 shrink-0 items-center justify-center text-white transition-colors disabled:opacity-30 md:h-9 md:w-9"
+              : `flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 md:h-9 md:w-9 ${
+                  busy
+                    ? "bg-white/[0.15] text-white"
+                    : "bg-white text-black"
+                }`
+          }
         >
           {busy ? (
             <svg

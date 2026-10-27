@@ -28,6 +28,7 @@ import DirectionChipRow from "./DirectionChipRow";
 import FacetLensRow from "./FacetLensRow";
 import ResultTypeChipRow from "./ResultTypeChipRow";
 import ControllerAccordion from "./ControllerAccordion";
+import ConditionInputBar from "./ConditionInputBar";
 import ParentFacetTag from "./ParentFacetTag";
 import SessionTimelineModal from "./SessionTimelineModal";
 import {
@@ -776,11 +777,6 @@ function MobileDecomposeFab({
   } = useIdea();
   const [controllerVisible, setControllerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Inline condition-input mode: when the user taps "+ 입력" we expand the
-  // FAB row into a wide input bar + ✓. The other FAB buttons are hidden
-  // while the input is open so the bar can take the full width.
-  const [inputMode, setInputMode] = useState(false);
-  const [draftInput, setDraftInput] = useState("");
   useEffect(() => {
     const visibleSet = new Set<Element>();
     const recomputeVisible = () => {
@@ -922,82 +918,12 @@ function MobileDecomposeFab({
         ? "확장 시작"
         : "분해 시작";
 
-  const openInputMode = () => {
-    if (activePk) setDraftInput(principleCustomContext[activePk] ?? "");
-    else setDraftInput("");
-    setInputMode(true);
-  };
-  const commitInput = () => {
-    if (activePk) setPrincipleCustomContext(activePk, draftInput.trim());
-    setInputMode(false);
-  };
-  const cancelInput = () => {
-    setInputMode(false);
-  };
-  const hasCondition =
-    !!activePk && !!(principleCustomContext[activePk] ?? "").trim();
-  const canUseInput = !!activePk;
-
   return (
     <div
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 4rem)" }}
       className="mobile-decompose-fab absolute left-1/2 z-30 flex w-[calc(100vw-3rem)] max-w-md -translate-x-1/2 items-center justify-center gap-2"
     >
-      {inputMode ? (
-        <div className="flex w-full items-center gap-2 rounded-full border border-white bg-neutral-900 pl-4 pr-1 py-1 shadow-lg">
-          <input
-            autoFocus
-            value={draftInput}
-            onChange={(e) => setDraftInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commitInput();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                cancelInput();
-              }
-            }}
-            placeholder="추가 조건 입력"
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[14px] text-white placeholder:text-white/[0.4] focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={cancelInput}
-            aria-label="취소"
-            title="취소"
-            className="shrink-0 rounded-full p-1.5 text-white/60 hover:text-white"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={commitInput}
-            aria-label="조건 적용"
-            title="조건 적용"
-            className="shrink-0 rounded-full bg-white p-2 text-black"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-              <path
-                d="M5 12l5 5L20 7"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-      ) : (
-        <>
-          {activeMode !== "verify" && (
+      {activeMode !== "verify" && (
             <button
               type="button"
               onClick={() => setChipPanelOpen(true)}
@@ -1008,21 +934,8 @@ function MobileDecomposeFab({
               + 축 조합
             </button>
           )}
-          {canUseInput && (
-            <button
-              type="button"
-              onClick={openInputMode}
-              aria-label={hasCondition ? "조건 수정" : "추가 조건 입력"}
-              title={hasCondition ? "조건 수정" : "추가 조건 입력"}
-              className={`rounded-full px-4 py-2.5 text-[13px] font-semibold shadow-lg transition-colors ${
-                hasCondition
-                  ? "bg-white text-black hover:bg-white/90"
-                  : "bg-neutral-900 text-white hover:bg-neutral-800"
-              }`}
-            >
-              {hasCondition ? "✓ 조건" : "+ 입력"}
-            </button>
-          )}
+          {/* FAB의 + 입력 버튼은 전부 제거됨 — 조건 입력은 각 컨트롤러 상단의
+              ConditionInputBar로 통합됨 (pending / axis / facet 모두 공통). */}
           <button
             onClick={handleClick}
             disabled={loading}
@@ -1064,8 +977,6 @@ function MobileDecomposeFab({
           </svg>
         )}
           </button>
-        </>
-      )}
     </div>
   );
 }
@@ -1648,6 +1559,26 @@ function AxisRow({
 
       {showControls && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
+          {/* 공통 입력바 — PendingTopicCard와 동일한 "태그 + 조건 + 제출"
+              패턴. 축 자체를 태그로 보여주고, 조건은 principleCustomContext
+              [axisPk]에 쌓임. 제출은 현재 모드(분해/확장/증명) 액션. */}
+          <ConditionInputBar
+            tagText={axis}
+            pk={axisPk}
+            existingContext={axisCustomContext}
+            setPrincipleCustomContext={setPrincipleCustomContext}
+            onSubmit={() => {
+              if (axisMode === "verify") {
+                void runVerifyFacet(axis, "축 전체", principle, axisVerifyLens);
+              } else {
+                void onDecomposeFacet(
+                  currentDirection,
+                  currentLens,
+                  currentResultType,
+                );
+              }
+            }}
+          />
           {/* 외부 보더 — 부모 facet 구간 + 탭(내부 보더) + 아코디언 전부를
               한 박스에 묶음. 아코디언 열림/닫힘 시 박스 전체 높이가 바뀌어
               축 하단 공백도 함께 조절되고, 부모 facet 구간도 그 공백에
@@ -2525,6 +2456,33 @@ export function FacetNode({
       </div>
       {expanded && (
         <div ref={controlsRef} className={CONTROL_PANEL_CLASSES}>
+          {/* 공통 입력바 — 현재 facet 명을 태그로, 조건은
+              principleCustomContext[pk]에 쌓임. 제출은 현재 모드 액션. */}
+          <ConditionInputBar
+            tagText={facetName}
+            pk={pk}
+            existingContext={customContext}
+            setPrincipleCustomContext={setPrincipleCustomContext}
+            onSubmit={() => {
+              if (mode === "verify") {
+                void runVerifyFacet(
+                  rootAxis,
+                  pathName,
+                  facetText,
+                  currentVerifyLens,
+                );
+              } else {
+                void runDecomposeSubFacet(
+                  rootAxis,
+                  pathName,
+                  facetText,
+                  principleDirection[pk] ?? topicDirectionId,
+                  principleLens[pk] ?? selectedLens ?? null,
+                  principleResultType[pk] ?? topicResultType ?? null,
+                );
+              }
+            }}
+          />
           {/* 외부 보더 — 부모 facet + 탭(인너 보더) + 아코디언 전부 포함 */}
           <div className="flex flex-col gap-3 rounded-xl border border-white/[0.14] bg-white/[0.04] p-3">
             <AncestorStack
